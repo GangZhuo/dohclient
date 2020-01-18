@@ -151,10 +151,11 @@
     <ClCompile Include="..\rbtree\rbtree.c" />
     <ClCompile Include="..\src\chnroute.c" />
     <ClCompile Include="..\src\config.c" />
-    <ClCompile Include="..\src\dnscache.c" />
+    <ClCompile Include="..\src\dns_request.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\log.c" />
     <ClCompile Include="..\src\netutils.c" />
+    <ClCompile Include="..\src\ns_msg.c" />
     <ClCompile Include="..\src\stream.c" />
     <ClCompile Include="..\src\utils.c" />
     <ClCompile Include="argp\getopt.c" />
@@ -165,9 +166,10 @@
     <ClInclude Include="..\src\chnroute.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\dllist.h" />
-    <ClInclude Include="..\src\dnscache.h" />
+    <ClInclude Include="..\src\dns_request.h" />
     <ClInclude Include="..\src\log.h" />
     <ClInclude Include="..\src\netutils.h" />
+    <ClInclude Include="..\src\ns_msg.h" />
     <ClInclude Include="..\src\stream.h" />
     <ClInclude Include="..\src\utils.h" />
     <ClInclude Include="argp\getopt.h" />

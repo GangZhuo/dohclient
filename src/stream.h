@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,6 +56,8 @@ int stream_readi(stream_t *stream, int nb);
 
 int stream_seti(stream_t *stream, int position, int v, int nb);
 
+int stream_geti(stream_t* stream, int position, int nb);
+
 int stream_append(stream_t* stream, const char* s, int n);
 
 int stream_appends(stream_t* stream, const char* s, int n);
@@ -63,7 +66,14 @@ int stream_vappendf(stream_t* stream, const char* fmt, va_list args);
 
 int stream_appendf(stream_t* stream, const char* fmt, ...);
 
-void bprint(char *data, int len);
+void _bprint(char *data, int len);
+
+#define bprint(d, n) \
+	do { \
+		if (loglevel >= LOG_DEBUG) { \
+			_bprint((d), (n)); \
+		} \
+	} while(0)
 
 /* int stream_writee(stream_t *stream, void *p, int elementsize, int elementnumber) */
 /*

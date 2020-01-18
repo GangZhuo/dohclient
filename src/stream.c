@@ -8,7 +8,6 @@
 #endif
 
 #include "stream.h"
-#include "log.h"
 
 #define align(n) (((n) | 3) + 1)
 
@@ -85,9 +84,15 @@ int stream_quake(stream_t* stream)
 {
 	if (stream->pos > 0) {
 		int size = stream_rsize(stream);
-		memmove(stream->array, stream->array + stream->pos, size);
-		stream->size = size;
-		stream->pos = 0;
+		if (size > 0) {
+			memmove(stream->array, stream->array + stream->pos, size);
+			stream->size = size;
+			stream->pos = 0;
+		}
+		else {
+			stream->size = 0;
+			stream->pos = 0;
+		}
 	}
 
 	return 0;
@@ -190,6 +195,16 @@ int stream_seti(stream_t *stream, int position, int v, int nb)
 		stream->array[position] = ((v >> ((nb - i - 1) * 8)) & 0xFF);
 	}
 	return i;
+}
+
+int stream_geti(stream_t* stream, int position, int nb)
+{
+	int i, v = 0;
+	for (i = 0; i < nb; i++, position++) {
+		v <<= 8;
+		v |= stream->array[position];
+	}
+	return v;
 }
 
 int stream_vwritef(stream_t *stream, const char *fmt, va_list args)
@@ -331,7 +346,7 @@ static int get_ch(char *p, int i)
 }
 
 /* long-winded, but work */
-void bprint(char *data, int len)
+void _bprint(char *data, int len)
 {
 	int i;
 

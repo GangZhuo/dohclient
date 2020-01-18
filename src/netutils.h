@@ -18,7 +18,6 @@ typedef SOCKET sock_t;
 
 #else /* else WINDOWS */
 
-#include <signal.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <sys/types.h>

@@ -20,10 +20,6 @@ extern "C" {
 #define _XSTR(x) #x  
 #define XSTR(x) _XSTR(x)
 
-#ifndef BOOL
-#define BOOL int
-#endif
-
 #ifndef FALSE
 #define FALSE 0
 #endif

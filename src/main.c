@@ -8,43 +8,16 @@
 #include <errno.h>
 #include <inttypes.h>
 
-#ifdef WINDOWS
-
-#include "../windows/win.h"
-typedef SOCKET sock_t;
-
-#else /* else WINDOWS */
-
-#include <signal.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <time.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <net/if.h>
-#include <ifaddrs.h>
-
-typedef int sock_t;
-#define strnicmp strncasecmp
-
-#endif  /* endif WINDOWS */
-
-
 #include "utils.h"
 #include "log.h"
 #include "dllist.h"
 #include "stream.h"
 #include "chnroute.h"
-#include "dnscache.h"
 #include "netutils.h"
 #include "config.h"
+#include "ns_msg.h"
+#include "dns_request.h"
+#include "../rbtree/rbtree.h"
 
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
@@ -128,134 +101,6 @@ Options:\n\
 Online help: <https://github.com/GangZhuo/dohclient>\n");
 }
 
-static int init_dohclient()
-{
-	int i;
-
-	if (conf.log_file) {
-		open_logfile(conf.log_file);
-	}
-	else if (conf.launch_log) {
-		open_logfile(conf.launch_log);
-	}
-
-	if (!conf.is_config_file_readed && conf.config_file) {
-		if (read_config_file(&conf, conf.config_file, FALSE)) {
-			return -1;
-		}
-		conf.is_config_file_readed = 1;
-		if (conf.log_file) {
-			open_logfile(conf.log_file);
-		}
-	}
-
-	if (check_config(&conf))
-		return -1;
-
-	loglevel = conf.log_level;
-	if (conf.log_level >= LOG_DEBUG) {
-		logflags = LOG_MASK_RAW;
-	}
-
-	if (dnscache_init())
-		return -1;
-
-	dnscache_timeout = conf.dns_timeout;
-
-	listen_num = str2listens(
-		conf.listen_addr,
-		listens,
-		MAX_LISTEN,
-		sizeof(listen_t),
-		conf.listen_port);
-
-	if (listen_num < 0)
-		return -1;
-
-	if (listen_num == 0) {
-		loge("init_dohclient() error: no listens\n");
-		return -1;
-	}
-
-	if (init_listens(listens, listen_num) != 0)
-		return -1;
-
-	if (conf.proxy) {
-		proxy_num = str2addrs(
-			conf.proxy,
-			&proxy_list[0].addr,
-			MAX_PROXY,
-			sizeof(proxy_t),
-			"1080");
-		if (proxy_num == -1) {
-			loge("init_dohclient() error: parse \"%s\" failed\n",
-				conf.proxy);
-			return -1;
-		}
-		for (i = 0; i < proxy_num; i++) {
-			proxy_list[i].proxy_index = i;
-		}
-	}
-
-	if (conf.chnroute) {
-		if ((chnr = chnroute_create()) == NULL) {
-			loge("init_dohclient() error: chnroute_create()\n");
-			return -1;
-		}
-		if (chnroute_parse(chnr, conf.chnroute)) {
-			loge("init_dohclient() error: invalid chnroute \"%s\"\n", conf.chnroute);
-			return -1;
-		}
-	}
-
-	print_listens(listens, listen_num);
-	logn("loglevel: %d\n", loglevel);
-	print_config(&conf);
-
-	return 0;
-}
-
-static void uninit_dohclient()
-{
-	int i;
-
-	for (i = 0; i < listen_num; i++) {
-		listen_t* listen = listens + i;
-		if (listen->sock)
-			close(listen->sock);
-		if (listen->usock)
-			close(listen->usock);
-	}
-
-	listen_num = 0;
-
-	{
-		dlitem_t* cur, * nxt;
-		peer_t* peer;
-
-		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
-			destroy_peer(peer);
-		}
-
-		dllist_init(&peers);
-	}
-
-	chnroute_free(chnr);
-	chnr = NULL;
-
-	dnscache_free();
-
-	proxy_num = 0;
-
-	if (is_use_logfile()) {
-		close_logfile();
-	}
-
-	if (is_use_syslog()) {
-		close_syslog();
-	}
-}
-
 static inline void update_expire(conn_t* conn)
 {
 	close_after(conn, conf.timeout);
@@ -276,12 +121,34 @@ static inline int is_close_after_rsp(conn_t* conn)
 	return conn->status == cs_rsp_closing;
 }
 
+static int server_recv_msg(const char *data, int datalen, void *from, int fromlen, int fromtcp)
+{
+	req_t* req;
+
+	req = new_req(data, datalen, from, fromlen, fromtcp);
+	if (!req) {
+		return -1;
+	}
+
+	print_req(req);
+
+	if (loglevel >= LOG_INFO) {
+		print_req_questions(req);
+	}
+
+	//TODO: 
+
+	destroy_req(req);
+
+	return 0;
+}
+
 static int server_udp_recv(int listen_index)
 {
 	listen_t* ctx = listens + listen_index;
 	sock_t sock = ctx->usock;
 	int nread;
-	char buffer[BUF_SIZE];
+	char buffer[NS_PAYLOAD_SIZE + 1];
 	struct sockaddr_storage from = { 0 };
 	int fromlen = sizeof(struct sockaddr_storage);
 
@@ -298,6 +165,15 @@ static int server_udp_recv(int listen_index)
 		nread, get_addrname((struct sockaddr*) & from));
 
 	bprint(buffer, nread);
+
+	if (nread > NS_PAYLOAD_SIZE) {
+		loge("server_udp_recv(): too large dns-message\n");
+		return -1;
+	}
+
+	if (server_recv_msg(buffer, nread, &from, fromlen, FALSE)) {
+		return -1;
+	}
 
 	return 0;
 }
@@ -332,6 +208,80 @@ static int peer_accept(int listen_index)
 	return 0;
 }
 
+static int peer_handle_recv(peer_t* peer)
+{
+	stream_t* s = &peer->conn.rs;
+	int msglen, left;
+
+	while ((left = stream_rsize(s)) >= 2) {
+		msglen = stream_geti(s, s->pos, 2);
+		if (msglen > NS_PAYLOAD_SIZE) {
+			loge("peer_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
+			return -1;
+		}
+		else if (left >= (msglen + 2)) {
+			if (server_recv_msg(s->array + s->pos + 2, msglen, peer, 0, TRUE)) {
+				return -1;
+			}
+			else {
+				s->pos += (msglen + 2);
+			}
+		}
+		else {
+			break;
+		}
+	}
+
+	if (s->pos > 0) {
+		if (stream_quake(s)) {
+			loge("peer_recv() error: stream_quake() failed\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int peer_recv(peer_t* peer)
+{
+	sock_t sock = peer->conn.sock;
+	stream_t* s = &peer->conn.rs;
+	char* buffer;
+	int buflen, nread;
+
+	if (stream_set_cap(s, NS_PAYLOAD_SIZE + 2)) {
+		return -1;
+	}
+
+	buffer = s->array + s->size;
+	buflen = s->cap - s->size;
+
+	nread = tcp_recv(sock, buffer, buflen);
+
+	if (nread == -1)
+		return -1;
+
+	if (nread == 0)
+		return 0;
+
+	s->size += nread;
+
+	peer->conn.rx += nread;
+
+	logd("peer_recv(): recv %d bytes from %s\n",
+		nread, get_sockname(peer->conn.sock));
+
+	bprint(buffer, nread);
+
+	if (peer_handle_recv(peer)) {
+		return -1;
+	}
+
+	update_expire(&peer->conn);
+
+	return 0;
+}
+
 static int peer_write(peer_t* peer)
 {
 	sock_t sock = peer->conn.sock;
@@ -357,50 +307,6 @@ static int peer_write(peer_t* peer)
 	else {
 		update_expire(&peer->conn);
 	}
-
-	return 0;
-}
-
-static int peer_recv(peer_t* peer)
-{
-	sock_t sock = peer->conn.sock;
-	stream_t* s = &peer->conn.rs;
-	int nread;
-	char buffer[BUF_SIZE];
-
-	nread = tcp_recv(sock, buffer, sizeof(buffer));
-
-	if (nread == -1)
-		return -1;
-
-	if (nread == 0)
-		return 0;
-
-	peer->conn.rx += nread;
-
-	logd("peer_recv(): recv %d bytes from %s\n",
-		nread, get_sockname(peer->conn.sock));
-
-	if (stream_rsize(s) > 0) {
-		if (stream_appends(s, buffer, nread) == -1) {
-			loge("peer_recv() error: stream_appends()\n");
-			return -1;
-		}
-	}
-	else {
-		stream_t stream = {
-			.array = buffer,
-			.size = nread,
-			.pos = 0,
-			.cap = BUF_SIZE
-		};
-	}
-
-	//TODO: ...
-
-	bprint(buffer, nread);
-
-	update_expire(&peer->conn);
 
 	return 0;
 }
@@ -540,11 +446,130 @@ static int do_loop()
 				}
 			}
 		}
-
-		dnscache_check_expire(now);
 	}
 
 	return 0;
+}
+
+static int init_dohclient()
+{
+	int i;
+
+	if (conf.log_file) {
+		open_logfile(conf.log_file);
+	}
+	else if (conf.launch_log) {
+		open_logfile(conf.launch_log);
+	}
+
+	if (!conf.is_config_file_readed && conf.config_file) {
+		if (read_config_file(&conf, conf.config_file, FALSE)) {
+			return -1;
+		}
+		conf.is_config_file_readed = 1;
+		if (conf.log_file) {
+			open_logfile(conf.log_file);
+		}
+	}
+
+	if (check_config(&conf))
+		return -1;
+
+	loglevel = conf.log_level;
+	if (conf.log_level >= LOG_DEBUG) {
+		logflags = LOG_MASK_RAW;
+	}
+
+	listen_num = str2listens(
+		conf.listen_addr,
+		listens,
+		MAX_LISTEN,
+		sizeof(listen_t),
+		conf.listen_port);
+
+	if (listen_num < 0)
+		return -1;
+
+	if (listen_num == 0) {
+		loge("init_dohclient() error: no listens\n");
+		return -1;
+	}
+
+	if (init_listens(listens, listen_num) != 0)
+		return -1;
+
+	if (conf.proxy) {
+		proxy_num = str2addrs(
+			conf.proxy,
+			&proxy_list[0].addr,
+			MAX_PROXY,
+			sizeof(proxy_t),
+			"1080");
+		if (proxy_num == -1) {
+			loge("init_dohclient() error: parse \"%s\" failed\n",
+				conf.proxy);
+			return -1;
+		}
+		for (i = 0; i < proxy_num; i++) {
+			proxy_list[i].proxy_index = i;
+		}
+	}
+
+	if (conf.chnroute) {
+		if ((chnr = chnroute_create()) == NULL) {
+			loge("init_dohclient() error: chnroute_create()\n");
+			return -1;
+		}
+		if (chnroute_parse(chnr, conf.chnroute)) {
+			loge("init_dohclient() error: invalid chnroute \"%s\"\n", conf.chnroute);
+			return -1;
+		}
+	}
+
+	print_listens(listens, listen_num);
+	logn("loglevel: %d\n", loglevel);
+	print_config(&conf);
+
+	return 0;
+}
+
+static void uninit_dohclient()
+{
+	int i;
+
+	for (i = 0; i < listen_num; i++) {
+		listen_t* listen = listens + i;
+		if (listen->sock)
+			close(listen->sock);
+		if (listen->usock)
+			close(listen->usock);
+	}
+
+	listen_num = 0;
+
+	{
+		dlitem_t* cur, * nxt;
+		peer_t* peer;
+
+		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
+			destroy_peer(peer);
+		}
+
+		dllist_init(&peers);
+	}
+
+	chnroute_free(chnr);
+	chnr = NULL;
+
+	proxy_num = 0;
+
+	if (is_use_logfile()) {
+		close_logfile();
+	}
+
+	if (is_use_syslog()) {
+		close_syslog();
+	}
 }
 
 #ifdef WINDOWS
