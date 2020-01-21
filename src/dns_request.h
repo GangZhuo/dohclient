@@ -23,7 +23,7 @@ struct req_t {
 	int fromtcp;
 	time_t expire;
 	dlitem_t entry;
-	dlitem_t entry1;
+	dlitem_t entry_peer;
 	void* data;
 };
 
@@ -39,10 +39,6 @@ void _req_print(req_t* req);
 			_req_print((req)); \
 		} \
 	} while(0)
-
-int req_get_questions(stream_t* s, req_t* req);
-
-void req_print_questions(req_t* req);
 
 #ifdef __cplusplus
 }

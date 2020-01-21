@@ -4,8 +4,8 @@
 #define DEFAULT_LISTEN_ADDR "0.0.0.0"
 #define DEFAULT_LISTEN_PORT "53"
 #define DEFAULT_PID_FILE "/var/run/dohclient.pid"
-#define DEFAULT_TIMEOUT 30
-#define DEFAULT_DNS_TIMEOUT 600 /* 10 minutes */
+#define DEFAULT_TIMEOUT 5
+#define DEFAULT_DNS_TIMEOUT 10
 #define DEFAULT_DNS_SERVER "https://dns.google/dns-query"
 
 #ifdef __cplusplus

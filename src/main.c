@@ -133,25 +133,105 @@ static inline int is_close_after_rsp(conn_t* conn)
 	return conn->status == cs_rsp_closing;
 }
 
-static int server_recv_msg(const char *data, int datalen,
-	void *from, int fromlen, int fromtcp)
+static req_t* req_add_new(const char* data, int datalen,
+	void* from, int fromlen, int fromtcp)
 {
 	req_t* req;
 
 	req = req_new(data, datalen, from, fromlen, fromtcp);
 	if (!req) {
-		return -1;
+		return NULL;
 	}
 
 	req_print(req);
 
-	if (loglevel >= LOG_INFO) {
-		req_print_questions(req);
+	if (req->msg->qdcount < 1) {
+		loge("req_add_new() error: no question\n");
+		req_destroy(req);
+		return NULL;
+	}
+	else if (req->msg->qdcount > 1) {
+		logw("req_add_new() warning: multi questions\n");
 	}
 
-	//TODO: 
+	if (loglevel >= LOG_INFO) {
+		logi("recv dns request from %s by %s: %s %s %s\n",
+			req->fromtcp
+				? get_sockname(((peer_t*)req->from)->conn.sock)
+				: get_addrname((struct sockaddr*)req->from),
+			req->fromtcp
+				? "tcp"
+				: "udp",
+			ns_typename(req->msg->qrs[0].qtype),
+			ns_classname(req->msg->qrs[0].qclass),
+			req->msg->qrs[0].qname);
+	}
 
+	if (fromtcp) {
+		peer_t* peer = from;
+		dllist_add(&peer->reqs, &req->entry_peer);
+	}
+
+	dllist_add(&reqs, &req->entry);
+
+	req->expire = time(NULL) + conf.timeout;
+
+	logd("request added   (id:%d) - %s %s %s\n",
+		req->id,
+		ns_typename(req->msg->qrs[0].qtype),
+		ns_classname(req->msg->qrs[0].qclass),
+		req->msg->qrs[0].qname);
+
+	return req;
+}
+
+static void req_remove(req_t* req)
+{
+	peer_t* peer;
+	if (req->fromtcp) {
+		peer = req->from;
+		dllist_remove(&req->entry_peer);
+	}
+	dllist_remove(&req->entry);
+	logd("request removed (id:%d) - %s %s %s\n",
+		req->id,
+		ns_typename(req->msg->qrs[0].qtype),
+		ns_classname(req->msg->qrs[0].qclass),
+		req->msg->qrs[0].qname);
 	req_destroy(req);
+}
+
+static void req_check_expire(time_t now)
+{
+	dlitem_t* cur, * nxt;
+	req_t* req;
+	dllist_foreach(&reqs, cur, nxt, req_t, req, entry) {
+		if (req->expire > 0 && req->expire <= now) {
+			logd("request timeout (id:%d) - %s %s %s\n",
+				req->id,
+				ns_typename(req->msg->qrs[0].qtype),
+				ns_classname(req->msg->qrs[0].qclass),
+				req->msg->qrs[0].qname);
+			req_remove(req);
+		}
+		else {
+			break;
+		}
+	}
+}
+
+static int server_recv_msg(const char *data, int datalen,
+	void *from, int fromlen, int fromtcp)
+{
+	req_t* req;
+
+	req = req_add_new(data, datalen, from, fromlen, fromtcp);
+	if (!req) {
+		return -1;
+	}
+
+	/* TODO: */
+
 
 	return 0;
 }
@@ -324,6 +404,18 @@ static int peer_write(peer_t* peer)
 	return 0;
 }
 
+static void peer_close(peer_t* peer)
+{
+	dlitem_t* cur, * nxt;
+	req_t* req;
+	dllist_remove(&peer->conn.entry);
+	dllist_foreach(&peer->reqs, cur, nxt,
+		req_t, req, entry_peer) {
+		req_remove(req);
+	}
+	peer_destroy(peer);
+}
+
 static int do_loop()
 {
 	fd_set readset, writeset, errorset;
@@ -331,22 +423,26 @@ static int do_loop()
 	int i, r;
 	time_t now;
 
+	dlitem_t* cur, * nxt;
+	peer_t* peer;
+	listen_t* listen;
+
+	int is_local_sending;
+	int is_closing;
+
+	struct timeval timeout;
+
 	running = 1;
 	while (running) {
-		struct timeval timeout = {
-			.tv_sec = 0,
-			.tv_usec = 50 * 1000,
-		};
 
 		FD_ZERO(&readset);
 		FD_ZERO(&writeset);
 		FD_ZERO(&errorset);
 
-
 		max_fd = 0;
 
 		for (i = 0; i < listen_num; i++) {
-			listen_t* listen = listens + i;
+			listen = listens + i;
 
 			if (!running) break;
 
@@ -361,31 +457,27 @@ static int do_loop()
 			FD_SET(listen->usock, &errorset);
 		}
 
-		{
-			dlitem_t* cur, * nxt;
-			peer_t* peer;
-			int is_local_sending;
-			int is_closing;
+		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
 
-			dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
+			if (!running) break;
 
-				if (!running) break;
-
-				max_fd = MAX(max_fd, peer->conn.sock);
-				is_local_sending = stream_rsize(&peer->conn.ws) > 0;
-				is_closing = peer->conn.status == cs_closing ||
-					peer->conn.status == cs_rsp_closing;
-				if (is_local_sending)
-					FD_SET(peer->conn.sock, &writeset);
-				/* read when request header is not complete,
-				   or remote connection established and not sending data */
-				else if(!is_closing)
-					FD_SET(peer->conn.sock, &readset);
-				FD_SET(peer->conn.sock, &errorset);
-			}
+			max_fd = MAX(max_fd, peer->conn.sock);
+			is_local_sending = stream_rsize(&peer->conn.ws) > 0;
+			is_closing = peer->conn.status == cs_closing ||
+				peer->conn.status == cs_rsp_closing;
+			if (is_local_sending)
+				FD_SET(peer->conn.sock, &writeset);
+			/* read when request header is not complete,
+			   or remote connection established and not sending data */
+			else if (!is_closing)
+				FD_SET(peer->conn.sock, &readset);
+			FD_SET(peer->conn.sock, &errorset);
 		}
 
 		if (!running) break;
+
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 50 * 1000;
 
 		if (select(max_fd + 1, &readset, &writeset, &errorset, &timeout) == -1) {
 			loge("select() error: errno=%d, %s \n",
@@ -398,7 +490,7 @@ static int do_loop()
 		now = time(NULL);
 
 		for (i = 0; i < listen_num; i++) {
-			listen_t* listen = listens + i;
+			listen = listens + i;
 
 			if (!running) break;
 
@@ -421,44 +513,40 @@ static int do_loop()
 			}
 		}
 
-		{
-			dlitem_t* cur, * nxt;
-			peer_t* peer;
+		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
 
-			dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
+			if (!running) break;
 
-				if (!running) break;
+			if (FD_ISSET(peer->conn.sock, &errorset)) {
+				int err = getsockerr(peer->conn.sock);
+				loge("do_loop(): peer.conn.sock error: errno=%d, %s \n",
+					err, strerror(err));
+				r = -1;
+			}
+			else if (FD_ISSET(peer->conn.sock, &writeset)) {
+				r = peer_write(peer);
+			}
+			else if (FD_ISSET(peer->conn.sock, &readset)) {
+				r = peer_recv(peer);
+			}
+			else {
+				r = 0;
+			}
 
-				if (FD_ISSET(peer->conn.sock, &errorset)) {
-					int err = getsockerr(peer->conn.sock);
-					loge("do_loop(): peer.conn.sock error: errno=%d, %s \n",
-						err, strerror(err));
-					r = -1;
-				}
-				else if (FD_ISSET(peer->conn.sock, &writeset)) {
-					r = peer_write(peer);
-				}
-				else if (FD_ISSET(peer->conn.sock, &readset)) {
-					r = peer_recv(peer);
-				}
-				else {
-					r = 0;
-				}
+			if (!running) break;
 
-				if (!running) break;
+			if (!r && is_expired(&peer->conn, now)) {
+				logd("peer timeout - %s\n", get_sockname(peer->conn.sock));
+				r = -1;
+			}
 
-				if (!r && is_expired(&peer->conn, now)) {
-					logd("connection timeout - %s\n", get_sockname(peer->conn.sock));
-					r = -1;
-				}
-
-				if (r) {
-					dllist_remove(&peer->conn.entry);
-					peer_destroy(peer);
-					continue;
-				}
+			if (r) {
+				peer_close(peer);
+				continue;
 			}
 		}
+
+		req_check_expire(now);
 	}
 
 	return 0;
@@ -548,6 +636,9 @@ static int init_dohclient()
 
 static void uninit_dohclient()
 {
+	dlitem_t* cur, * nxt;
+	peer_t* peer;
+	req_t* req;
 	int i;
 
 	for (i = 0; i < listen_num; i++) {
@@ -560,15 +651,14 @@ static void uninit_dohclient()
 
 	listen_num = 0;
 
-	{
-		dlitem_t* cur, * nxt;
-		peer_t* peer;
+	dllist_foreach(&peers, cur, nxt,
+		peer_t, peer, conn.entry) {
+		peer_close(peer);
+	}
 
-		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
-			peer_destroy(peer);
-		}
-
-		dllist_init(&peers);
+	dllist_foreach(&reqs, cur, nxt,
+		req_t, req, entry) {
+		req_remove(req);
 	}
 
 	chnroute_free(chnr);

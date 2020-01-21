@@ -64,32 +64,3 @@ void _req_print(req_t* req)
 	ns_print(msg);
 }
 
-int req_get_questions(stream_t* s, req_t* req)
-{
-	ns_msg_t* msg = req->msg;
-	int i, r, len = 0;
-	for (i = 0; i < msg->qdcount; i++) {
-		r = stream_writef(s, i > 0 ? ", %s" : "%s", msg->qrs[i].qname);
-		if (r < 0)
-			return -1;
-		len += r;
-	}
-	return len;
-}
-
-void req_print_questions(req_t* req)
-{
-	stream_t questions = STREAM_INIT();
-	if (req_get_questions(&questions, req) > 0) {
-		logi("recv dns request from %s by %s: %s\n",
-			req->fromtcp
-			? get_sockname(((peer_t*)req->from)->conn.sock)
-			: get_addrname((struct sockaddr*)req->from),
-			req->fromtcp
-				? "tcp"
-				: "udp",
-			questions);
-	}
-	stream_free(&questions);
-}
-

@@ -134,6 +134,7 @@ struct conn_t {
 struct peer_t {
 	conn_t conn;
 	int listen;
+	dllist_t reqs;
 	void* data;
 };
 

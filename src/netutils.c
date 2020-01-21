@@ -594,6 +594,8 @@ int peer_init(peer_t* peer, sock_t sock, int listen)
 		return -1;
 	}
 
+	dllist_init(&peer->reqs);
+
 	peer->listen = listen;
 
 	return 0;
