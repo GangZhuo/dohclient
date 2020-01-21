@@ -513,35 +513,35 @@ int udp_recv(sock_t sock, char* buf, int buflen,
 	}
 }
 
-conn_t* new_conn(sock_t sock)
+conn_t* conn_new(sock_t sock)
 {
 	conn_t* conn = (conn_t*)malloc(sizeof(conn_t));
 	if (!conn) {
-		loge("new_conn() error: alloc");
+		loge("conn_new() error: alloc");
 		return NULL;
 	}
 
-	if (init_conn(conn, sock)) {
+	if (conn_init(conn, sock)) {
 		free(conn);
-		loge("new_conn() error: init_conn() error");
+		loge("conn_new() error: conn_init() error");
 		return NULL;
 	}
 
 	return conn;
 }
 
-int init_conn(conn_t* conn, sock_t sock)
+int conn_init(conn_t* conn, sock_t sock)
 {
 	memset(conn, 0, sizeof(conn_t));
 
 	if (stream_init(&conn->rs)) {
-		loge("init_conn() error: stream_init() error");
+		loge("conn_init() error: stream_init() error");
 		return -1;
 	}
 
 	if (stream_init(&conn->ws)) {
 		stream_free(&conn->rs);
-		loge("init_conn() error: stream_init() error");
+		loge("conn_init() error: stream_init() error");
 		return -1;
 	}
 
@@ -550,7 +550,7 @@ int init_conn(conn_t* conn, sock_t sock)
 	return 0;
 }
 
-void free_conn(conn_t* conn)
+void conn_free(conn_t* conn)
 {
 	if (conn == NULL)
 		return;
@@ -562,35 +562,35 @@ void free_conn(conn_t* conn)
 	stream_free(&conn->ws);
 }
 
-void destroy_conn(conn_t* conn)
+void conn_destroy(conn_t* conn)
 {
-	free_conn(conn);
+	conn_free(conn);
 	free(conn);
 }
 
-peer_t* new_peer(sock_t sock, int listen)
+peer_t* peer_new(sock_t sock, int listen)
 {
 	peer_t* peer = (peer_t*)malloc(sizeof(peer_t));
 	if (!peer) {
-		loge("new_peer() error: alloc");
+		loge("peer_new() error: alloc");
 		return NULL;
 	}
 
-	if (init_peer(peer, sock, listen)) {
+	if (peer_init(peer, sock, listen)) {
 		free(peer);
-		loge("new_peer() error: init_peer() error");
+		loge("peer_new() error: peer_init() error");
 		return NULL;
 	}
 
 	return peer;
 }
 
-int init_peer(peer_t* peer, sock_t sock, int listen)
+int peer_init(peer_t* peer, sock_t sock, int listen)
 {
 	memset(peer, 0, sizeof(peer_t));
 
-	if (init_conn(&peer->conn, sock)) {
-		loge("init_peer() error: init_conn() error");
+	if (conn_init(&peer->conn, sock)) {
+		loge("peer_init() error: conn_init() error");
 		return -1;
 	}
 
@@ -599,15 +599,15 @@ int init_peer(peer_t* peer, sock_t sock, int listen)
 	return 0;
 }
 
-void free_peer(peer_t* peer)
+void peer_free(peer_t* peer)
 {
 	if (peer == NULL)
 		return;
-	free_conn(&peer->conn);
+	conn_free(&peer->conn);
 }
 
-void destroy_peer(peer_t* peer)
+void peer_destroy(peer_t* peer)
 {
-	free_peer(peer);
+	peer_free(peer);
 	free(peer);
 }

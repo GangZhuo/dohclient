@@ -11,7 +11,7 @@
 #include "log.h"
 #include "utils.h"
 
-int parse_args(config_t *conf, int argc, char** argv)
+int conf_parse_args(config_t *conf, int argc, char** argv)
 {
 	int ch;
 	int option_index = 0;
@@ -87,7 +87,7 @@ int parse_args(config_t *conf, int argc, char** argv)
 	return 0;
 }
 
-int check_config(config_t* conf)
+int conf_check(config_t* conf)
 {
 	if (conf->listen_addr == NULL) {
 		conf->listen_addr = strdup(DEFAULT_LISTEN_ADDR);
@@ -107,7 +107,7 @@ int check_config(config_t* conf)
 	return 0;
 }
 
-void print_config(const config_t* conf)
+void conf_print(const config_t* conf)
 {
 	if (conf->log_file)
 		logn("log_file: %s\n", conf->log_file);
@@ -136,6 +136,7 @@ void print_config(const config_t* conf)
 	logn("\n");
 }
 
+/* parse 'option key value' as independent components */
 static void parse_option(char* ln, char** option, char** name, char** value)
 {
 	char* p = ln;
@@ -167,7 +168,7 @@ static void parse_option(char* ln, char** option, char** name, char** value)
 	*value = trim_quote(p);
 }
 
-int read_config_file(config_t* conf, const char* config_file, int force)
+int conf_load_from_file(config_t* conf, const char* config_file, int force)
 {
 	FILE* pf;
 	char line[2048], * ln;
@@ -286,7 +287,7 @@ int read_config_file(config_t* conf, const char* config_file, int force)
 	return 0;
 }
 
-void free_config(config_t* conf)
+void conf_free(config_t* conf)
 {
 	free(conf->listen_addr);
 	conf->listen_addr = NULL;

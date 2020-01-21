@@ -31,11 +31,11 @@ typedef struct config_t {
 	int is_config_file_readed;
 } config_t;
 
-int parse_args(config_t* conf, int argc, char** argv);
-int read_config_file(config_t* conf, const char* config_file, int force);
-int check_config(config_t* conf);
-void print_config(const config_t* conf);
-void free_config(config_t* conf);
+int conf_parse_args(config_t* conf, int argc, char** argv);
+int conf_load_from_file(config_t* conf, const char* config_file, int force);
+int conf_check(config_t* conf);
+void conf_print(const config_t* conf);
+void conf_free(config_t* conf);
 
 #ifdef __cplusplus
 }

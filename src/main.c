@@ -33,6 +33,7 @@ static dllist_t peers = DLLIST_INIT(peers);
 static proxy_t proxy_list[MAX_PROXY] = { 0 };
 static int proxy_num = 0;
 static chnroute_ctx chnr = NULL;
+static dllist_t reqs = DLLIST_INIT(reqs);
 
 #ifdef WINDOWS
 
@@ -101,14 +102,25 @@ Options:\n\
 Online help: <https://github.com/GangZhuo/dohclient>\n");
 }
 
-static inline void update_expire(conn_t* conn)
+static inline void close_after(conn_t* conn, int interval)
 {
-	close_after(conn, conf.timeout);
+	time_t t = time(NULL);
+	conn->expire = t + interval;
+}
+
+static inline int is_expired(conn_t* conn, time_t now)
+{
+	return conn->expire <= now;
 }
 
 static inline void close_conn(conn_t* conn)
 {
 	conn->status = cs_closing;
+}
+
+static inline void update_expire(conn_t* conn)
+{
+	close_after(conn, conf.timeout);
 }
 
 static inline void close_conn_after_rsp(conn_t* conn)
@@ -121,24 +133,25 @@ static inline int is_close_after_rsp(conn_t* conn)
 	return conn->status == cs_rsp_closing;
 }
 
-static int server_recv_msg(const char *data, int datalen, void *from, int fromlen, int fromtcp)
+static int server_recv_msg(const char *data, int datalen,
+	void *from, int fromlen, int fromtcp)
 {
 	req_t* req;
 
-	req = new_req(data, datalen, from, fromlen, fromtcp);
+	req = req_new(data, datalen, from, fromlen, fromtcp);
 	if (!req) {
 		return -1;
 	}
 
-	print_req(req);
+	req_print(req);
 
 	if (loglevel >= LOG_INFO) {
-		print_req_questions(req);
+		req_print_questions(req);
 	}
 
 	//TODO: 
 
-	destroy_req(req);
+	req_destroy(req);
 
 	return 0;
 }
@@ -195,7 +208,7 @@ static int peer_accept(int listen_index)
 		return -1;
 	}
 	logd("accept() from %s\n", get_sockaddrname(&from));
-	peer = new_peer(sock, listen_index);
+	peer = peer_new(sock, listen_index);
 	if (!peer) {
 		close(sock);
 		return -1;
@@ -441,7 +454,7 @@ static int do_loop()
 
 				if (r) {
 					dllist_remove(&peer->conn.entry);
-					destroy_peer(peer);
+					peer_destroy(peer);
 					continue;
 				}
 			}
@@ -463,7 +476,7 @@ static int init_dohclient()
 	}
 
 	if (!conf.is_config_file_readed && conf.config_file) {
-		if (read_config_file(&conf, conf.config_file, FALSE)) {
+		if (conf_load_from_file(&conf, conf.config_file, FALSE)) {
 			return -1;
 		}
 		conf.is_config_file_readed = 1;
@@ -472,7 +485,7 @@ static int init_dohclient()
 		}
 	}
 
-	if (check_config(&conf))
+	if (conf_check(&conf))
 		return -1;
 
 	loglevel = conf.log_level;
@@ -528,7 +541,7 @@ static int init_dohclient()
 
 	print_listens(listens, listen_num);
 	logn("loglevel: %d\n", loglevel);
-	print_config(&conf);
+	conf_print(&conf);
 
 	return 0;
 }
@@ -552,7 +565,7 @@ static void uninit_dohclient()
 		peer_t* peer;
 
 		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
-			destroy_peer(peer);
+			peer_destroy(peer);
 		}
 
 		dllist_init(&peers);
@@ -622,7 +635,7 @@ static void ServiceMain(int argc, char** argv)
 
 	uninit_dohclient();
 
-	free_config(&conf);
+	conf_free(&conf);
 
 	ServiceStatus.dwCurrentState = SERVICE_STOPPED;
 	ServiceStatus.dwWin32ExitCode = 0;
@@ -729,7 +742,7 @@ static void run_as_daemonize()
 
 	uninit_dohclient();
 
-	free_config(&conf);
+	conf_free(&conf);
 
 #endif
 }
@@ -742,7 +755,7 @@ int main(int argc, char** argv)
 
 	conf.log_level = loglevel;
 
-	if (parse_args(&conf, argc, argv) != 0) {
+	if (conf_parse_args(&conf, argc, argv) != 0) {
 		usage();
 		exit(-1);
 		return EXIT_FAILURE;
@@ -788,7 +801,7 @@ int main(int argc, char** argv)
 
 	uninit_dohclient();
 
-	free_config(&conf);
+	conf_free(&conf);
 
 	return EXIT_SUCCESS;
 }

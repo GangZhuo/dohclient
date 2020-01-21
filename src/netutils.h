@@ -194,6 +194,7 @@ int str2listens(
 	int element_size,
 	const char* default_port);
 
+
 /* create sock, and listen on address. */
 int tcp_listen(listen_t* ctx);
 
@@ -205,11 +206,13 @@ int init_listens(listen_t* listens, int listen_num);
 
 void print_listens(const listen_t* listens, int listen_num);
 
+
 conn_status tcp_connect(const sockaddr_t* addr, sock_t* psock);
 
 int tcp_send(sock_t sock, stream_t* s);
 
 int tcp_recv(sock_t sock, char* buf, int buflen);
+
 
 int udp_send(sock_t sock, stream_t* s,
 	const struct sockaddr* to, int tolen);
@@ -217,32 +220,23 @@ int udp_send(sock_t sock, stream_t* s,
 int udp_recv(sock_t sock, char* buf, int buflen,
 	struct sockaddr* from, int* fromlen);
 
-conn_t* new_conn(sock_t sock);
 
-int init_conn(conn_t* conn, sock_t sock);
+conn_t* conn_new(sock_t sock);
 
-void free_conn(conn_t* conn);
+int conn_init(conn_t* conn, sock_t sock);
 
-void destroy_conn(conn_t* conn);
+void conn_free(conn_t* conn);
 
-peer_t* new_peer(sock_t sock, int listen);
+void conn_destroy(conn_t* conn);
 
-int init_peer(peer_t* peer, sock_t sock, int listen);
 
-void free_peer(peer_t* peer);
+peer_t* peer_new(sock_t sock, int listen);
 
-void destroy_peer(peer_t* peer);
+int peer_init(peer_t* peer, sock_t sock, int listen);
 
-static inline void close_after(conn_t* conn, int interval)
-{
-	time_t t = time(NULL);
-	conn->expire = t + interval;
-}
+void peer_free(peer_t* peer);
 
-static inline int is_expired(conn_t* conn, time_t now)
-{
-	return conn->expire <= now;
-}
+void peer_destroy(peer_t* peer);
 
 
 #ifdef __cplusplus

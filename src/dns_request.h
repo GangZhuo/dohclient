@@ -23,25 +23,26 @@ struct req_t {
 	int fromtcp;
 	time_t expire;
 	dlitem_t entry;
+	dlitem_t entry1;
 	void* data;
 };
 
-req_t* new_req(const char* data, int datalen, void* from, int fromlen, int fromtcp);
+req_t* req_new(const char* data, int datalen, void* from, int fromlen, int fromtcp);
 
-void destroy_req(req_t* req);
+void req_destroy(req_t* req);
 
-void _print_req(req_t* req);
+void _req_print(req_t* req);
 
-#define print_req(req) \
+#define req_print(req) \
 	do { \
 		if (loglevel >= LOG_DEBUG) { \
-			_print_req((req)); \
+			_req_print((req)); \
 		} \
 	} while(0)
 
-int get_req_questions(stream_t* s, req_t* req);
+int req_get_questions(stream_t* s, req_t* req);
 
-void print_req_questions(req_t* req);
+void req_print_questions(req_t* req);
 
 #ifdef __cplusplus
 }
