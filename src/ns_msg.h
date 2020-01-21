@@ -22,6 +22,8 @@ extern "C" {
 #define NS_QNAME_SIZE		NS_NAME_SIZE
 #define NS_EDNS_VERSION		0
 #define NS_MAX_LABEL_COUNT	512
+#define NS_QTYPE_NAME_SIZE	8
+#define NS_QCLASS_NAME_SIZE	8
 
 #define NS_QTYPE_A			1
 #define NS_QTYPE_NS			2

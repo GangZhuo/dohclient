@@ -22,6 +22,16 @@
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
 
+#define REQ_KEY_SIZE (NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)
+
+/* rb-tree node */
+typedef struct rbn_t {
+	char *key;
+	struct rbnode_t node;
+	dllist_t reqs;
+} rbn_t;
+
+static int req_rbkeycmp(void* a, void* b);
 static config_t conf = {
 	.timeout = -1,
 	.dns_timeout = -1,
@@ -34,6 +44,7 @@ static proxy_t proxy_list[MAX_PROXY] = { 0 };
 static int proxy_num = 0;
 static chnroute_ctx chnr = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
+static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
 
 #ifdef WINDOWS
 
@@ -44,15 +55,6 @@ static void ServiceMain(int argc, char** argv);
 static void ControlHandler(DWORD request);
 
 #endif
-
-#define get_proxyinfo(index) \
-	(proxy_list + (index))
-
-#define get_proxyname(index) \
-	get_sockaddrname(&get_proxyinfo(index)->addr)
-
-#define get_conn_proxyname(peer) \
-	get_sockaddrname(&get_proxyinfo((peer)->proxy->proxy_index)->addr)
 
 static void usage()
 {
@@ -133,54 +135,165 @@ static inline int is_close_after_rsp(conn_t* conn)
 	return conn->status == cs_rsp_closing;
 }
 
+static int req_rbkeycmp(void* a, void* b)
+{
+	const char* x = a;
+	const char* y = b;
+	return strcmp(x, y);
+}
+
+static const char* msg_key(ns_msg_t* msg)
+{
+	static char key[REQ_KEY_SIZE];
+	int n;
+
+	n = snprintf(key, sizeof(key), "%s %s %s",
+		ns_typename(msg->qrs[0].qtype),
+		ns_classname(msg->qrs[0].qclass),
+		msg->qrs[0].qname);
+
+	if (n <= 0 || n >= sizeof(key)) {
+		loge("msg_key() error: snprintf() error\n");
+		return NULL;
+	}
+
+	return key;
+}
+
+/* check dns-message */
+static int msg_check(ns_msg_t* msg)
+{
+	if (!msg ||
+		msg->qdcount < 1 ||
+		!msg->qrs[0].qname ||
+		!msg->qrs[0].qname[0]) {
+		loge("msg_check() error: no question\n");
+		return FALSE;
+	}
+	else if (msg->qdcount > 1) {
+		logw("msg_check() warning: multi questions\n");
+	}
+	return TRUE;
+}
+
+static inline const char* req_key(req_t* req)
+{
+	return msg_key(req->msg);
+}
+
+/* add to request dictionary */
+static int reqdic_add(req_t *req, const char* key)
+{
+	struct rbnode_t* n;
+	rbn_t* rbn;
+
+	n = rbtree_lookup(&reqdic, (void*)key);
+	if (n) {
+		rbn = rbtree_container_of(n, rbn_t, node);
+		dllist_add(&rbn->reqs, &req->entry_rbn);
+	}
+	else {
+		rbn = (rbn_t*)malloc(sizeof(rbn_t));
+		if (!rbn) {
+			loge("reqdic_add() error: alloc\n");
+			return FALSE;
+		}
+		memset(rbn, 0, sizeof(rbn_t));
+		dllist_init(&rbn->reqs);
+		rbn->key = strdup(key);
+		rbn->node.key = rbn->key;
+		rbtree_insert(&reqdic, &rbn->node);
+		dllist_add(&rbn->reqs, &req->entry_rbn);
+		logd("reqdic added   - %s\n", rbn->key);
+	}
+	return TRUE;
+}
+
+/* remove from request dictionary */
+static void reqdic_remove(req_t* req, const char* key)
+{
+	rbn_t* rbn;
+
+	dllist_remove(&req->entry_rbn);
+
+	/* empty list, so remove the rb-tree node */
+	if (req->entry_rbn.prev->next == req->entry_rbn.prev) {
+		rbn = rbtree_container_of(req->entry_rbn.prev, rbn_t, reqs.head);
+		rbtree_remove(&reqdic, &rbn->node);
+		logd("reqdic removed - %s\n", rbn->key);
+		free(rbn->key);
+		free(rbn);
+	}
+}
+
+/* find request by key */
+static rbn_t* reqdic_find(const char* key)
+{
+	rbn_t* rbn = NULL;
+	struct rbnode_t* n;
+
+	n = rbtree_lookup(&reqdic, key);
+
+	if (n) {
+		rbn = rbtree_container_of(n, rbn_t, node);
+	}
+
+	return rbn;
+}
+
 static req_t* req_add_new(const char* data, int datalen,
 	void* from, int fromlen, int fromtcp)
 {
 	req_t* req;
+	const char* key;
 
 	req = req_new(data, datalen, from, fromlen, fromtcp);
 	if (!req) {
 		return NULL;
 	}
 
-	req_print(req);
+	if (loglevel > LOG_DEBUG) {
+		req_print(req);
+	}
 
-	if (req->msg->qdcount < 1) {
-		loge("req_add_new() error: no question\n");
+	if (!msg_check(req->msg)) {
 		req_destroy(req);
 		return NULL;
 	}
-	else if (req->msg->qdcount > 1) {
-		logw("req_add_new() warning: multi questions\n");
-	}
+
+	key = req_key(req);
 
 	if (loglevel >= LOG_INFO) {
-		logi("recv dns request from %s by %s: %s %s %s\n",
+		logi("recv dns request from %s by %s: %s\n",
 			req->fromtcp
 				? get_sockname(((peer_t*)req->from)->conn.sock)
 				: get_addrname((struct sockaddr*)req->from),
 			req->fromtcp
 				? "tcp"
 				: "udp",
-			ns_typename(req->msg->qrs[0].qtype),
-			ns_classname(req->msg->qrs[0].qclass),
-			req->msg->qrs[0].qname);
+			key);
 	}
 
+	if (!reqdic_add(req, key)) {
+		req_destroy(req);
+		return NULL;
+	}
+
+	/* add to peer's request list */
 	if (fromtcp) {
 		peer_t* peer = from;
 		dllist_add(&peer->reqs, &req->entry_peer);
 	}
 
+	/* add to global request list */
 	dllist_add(&reqs, &req->entry);
 
+	/* set expire */
 	req->expire = time(NULL) + conf.timeout;
 
-	logd("request added   (id:%d) - %s %s %s\n",
+	logd("request added   (id:%d) - %s\n",
 		req->id,
-		ns_typename(req->msg->qrs[0].qtype),
-		ns_classname(req->msg->qrs[0].qclass),
-		req->msg->qrs[0].qname);
+		key);
 
 	return req;
 }
@@ -188,16 +301,17 @@ static req_t* req_add_new(const char* data, int datalen,
 static void req_remove(req_t* req)
 {
 	peer_t* peer;
+	const char* key;
 	if (req->fromtcp) {
 		peer = req->from;
 		dllist_remove(&req->entry_peer);
 	}
 	dllist_remove(&req->entry);
-	logd("request removed (id:%d) - %s %s %s\n",
+	key = req_key(req);
+	reqdic_remove(req, key);
+	logd("request removed (id:%d) - %s\n",
 		req->id,
-		ns_typename(req->msg->qrs[0].qtype),
-		ns_classname(req->msg->qrs[0].qclass),
-		req->msg->qrs[0].qname);
+		key);
 	req_destroy(req);
 }
 
@@ -257,7 +371,9 @@ static int server_udp_recv(int listen_index)
 	logd("server_udp_recv(): recv %d bytes from %s\n",
 		nread, get_addrname((struct sockaddr*) & from));
 
-	bprint(buffer, nread);
+	if (loglevel > LOG_DEBUG) {
+		bprint(buffer, nread);
+	}
 
 	if (nread > NS_PAYLOAD_SIZE) {
 		loge("server_udp_recv(): too large dns-message\n");
@@ -364,7 +480,9 @@ static int peer_recv(peer_t* peer)
 	logd("peer_recv(): recv %d bytes from %s\n",
 		nread, get_sockname(peer->conn.sock));
 
-	bprint(buffer, nread);
+	if (loglevel > LOG_DEBUG) {
+		bprint(buffer, nread);
+	}
 
 	if (peer_handle_recv(peer)) {
 		return -1;
@@ -660,6 +778,8 @@ static void uninit_dohclient()
 		req_t, req, entry) {
 		req_remove(req);
 	}
+
+	rbtree_init(&reqdic, req_rbkeycmp);
 
 	chnroute_free(chnr);
 	chnr = NULL;

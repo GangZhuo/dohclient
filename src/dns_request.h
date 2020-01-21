@@ -8,6 +8,7 @@
 
 #include "ns_msg.h"
 #include "netutils.h"
+#include "../rbtree/rbtree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,8 +23,10 @@ struct req_t {
 	int fromlen;
 	int fromtcp;
 	time_t expire;
+	struct rbnode_t node;
 	dlitem_t entry;
 	dlitem_t entry_peer;
+	dlitem_t entry_rbn;
 	void* data;
 };
 
