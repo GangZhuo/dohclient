@@ -37,4 +37,8 @@ tags
 # vim
 *.swp
 
+*.user
 dohclient
+windows/Debug
+windows/x64
+
