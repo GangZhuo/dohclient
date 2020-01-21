@@ -31,7 +31,7 @@ typedef struct rbn_t {
 	dllist_t reqs;
 } rbn_t;
 
-static int req_rbkeycmp(void* a, void* b);
+static int req_rbkeycmp(const void* a, const void* b);
 static config_t conf = {
 	.timeout = -1,
 	.dns_timeout = -1,
@@ -135,7 +135,7 @@ static inline int is_close_after_rsp(conn_t* conn)
 	return conn->status == cs_rsp_closing;
 }
 
-static int req_rbkeycmp(void* a, void* b)
+static int req_rbkeycmp(const void* a, const void* b)
 {
 	const char* x = a;
 	const char* y = b;
@@ -334,6 +334,7 @@ static void req_check_expire(time_t now)
 	}
 }
 
+/* recv a request */
 static int server_recv_msg(const char *data, int datalen,
 	void *from, int fromlen, int fromtcp)
 {
