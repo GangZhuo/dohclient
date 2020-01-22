@@ -37,6 +37,13 @@ struct dllist_t {
          (curr) = (_next), (_next) = (curr)->next, \
          (element) = dllist_container_of((curr), etype, item_field))
 
+#define dllist_foreach_revert(list, curr, _next, etype, element, item_field) \
+    for ((curr) = dllist_end((list)), (_next) = (curr)->prev, \
+         (element) = dllist_container_of((curr), etype, item_field); \
+         !dllist_is_start((list), (curr)); \
+         (curr) = (_next), (_next) = (curr)->prev, \
+         (element) = dllist_container_of((curr), etype, item_field))
+
 #define dllist_add_after(pred, element) \
     do { \
         (element)->prev = (pred); \

@@ -20,6 +20,7 @@ extern "C" {
 #define	LOG_NOTICE		5	/* normal but significant condition */
 #define	LOG_INFO		6	/* informational */
 #define	LOG_DEBUG		7	/* debug-level messages */
+#define	LOG_VERBOS		8	/* verbos messages */
 
 #define LOG_FLG_TIME	(1 << 0) /* log with timestamp */
 
@@ -116,6 +117,16 @@ static inline void logd(const char *fmt, ...)
 		va_list args;
 		va_start(args, fmt);
 		log_vwrite(LOG_DEBUG, fmt, args);
+		va_end(args);
+	}
+}
+
+static inline void logv(const char* fmt, ...)
+{
+	if (loglevel >= LOG_VERBOS) {
+		va_list args;
+		va_start(args, fmt);
+		log_vwrite(LOG_VERBOS, fmt, args);
 		va_end(args);
 	}
 }

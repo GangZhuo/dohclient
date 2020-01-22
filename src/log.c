@@ -19,7 +19,7 @@ static const char* s_current_log_file = NULL;
 
 static const char *prioritynames[] = {
 	"emerg", "alert", "crit", "err", "warning", NULL /*notice*/,
-	NULL /*info*/, "debug",
+	NULL /*info*/, "debug", "verbos",
 };
 
 int *log_pflags()

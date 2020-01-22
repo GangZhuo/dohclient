@@ -98,6 +98,44 @@ static void cache_item_destroy(cache_item_t* item)
 	}
 }
 
+static void cache_item_add(cache_t* c, cache_item_t* item)
+{
+	dlitem_t* cur, * nxt;
+	cache_item_t* p;
+
+	dllist_foreach_revert(&c->items, cur, nxt,
+		cache_item_t, p, entry) {
+		
+		if (p->expire >= item->expire) {
+			dllist_add_before(&p->entry, &item->entry);
+			return;
+		}
+	}
+
+	dllist_add(&c->items, &item->entry);
+}
+
+static void cache_check_expire(cache_t* c)
+{
+	dlitem_t* cur, * nxt;
+	cache_item_t* item;
+	time_t now = time(NULL);
+
+	dllist_foreach(&c->items, cur, nxt,
+		cache_item_t, item, entry) {
+
+		if (item->expire <= now) {
+			logd("cache   timeout - %s\n", item->node.key);
+			dllist_remove(&item->entry);
+			rbtree_remove(&c->dic, &item->node);
+			cache_item_destroy(item);
+		}
+		else {
+			break;
+		}
+	}
+}
+
 static void destroy(channel_t* ctx)
 {
 	cache_t* c = (cache_t*)ctx;
@@ -143,11 +181,11 @@ static void reslove(channel_t* ctx, cache_req_t* req)
 	item = rbtree_container_of(rbn, cache_item_t, node);
 
 	if (loglevel > LOG_DEBUG) {
-		logd("cache hit: %s - %s\n",
+		logd("cache   hit: %s - %s\n",
 			key, msg_answers(item->msg));
 	}
 	else {
-		logd("cache hit: %s\n", key);
+		logd("cache   hit: %s\n", key);
 	}
 
 	if (req->callback)
@@ -171,6 +209,7 @@ static int step(channel_t* ctx,
 		reslove(ctx, req);
 		cache_req_destroy(req);
 	}
+	cache_check_expire(c);
 	return 0;
 }
 
@@ -194,13 +233,18 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	cache_item_t* item;
 	struct rbnode_t* rbn;
 
-	if (!key || !msg || !msg->qrs || !msg->rrs || msg->qdcount < 1 || msg->ancount < 1) {
+	if (!key || !msg || !msg->qrs || !msg->rrs ||
+		msg->qdcount < 1 || msg->ancount < 1) {
 		loge("cache_add() error: invalid msg\n");
 		return -1;
 	}
 
 	/* no cache */
 	if (msg->rrs->ttl < 1)
+		return 0;
+
+	/* no IP */
+	if (msg->rrs->type != NS_TYPE_A && msg->rrs->type != NS_TYPE_AAAA)
 		return 0;
 
 	item = cache_item_new(msg, key);
@@ -211,8 +255,14 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
-		dllist_add(&c->items, &item->entry);
+		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
+		if (loglevel > LOG_DEBUG) {
+			logd("cache   added: %s - %s\n", key, msg_answers(msg));
+		}
+		else {
+			logd("cache   added: %s\n", key);
+		}
 	}
 	else {
 		ns_msg_t* newmsg = ns_msg_clone(msg);
@@ -224,14 +274,14 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		free(item->msg);
 		item->msg = newmsg;
 		item->expire = time(NULL) + msg->rrs->ttl;
-	}
-
-	if (loglevel > LOG_DEBUG) {
-		logd("cache update: %s - %s\n",
-			key, msg_answers(msg));
-	}
-	else {
-		logd("cache update: %s\n", key);
+		dllist_remove(&item->entry);
+		cache_item_add(c, item);
+		if (loglevel > LOG_DEBUG) {
+			logd("cache   updated: %s - %s\n", key, msg_answers(msg));
+		}
+		else {
+			logd("cache   updated: %s\n", key);
+		}
 	}
 
 	return 0;

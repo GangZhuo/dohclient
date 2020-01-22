@@ -449,7 +449,7 @@ int tcp_send(sock_t sock, stream_t* s)
 	}
 	else {
 		s->pos += nsend;
-		logd("tcp_send(): send %d bytes\n", nsend);
+		logv("tcp_send(): send %d bytes\n", nsend);
 		if (stream_quake(s)) {
 			loge("tcp_send() error: stream_quake()\n");
 			return -1;
@@ -473,11 +473,11 @@ int tcp_recv(sock_t sock, char* buf, int buflen)
 		return 0;
 	}
 	else if (nread == 0) {
-		logd("tcp_recv(): connection closed by peer\n");
+		logv("tcp_recv(): connection closed by peer\n");
 		return -1;
 	}
 	else {
-		logd("tcp_recv(): recv %d bytes\n", nread);
+		logv("tcp_recv(): recv %d bytes\n", nread);
 
 		return nread;
 	}
