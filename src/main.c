@@ -234,6 +234,16 @@ static int msg_check(ns_msg_t* msg)
 	else if (msg->qdcount > 1) {
 		logw("msg_check() warning: multi questions\n");
 	}
+	if (msg->flags.bits.qr)
+		return FALSE;
+	if (msg->flags.bits.opcode)
+		return FALSE;
+	if (msg->flags.bits.tc)
+		return FALSE;
+	if (msg->qrs->qtype != NS_QTYPE_A && msg->qrs->qtype != NS_QTYPE_AAAA)
+		return FALSE;
+	if (msg->qrs->qclass != NS_QCLASS_IN)
+		return FALSE;
 	return TRUE;
 }
 
