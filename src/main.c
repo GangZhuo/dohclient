@@ -18,6 +18,7 @@
 #include "ns_msg.h"
 #include "dns_request.h"
 #include "../rbtree/rbtree.h"
+#include "channel.h"
 
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
@@ -45,6 +46,7 @@ static int proxy_num = 0;
 static chnroute_ctx chnr = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
+static channel_t* channel = NULL;
 
 #ifdef WINDOWS
 
@@ -160,6 +162,65 @@ static const char* msg_key(ns_msg_t* msg)
 	return key;
 }
 
+static const char* msg_answers(ns_msg_t* msg)
+{
+	static char answers[NS_PAYLOAD_SIZE];
+	int i, rrcount, r, len = 0;
+	ns_rr_t* rr;
+	stream_t s = STREAM_INIT();
+	
+	for (i = 0, rrcount = ns_rrcount(msg); i < rrcount; i++) {
+		rr = msg->rrs + i;
+		if (rr->type == NS_QTYPE_A) {
+			char ipname[INET6_ADDRSTRLEN];
+			struct in_addr* addr = (struct in_addr*)rr->rdata;
+			inet_ntop(AF_INET, addr, ipname, INET6_ADDRSTRLEN);
+			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_AAAA) {
+			struct in6_addr* addr = (struct in6_addr*)rr->rdata;
+			static char ipname[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6, addr, ipname, INET6_ADDRSTRLEN);
+			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_PTR) {
+			r = stream_writef(&s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_CNAME) {
+			r = stream_writef(&s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_SOA) {
+			ns_soa_t* soa = rr->rdata;
+			r = stream_writef(&s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else {
+			/* do nothing */
+		}
+	}
+	
+	len = MIN(len, sizeof(answers) - 1);
+	if (len > 0)
+		strncpy(answers, s.array, len);
+	answers[len] = '\0';
+
+	return answers;
+}
+
 /* check dns-message */
 static int msg_check(ns_msg_t* msg)
 {
@@ -242,12 +303,13 @@ static rbn_t* reqdic_find(const char* key)
 }
 
 static req_t* req_add_new(const char* data, int datalen,
+	int listen,
 	void* from, int fromlen, int fromtcp)
 {
 	req_t* req;
 	const char* key;
 
-	req = req_new(data, datalen, from, fromlen, fromtcp);
+	req = req_new(data, datalen, listen, from, fromlen, fromtcp);
 	if (!req) {
 		return NULL;
 	}
@@ -315,6 +377,68 @@ static void req_remove(req_t* req)
 	req_destroy(req);
 }
 
+static int req_send_result(req_t* req, ns_msg_t* msg)
+{
+	int len, r;
+
+	msg->id = req->msg->id;
+
+	if (req->fromtcp) {
+		peer_t* peer = req->from;
+		stream_t* ws = &peer->conn.ws;
+		int pos = ws->pos,
+			start = ws->size;
+
+		ws->pos = start;
+
+		stream_writei16(ws, 0);
+
+		if ((len = ns_serialize(ws, msg, 0)) <= 0) {
+			loge("req_send_result() error: ns_serialize() error\n");
+			ws->pos = pos;
+			ws->size = start;
+			return -1;
+		}
+
+		stream_seti16(ws, start, len);
+
+		ws->pos = pos;
+
+		if (loglevel > LOG_DEBUG) {
+			bprint(ws->array + ws->pos, stream_rsize(ws));
+		}
+
+		r = tcp_send(peer->conn.sock, ws);
+		if (r < 0)
+			return -1;
+	}
+	else {
+		stream_t s = STREAM_INIT();
+		struct sockaddr* to = (struct sockaddr*)req->from;
+		int tolen = req->fromlen;
+		listen_t* listen = listens + req->listen;
+
+		if ((len = ns_serialize(&s, msg, 0)) <= 0) {
+			loge("req_send_result() error: ns_serialize() error\n");
+			stream_free(&s);
+			return -1;
+		}
+
+		s.pos = 0;
+
+		if (loglevel > LOG_DEBUG) {
+			bprint(s.array, s.size);
+		}
+
+		r = udp_send(listen->usock, &s, to, tolen);
+		stream_free(&s);
+		if (r < 0)
+			return -1;
+	}
+
+	return 0;
+}
+
 static void req_check_expire(time_t now)
 {
 	dlitem_t* cur, * nxt;
@@ -334,21 +458,63 @@ static void req_check_expire(time_t now)
 	}
 }
 
+/* get a query result */
+static int query_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	void* state)
+{
+	const char* key;
+	rbn_t* rbn;
+	dlitem_t* cur, * nxt;
+	req_t* req;
+	int is_last_one;
+
+	/* ignore failed result */
+	if (status || !result || result->qdcount < 1)
+		return 0;
+
+	key = msg_key(result);
+
+	logd("query result: %s - %s\n",
+		key, msg_answers(result));
+	if (loglevel > LOG_DEBUG) {
+		ns_print(result);
+	}
+
+	rbn = reqdic_find(key);
+	if (!rbn)
+		return 0;
+
+	dllist_foreach(&rbn->reqs, cur, nxt,
+		req_t, req, entry_rbn) {
+		is_last_one = dllist_is_end(&rbn->reqs, nxt);
+
+		req_send_result(req, result);
+
+		req_remove(req);
+		/* after removed the last one, rbn should be destroyed,
+		so we break the loop, otherwise may access a NULL point. */
+		if (is_last_one)
+			break;
+	}
+
+	return 0;
+}
+
 /* recv a request */
 static int server_recv_msg(const char *data, int datalen,
+	int listen,
 	void *from, int fromlen, int fromtcp)
 {
 	req_t* req;
 
-	req = req_add_new(data, datalen, from, fromlen, fromtcp);
+	req = req_add_new(data, datalen, listen, from, fromlen, fromtcp);
 	if (!req) {
 		return -1;
 	}
 
-	/* TODO: */
-
-
-	return 0;
+	return channel->query(channel, req->msg, query_cb, req);
 }
 
 static int server_udp_recv(int listen_index)
@@ -381,7 +547,7 @@ static int server_udp_recv(int listen_index)
 		return -1;
 	}
 
-	if (server_recv_msg(buffer, nread, &from, fromlen, FALSE)) {
+	if (server_recv_msg(buffer, nread, listen_index, &from, fromlen, FALSE)) {
 		return -1;
 	}
 
@@ -430,7 +596,7 @@ static int peer_handle_recv(peer_t* peer)
 			return -1;
 		}
 		else if (left >= (msglen + 2)) {
-			if (server_recv_msg(s->array + s->pos + 2, msglen, peer, 0, TRUE)) {
+			if (server_recv_msg(s->array + s->pos + 2, msglen, peer->listen, peer, 0, TRUE)) {
 				return -1;
 			}
 			else {
@@ -538,7 +704,7 @@ static void peer_close(peer_t* peer)
 static int do_loop()
 {
 	fd_set readset, writeset, errorset;
-	sock_t max_fd;
+	sock_t max_fd, channel_fd;
 	int i, r;
 	time_t now;
 
@@ -594,6 +760,13 @@ static int do_loop()
 		}
 
 		if (!running) break;
+
+		channel_fd = channel->fdset(channel, &readset, &writeset, &errorset);
+		if (channel_fd < 0) {
+			return -1;
+		}
+
+		max_fd = MAX(max_fd, channel_fd);
 
 		timeout.tv_sec = 0;
 		timeout.tv_usec = 50 * 1000;
@@ -666,6 +839,11 @@ static int do_loop()
 		}
 
 		req_check_expire(now);
+
+		r = channel->step(channel, &readset, &writeset, &errorset);
+		if (r) {
+			return -1;
+		}
 	}
 
 	return 0;
@@ -698,6 +876,13 @@ static int init_dohclient()
 	loglevel = conf.log_level;
 	if (conf.log_level >= LOG_DEBUG) {
 		logflags = LOG_MASK_RAW;
+	}
+
+	channel = channel_create(conf.channel,
+		&conf, proxy_list, proxy_num, chnr, NULL);
+	if (!channel) {
+		loge("init_dohclient() error: no channel\n");
+		return -1;
 	}
 
 	listen_num = str2listens(
@@ -781,6 +966,11 @@ static void uninit_dohclient()
 	}
 
 	rbtree_init(&reqdic, req_rbkeycmp);
+
+	if (channel) {
+		channel->destroy(channel);
+		channel = NULL;
+	}
 
 	chnroute_free(chnr);
 	chnr = NULL;

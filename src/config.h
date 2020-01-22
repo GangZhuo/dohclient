@@ -7,6 +7,7 @@
 #define DEFAULT_TIMEOUT 5
 #define DEFAULT_DNS_TIMEOUT 10
 #define DEFAULT_DNS_SERVER "https://dns.google/dns-query"
+#define DEFAULT_CHANNEL "os"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,6 +24,7 @@ typedef struct config_t {
 	int timeout;
 	char* proxy;
 	char* chnroute;
+	char* channel;
 	int dns_timeout;
 	char* dns_server;
 	int log_level;

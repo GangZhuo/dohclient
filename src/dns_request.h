@@ -19,6 +19,7 @@ typedef struct req_t req_t;
 struct req_t {
 	int id;
 	ns_msg_t* msg;
+	int listen;
 	void* from;
 	int fromlen;
 	int fromtcp;
@@ -30,7 +31,9 @@ struct req_t {
 	void* data;
 };
 
-req_t* req_new(const char* data, int datalen, void* from, int fromlen, int fromtcp);
+req_t* req_new(const char* data, int datalen,
+	int listen,
+	void* from, int fromlen, int fromtcp);
 
 void req_destroy(req_t* req);
 

@@ -537,7 +537,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 	check_len(12);
 
 	msg->id = (uint16_t)stream_readi16(&s);
-	msg->flags = (uint16_t)stream_readi16(&s);
+	msg->flags.value = (uint16_t)stream_readi16(&s);
 	msg->qdcount = (uint16_t)stream_readi16(&s);
 	msg->ancount = (uint16_t)stream_readi16(&s);
 	msg->nscount = (uint16_t)stream_readi16(&s);
@@ -1271,7 +1271,7 @@ int ns_serialize(stream_t *s, ns_msg_t *msg, int compression)
 	ctx.startpos = spos;
 
 	check(2, stream_writei16(s, msg->id));
-	check(2, stream_writei16(s, msg->flags));
+	check(2, stream_writei16(s, msg->flags.value));
 	check(2, stream_writei16(s, msg->qdcount));
 	check(2, stream_writei16(s, msg->ancount));
 	check(2, stream_writei16(s, msg->nscount));
@@ -1542,11 +1542,19 @@ void ns_print(ns_msg_t *msg)
 	logd("<<< MSG START >>>\n");
 	logd("ID: 0x%x, FLAGS: 0x%x, QDCOUNT: 0x%x, ANCOUNT: 0x%x, NSCOUNT: 0x%x, ARCOUNT: 0x%x\n",
 		(int)(msg->id & 0xffff),
-		(int)(msg->flags & 0xffff),
+		(int)(msg->flags.value & 0xffff),
 		(int)(msg->qdcount & 0xffff),
 		(int)(msg->ancount & 0xffff),
 		(int)(msg->nscount & 0xffff),
 		(int)(msg->arcount & 0xffff));
+	logd("FLAGS:%s%s%s%s%s opcode=%d rcode=%d\n",
+		msg->flags.bits.qr ? " qr" : "",
+		msg->flags.bits.aa ? " aa" : "",
+		msg->flags.bits.tc ? " tc" : "",
+		msg->flags.bits.rd ? " rd" : "",
+		msg->flags.bits.ra ? " ra" : "",
+		msg->flags.bits.opcode,
+		msg->flags.bits.rcode);
 
 	for (i = 0; i < msg->qdcount; i++) {
 		qr = msg->qrs + i;

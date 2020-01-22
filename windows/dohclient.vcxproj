@@ -149,6 +149,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\rbtree\rbtree.c" />
+    <ClCompile Include="..\src\channel.c" />
+    <ClCompile Include="..\src\channel_os.c" />
     <ClCompile Include="..\src\chnroute.c" />
     <ClCompile Include="..\src\config.c" />
     <ClCompile Include="..\src\dns_request.c" />
@@ -163,6 +165,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\rbtree\rbtree.h" />
+    <ClInclude Include="..\src\channel.h" />
+    <ClInclude Include="..\src\channel_os.h" />
     <ClInclude Include="..\src\chnroute.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\dllist.h" />

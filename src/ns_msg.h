@@ -152,9 +152,25 @@ typedef struct ns_qr_t {
 	uint16_t qclass;
 } ns_qr_t;
 
+typedef struct ns_flags_t {
+	union {
+		struct {
+			uint32_t qr : 1;
+			uint32_t opcode : 4;
+			uint32_t aa : 1;
+			uint32_t tc : 1;
+			uint32_t rd : 1;
+			uint32_t ra : 1;
+			uint32_t z : 3;
+			uint32_t rcode : 4;
+		} bits;
+		uint16_t value;
+	};
+} ns_flags_t;
+
 typedef struct ns_msg_t {
 	uint16_t id;
-	uint16_t flags;
+	ns_flags_t flags;
 	uint16_t qdcount;
 	uint16_t ancount;
 	uint16_t nscount;
@@ -226,17 +242,17 @@ const char *ns_classname(uint16_t cls);
 /* parse subnet like "192.168.1.1/24" */
 int ns_ecs_parse_subnet(struct sockaddr *addr /*out*/, int *pmask /*out*/, const char *subnet /*in*/);
 
-#define ns_flag_qr(msg) ((((msg)->flags) >> 15) & 1)
-#define ns_flag_opcode(msg) ((((msg)->flags) >> 11) & 0xf)
-#define ns_flag_aa(msg) ((((msg)->flags) >> 10) & 1)
-#define ns_flag_tc(msg) ((((msg)->flags) >> 9) & 1)
-#define ns_flag_rd(msg) ((((msg)->flags) >> 8) & 1)
-#define ns_flag_ra(msg) ((((msg)->flags) >> 7) & 1)
-#define ns_flag_z(msg) ((((msg)->flags) >> 4) & 7)
+#define ns_flag_qr(msg) ((((msg)->flags.value) >> 15) & 1)
+#define ns_flag_opcode(msg) ((((msg)->flags.value) >> 11) & 0xf)
+#define ns_flag_aa(msg) ((((msg)->flags.value) >> 10) & 1)
+#define ns_flag_tc(msg) ((((msg)->flags.value) >> 9) & 1)
+#define ns_flag_rd(msg) ((((msg)->flags.value) >> 8) & 1)
+#define ns_flag_ra(msg) ((((msg)->flags.value) >> 7) & 1)
+#define ns_flag_z(msg) ((((msg)->flags.value) >> 4) & 7)
 
 static inline int ns_flag_rcode(ns_msg_t *msg)
 {
-    int rcode = (msg->flags) & 0xf;
+    int rcode = (msg->flags.value) & 0xf;
     ns_rr_t *rr = ns_find_rr(msg, NS_TYPE_OPT);
     if (rr) {
         rcode |= (rr->ttl >> 20) & 0xff00;

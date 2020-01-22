@@ -17,6 +17,8 @@ extern "C" {
 #endif
 
 #define MAX(a, b) (((a) < (b)) ? (b) : (a))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+
 #define _XSTR(x) #x  
 #define XSTR(x) _XSTR(x)
 

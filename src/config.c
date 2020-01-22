@@ -24,6 +24,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"launch-log", required_argument, NULL, 6},
 		{"proxy",      required_argument, NULL, 7},
 		{"chnroute",   required_argument, NULL, 8},
+		{"channel",    required_argument, NULL, 9},
 		{"dns-timeout",required_argument, NULL, 10},
 		{"dns-server", required_argument, NULL, 11},
 		{0, 0, 0, 0}
@@ -54,6 +55,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			break;
 		case 8:
 			conf->chnroute = strdup(optarg);
+			break;
+		case 9:
+			conf->channel = strdup(optarg);
 			break;
 		case 10:
 			conf->dns_timeout = atoi(optarg);
@@ -104,6 +108,9 @@ int conf_check(config_t* conf)
 	if (conf->dns_server == NULL) {
 		conf->dns_server = strdup(DEFAULT_DNS_SERVER);
 	}
+	if (conf->channel == NULL) {
+		conf->channel = strdup(DEFAULT_CHANNEL);
+	}
 	return 0;
 }
 
@@ -126,6 +133,9 @@ void conf_print(const config_t* conf)
 
 	if (conf->dns_server)
 		logn("dns_server: %s\n", conf->dns_server);
+
+	if (conf->channel)
+		logn("channel: %s\n", conf->channel);
 
 #ifndef WINDOWS
 	if (daemonize) {
@@ -275,6 +285,12 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				conf->dns_server = strdup(value);
 			}
 		}
+		else if (strcmp(name, "channel") == 0 && strlen(value)) {
+			if (force || !conf->channel) {
+				free(conf->channel);
+				conf->channel = strdup(value);
+			}
+		}
 		else {
 			/*do nothing*/
 		}
@@ -312,4 +328,7 @@ void conf_free(config_t* conf)
 
 	free(conf->dns_server);
 	conf->dns_server = NULL;
+
+	free(conf->channel);
+	conf->channel = NULL;
 }
