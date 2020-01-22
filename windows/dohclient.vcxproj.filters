@@ -57,6 +57,9 @@
     <ClCompile Include="..\src\channel_os.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\channel_cache.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\log.h">
@@ -99,6 +102,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\channel_os.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\channel_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

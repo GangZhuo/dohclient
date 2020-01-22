@@ -10,6 +10,7 @@
 
 #include "ns_msg.h"
 #include "log.h"
+#include "utils.h"
 
 typedef struct opt_rdata_into {
 	int count; /* number of option(s) */
@@ -42,6 +43,190 @@ int init_ns_msg(ns_msg_t *msg)
 	memset(msg, 0, sizeof(ns_msg_t));
 
 	return 0;
+}
+
+ns_qr_t* ns_qr_clone(const ns_qr_t* array, int num)
+{
+	ns_qr_t* copy, * dst;
+	const ns_qr_t* src;
+	int i;
+	if (!array)
+		return NULL;
+	copy = (ns_qr_t*)malloc(sizeof(ns_qr_t) * num);
+	if (!copy) {
+		loge("ns_qr_clone() error: alloc \n");
+		return NULL;
+	}
+	memset(copy, 0, sizeof(ns_qr_t) * num);
+	for (i = 0; i < num; i++) {
+		src = array + i;
+		dst = copy + i;
+		dst->qname = src->qname ? strdup(src->qname) : NULL;
+		dst->qtype = src->qtype;
+		dst->qclass = src->qclass;
+	}
+	return copy;
+}
+
+ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num)
+{
+	ns_rr_t* copy, * dst;
+	const ns_rr_t* src;
+	int i;
+	if (!array)
+		return NULL;
+	copy = (ns_rr_t*)malloc(sizeof(ns_rr_t) * num);
+	if (!copy) {
+		loge("ns_rr_clone() error: alloc \n");
+		return NULL;
+	}
+	memset(copy, 0, sizeof(ns_rr_t) * num);
+	for (i = 0; i < num; i++) {
+		src = array + i;
+		dst = copy + i;
+
+		dst->name = src->name ? strdup(src->name) : NULL;
+		dst->type = src->type;
+		dst->cls = src->cls;
+		dst->ttl = src->ttl;
+		dst->rdlength = src->rdlength;
+		dst->rdata = NULL;
+
+		if (src->rdata) {
+			dst->rdata = (char*)malloc(dst->rdlength);
+			if (!dst->rdata) {
+				loge("ns_rr_clone() error: alloc \n");
+				for (; i >= 0; i--) {
+					dst = copy + i;
+					free(dst->name);
+					free(dst->rdata);
+				}
+				free(copy);
+				return NULL;
+			}
+			memcpy(dst->rdata, src->rdata, dst->rdlength);
+		}
+	}
+	return copy;
+}
+
+ns_msg_t* ns_msg_clone(const ns_msg_t *msg)
+{
+	ns_msg_t* copy;
+	copy = (ns_msg_t*)malloc(sizeof(ns_msg_t));
+	if (!copy) {
+		loge("ns_msg_clone() error: alloc \n");
+		return NULL;
+	}
+
+	memset(copy, 0, sizeof(ns_msg_t));
+	
+	copy->id = msg->id;
+	copy->flags = msg->flags;
+	if (msg->qrs) {
+		copy->qrs = ns_qr_clone(msg->qrs, msg->qdcount);
+		if (!copy->qrs) {
+			loge("ns_msg_clone() error: ns_qr_clone() error\n");
+			free(copy);
+			return NULL;
+		}
+	}
+	copy->qdcount = msg->qdcount;
+
+	if (msg->rrs) {
+		copy->rrs = ns_rr_clone(msg->rrs, ns_rrcount(msg));
+		if (!copy->rrs) {
+			loge("ns_msg_clone() error: ns_rr_clone() error\n");
+			ns_msg_free(copy);
+			return NULL;
+		}
+	}
+
+	copy->ancount = msg->ancount;
+	copy->nscount = msg->nscount;
+	copy->arcount = msg->arcount;
+
+	return copy;
+}
+
+const char* qr_key(const ns_qr_t* qr)
+{
+	static char key[REQ_KEY_SIZE];
+	int n;
+
+	if (!qr)
+		return NULL;
+
+	n = snprintf(key, sizeof(key), "%s %s %s",
+		ns_typename(qr->qtype),
+		ns_classname(qr->qclass),
+		qr->qname ? qr->qname : "");
+
+	if (n <= 0 || n >= sizeof(key)) {
+		loge("qr_key() error: snprintf() error\n");
+		return NULL;
+	}
+
+	return key;
+}
+
+const char* msg_answers(const ns_msg_t* msg)
+{
+	static char answers[NS_PAYLOAD_SIZE];
+	int i, rrcount, r, len = 0;
+	const ns_rr_t* rr;
+	stream_t s = STREAM_INIT();
+
+	for (i = 0, rrcount = ns_rrcount(msg); i < rrcount; i++) {
+		rr = msg->rrs + i;
+		if (rr->type == NS_QTYPE_A) {
+			char ipname[INET6_ADDRSTRLEN];
+			struct in_addr* addr = (struct in_addr*)rr->rdata;
+			inet_ntop(AF_INET, addr, ipname, INET6_ADDRSTRLEN);
+			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_AAAA) {
+			struct in6_addr* addr = (struct in6_addr*)rr->rdata;
+			static char ipname[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6, addr, ipname, INET6_ADDRSTRLEN);
+			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_PTR) {
+			r = stream_writef(&s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_CNAME) {
+			r = stream_writef(&s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else if (rr->type == NS_QTYPE_SOA) {
+			ns_soa_t* soa = rr->rdata;
+			r = stream_writef(&s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
+			if (r < 0)
+				return NULL;
+			len += r;
+		}
+		else {
+			/* do nothing */
+		}
+	}
+
+	len = MIN(len, sizeof(answers) - 1);
+	if (len > 0)
+		strncpy(answers, s.array, len);
+	answers[len] = '\0';
+
+	return answers;
 }
 
 static void ns_msg_free_qr(ns_qr_t *qr)

@@ -1,4 +1,5 @@
 #include "channel.h"
+#include "channel_cache.h"
 #include "channel_os.h"
 
 typedef struct channel_info_t{
@@ -10,6 +11,10 @@ static channel_info_t _infos[] = {
 	{
 		.name = "os",
 		.create = channel_os_create,
+	},
+	{
+		.name = "cache",
+		.create = cache_create,
 	},
 	NULL
 };
@@ -54,7 +59,7 @@ int channel_build_msg(
 	void *ip, int family)
 {
 	if (init_ns_msg(msg)) {
-		loge("channel_build_msg() error: init_ns_msg() error");
+		loge("channel_build_msg() error: init_ns_msg() error\n");
 		return -1;
 	}
 
@@ -62,14 +67,11 @@ int channel_build_msg(
 	msg->flags = *flags;
 
 	if (qr) {
-		msg->qrs = (ns_qr_t*)malloc(sizeof(ns_qr_t));
+		msg->qrs = ns_qr_clone(qr, 1);
 		if (!msg->qrs) {
-			loge("channel_build_msg() error: alloc \n");
+			loge("channel_build_msg() error: ns_qr_clone() error\n");
 			return -1;
 		}
-		msg->qrs->qname = strdup(qr->qname);
-		msg->qrs->qtype = qr->qtype;
-		msg->qrs->qclass = qr->qclass;
 		msg->qdcount = 1;
 	}
 
@@ -84,7 +86,7 @@ int channel_build_msg(
 		msg->rrs->name = strdup(qr->qname);
 		msg->rrs->type = qr->qtype;
 		msg->rrs->cls = qr->qclass;
-		msg->rrs->ttl = 300;
+		msg->rrs->ttl = 600;
 		msg->rrs->rdlength = family == AF_INET ? 4 : 16;
 		msg->rrs->rdata = (char*)malloc(msg->rrs->rdlength);
 		if (!msg->rrs->rdata) {

@@ -19,11 +19,10 @@
 #include "dns_request.h"
 #include "../rbtree/rbtree.h"
 #include "channel.h"
+#include "channel_cache.h"
 
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
-
-#define REQ_KEY_SIZE (NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)
 
 /* rb-tree node */
 typedef struct rbn_t {
@@ -46,6 +45,7 @@ static int proxy_num = 0;
 static chnroute_ctx chnr = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
+static channel_t* cache = NULL;
 static channel_t* channel = NULL;
 
 #ifdef WINDOWS
@@ -142,83 +142,6 @@ static int req_rbkeycmp(const void* a, const void* b)
 	const char* x = a;
 	const char* y = b;
 	return strcmp(x, y);
-}
-
-static const char* msg_key(ns_msg_t* msg)
-{
-	static char key[REQ_KEY_SIZE];
-	int n;
-
-	n = snprintf(key, sizeof(key), "%s %s %s",
-		ns_typename(msg->qrs[0].qtype),
-		ns_classname(msg->qrs[0].qclass),
-		msg->qrs[0].qname);
-
-	if (n <= 0 || n >= sizeof(key)) {
-		loge("msg_key() error: snprintf() error\n");
-		return NULL;
-	}
-
-	return key;
-}
-
-static const char* msg_answers(ns_msg_t* msg)
-{
-	static char answers[NS_PAYLOAD_SIZE];
-	int i, rrcount, r, len = 0;
-	ns_rr_t* rr;
-	stream_t s = STREAM_INIT();
-	
-	for (i = 0, rrcount = ns_rrcount(msg); i < rrcount; i++) {
-		rr = msg->rrs + i;
-		if (rr->type == NS_QTYPE_A) {
-			char ipname[INET6_ADDRSTRLEN];
-			struct in_addr* addr = (struct in_addr*)rr->rdata;
-			inet_ntop(AF_INET, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
-			if (r < 0)
-				return NULL;
-			len += r;
-		}
-		else if (rr->type == NS_QTYPE_AAAA) {
-			struct in6_addr* addr = (struct in6_addr*)rr->rdata;
-			static char ipname[INET6_ADDRSTRLEN];
-			inet_ntop(AF_INET6, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
-			if (r < 0)
-				return NULL;
-			len += r;
-		}
-		else if (rr->type == NS_QTYPE_PTR) {
-			r = stream_writef(&s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
-			if (r < 0)
-				return NULL;
-			len += r;
-		}
-		else if (rr->type == NS_QTYPE_CNAME) {
-			r = stream_writef(&s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
-			if (r < 0)
-				return NULL;
-			len += r;
-		}
-		else if (rr->type == NS_QTYPE_SOA) {
-			ns_soa_t* soa = rr->rdata;
-			r = stream_writef(&s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
-			if (r < 0)
-				return NULL;
-			len += r;
-		}
-		else {
-			/* do nothing */
-		}
-	}
-	
-	len = MIN(len, sizeof(answers) - 1);
-	if (len > 0)
-		strncpy(answers, s.array, len);
-	answers[len] = '\0';
-
-	return answers;
 }
 
 /* check dns-message */
@@ -469,10 +392,11 @@ static void req_check_expire(time_t now)
 }
 
 /* get a query result */
-static int query_cb(channel_t* ctx,
+static int _query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
-	void* state)
+	void* state,
+	int fromcache)
 {
 	const char* key;
 	rbn_t* rbn;
@@ -490,6 +414,10 @@ static int query_cb(channel_t* ctx,
 		key, msg_answers(result));
 	if (loglevel > LOG_DEBUG) {
 		ns_print(result);
+	}
+
+	if (!fromcache) {
+		cache_add(cache, key, result);
 	}
 
 	rbn = reqdic_find(key);
@@ -512,6 +440,30 @@ static int query_cb(channel_t* ctx,
 	return 0;
 }
 
+/* get a query result */
+static int query_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	void* state)
+{
+	return _query_cb(channel, status, result, state, FALSE);
+}
+
+static int cache_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	void* state)
+{
+	req_t* req = state;
+
+	if (status || !result || result->qdcount < 1) {
+		return channel->query(channel, req->msg, query_cb, req);
+	}
+	else {
+		return _query_cb(channel, status, result, state, TRUE);
+	}
+}
+
 /* recv a request */
 static int server_recv_msg(const char *data, int datalen,
 	int listen,
@@ -524,7 +476,7 @@ static int server_recv_msg(const char *data, int datalen,
 		return -1;
 	}
 
-	return channel->query(channel, req->msg, query_cb, req);
+	return cache->query(cache, req->msg, cache_cb, req);
 }
 
 static int server_udp_recv(int listen_index)
@@ -714,7 +666,7 @@ static void peer_close(peer_t* peer)
 static int do_loop()
 {
 	fd_set readset, writeset, errorset;
-	sock_t max_fd, channel_fd;
+	sock_t max_fd, fd;
 	int i, r;
 	time_t now;
 
@@ -771,12 +723,19 @@ static int do_loop()
 
 		if (!running) break;
 
-		channel_fd = channel->fdset(channel, &readset, &writeset, &errorset);
-		if (channel_fd < 0) {
+		fd = cache->fdset(cache, &readset, &writeset, &errorset);
+		if (fd < 0) {
 			return -1;
 		}
 
-		max_fd = MAX(max_fd, channel_fd);
+		max_fd = MAX(max_fd, fd);
+
+		fd = channel->fdset(channel, &readset, &writeset, &errorset);
+		if (fd < 0) {
+			return -1;
+		}
+
+		max_fd = MAX(max_fd, fd);
 
 		timeout.tv_sec = 0;
 		timeout.tv_usec = 50 * 1000;
@@ -850,6 +809,11 @@ static int do_loop()
 
 		req_check_expire(now);
 
+		r = cache->step(cache, &readset, &writeset, &errorset);
+		if (r) {
+			return -1;
+		}
+
 		r = channel->step(channel, &readset, &writeset, &errorset);
 		if (r) {
 			return -1;
@@ -886,6 +850,13 @@ static int init_dohclient()
 	loglevel = conf.log_level;
 	if (conf.log_level >= LOG_DEBUG) {
 		logflags = LOG_MASK_RAW;
+	}
+
+	cache = channel_create("cache",
+		&conf, proxy_list, proxy_num, chnr, NULL);
+	if (!cache) {
+		loge("init_dohclient() error: create cache error\n");
+		return -1;
 	}
 
 	channel = channel_create(conf.channel,
@@ -980,6 +951,11 @@ static void uninit_dohclient()
 	if (channel) {
 		channel->destroy(channel);
 		channel = NULL;
+	}
+
+	if (cache) {
+		cache->destroy(cache);
+		cache = NULL;
 	}
 
 	chnroute_free(chnr);

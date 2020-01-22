@@ -24,6 +24,7 @@ extern "C" {
 #define NS_MAX_LABEL_COUNT	512
 #define NS_QTYPE_NAME_SIZE	8
 #define NS_QCLASS_NAME_SIZE	8
+#define REQ_KEY_SIZE		(NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)
 
 #define NS_QTYPE_A			1
 #define NS_QTYPE_NS			2
@@ -138,7 +139,7 @@ typedef struct ns_rr_t {
 	char *name;
 	uint16_t type;
 	uint16_t cls; /* class */
-	uint32_t ttl;
+	uint32_t ttl; /* second */
 	uint16_t rdlength;
 	union {
 		void* rdata;
@@ -263,6 +264,18 @@ static inline int ns_flag_rcode(ns_msg_t *msg)
 #define ns_is_edns_rr(rr) ((rr)->type == NS_QTYPE_OPT)
 
 #define ns_rrcount(msg) ((msg)->ancount + (msg)->nscount + (msg)->arcount)
+
+ns_qr_t* ns_qr_clone(const ns_qr_t* array, int num);
+ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num);
+ns_msg_t* ns_msg_clone(const ns_msg_t* msg);
+const char* qr_key(const ns_qr_t* qr);
+static inline const char* msg_key(const ns_msg_t* msg)
+{
+	if (!msg || msg->qdcount < 1 || !msg->qrs)
+		return NULL;
+	return qr_key(msg->qrs);
+}
+const char* msg_answers(const ns_msg_t* msg);
 
 #ifdef __cplusplus
 }
