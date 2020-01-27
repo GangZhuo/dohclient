@@ -92,7 +92,7 @@ typedef struct peer_t peer_t;
 
 struct sockaddr_t {
 	struct sockaddr_storage addr;
-	int addrlen;
+	socklen_t addrlen;
 };
 
 typedef struct proxy_t {

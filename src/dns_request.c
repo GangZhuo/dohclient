@@ -47,7 +47,7 @@ req_t* req_new(const char* data, int datalen,
 		return NULL;
 	}
 
-	if (ns_parse(msg, data, datalen)) {
+	if (ns_parse(msg, (const uint8_t*)data, datalen)) {
 		loge("req_new() error: ns_parse() error");
 		ns_msg_free(msg);
 		free(msg);

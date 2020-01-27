@@ -138,7 +138,7 @@ void conf_print(const config_t* conf)
 		logn("channel: %s\n", conf->channel);
 
 #ifndef WINDOWS
-	if (daemonize) {
+	if (conf->daemonize) {
 		logn("pid file: %s\n", conf->pid_file);
 	}
 #endif

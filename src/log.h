@@ -49,7 +49,7 @@ void log_vprintf_writefile(int mask, const char* fmt, va_list args);
 void log_vprintf_syslog(int mask, const char* fmt, va_list args);
 void open_logfile(const char* log_file);
 void close_logfile();
-void open_syslog();
+void open_syslog(const char *ident);
 void close_syslog();
 int is_use_syslog();
 int is_use_logfile();

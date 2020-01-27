@@ -1013,7 +1013,7 @@ static void ServiceMain(int argc, char** argv)
 	ServiceStatus.dwCurrentState = SERVICE_RUNNING;
 	SetServiceStatus(hStatus, &ServiceStatus);
 
-	if (init_dohclient(&conf) != 0)
+	if (init_dohclient() != 0)
 		return;
 
 	if (do_loop() != 0)
@@ -1070,8 +1070,8 @@ static void run_as_daemonize()
 	pid_t pid, sid;
 	int dev_null;
 
-	if (!pid_file) {
-		pid_file = strdup(DEFAULT_PID_FILE);
+	if (!conf.pid_file) {
+		conf.pid_file = strdup(DEFAULT_PID_FILE);
 	}
 
 	pid = fork();
@@ -1080,10 +1080,10 @@ static void run_as_daemonize()
 	}
 
 	if (pid > 0) {
-		if (pid_file) {
-			FILE* file = fopen(pid_file, "w");
+		if (conf.pid_file) {
+			FILE* file = fopen(conf.pid_file, "w");
 			if (file == NULL) {
-				logc("Invalid pid file: %s\n", pid_file);
+				logc("Invalid pid file: %s\n", conf.pid_file);
 				exit(1);
 			}
 			fprintf(file, "%d", (int)pid);
@@ -1093,13 +1093,13 @@ static void run_as_daemonize()
 		exit(0);
 	}
 
-	if (init_dohclient(&conf) != 0)
+	if (init_dohclient() != 0)
 		exit(1);
 
 	umask(0);
 
-	if (!log_file) {
-		open_syslog();
+	if (!conf.log_file) {
+		open_syslog(PROGRAM_NAME);
 	}
 
 	sid = setsid();
@@ -1179,7 +1179,7 @@ int main(int argc, char** argv)
 	signal(SIGTERM, sig_handler);
 #endif
 
-	if (init_dohclient(&conf) != 0)
+	if (init_dohclient() != 0)
 		return EXIT_FAILURE;
 
 	if (do_loop() != 0)

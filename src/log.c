@@ -179,13 +179,13 @@ void close_logfile()
 	}
 }
 
-void open_syslog()
+void open_syslog(const char *ident)
 {
 #ifdef WINDOWS
 	logw("use_syslog(): not implemented in Windows port");
 #else
 	if (!s_is_use_syslog) {
-		openlog(PROGRAM_NAME, LOG_CONS | LOG_PID, LOG_DAEMON);
+		openlog(ident, LOG_CONS | LOG_PID, LOG_DAEMON);
 		s_is_use_syslog = 1;
 		log_vprintf = log_vprintf_syslog;
 		log_vprintf_with_timestamp = log_vprintf_syslog;

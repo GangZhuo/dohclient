@@ -1,14 +1,23 @@
+
 debug = 0
 
-OBJS = src/log.o \
-       src/stream.o \
-	   src/chnroute.o \
-	   src/dnscache.o \
-	   http-parser/http_parser.o \
-	   rbtree/rbtree.c
+OBJS = \
+	rbtree/rbtree.o \
+	src/channel.o \
+	src/channel_cache.o \
+	src/channel_os.o \
+	src/chnroute.o \
+	src/config.o \
+	src/dns_request.o \
+	src/log.o \
+	src/main.o \
+	src/netutils.o \
+	src/ns_msg.o \
+	src/stream.o \
+	src/utils.o
 
-CFLAGS += -DASYN_DNS
-MY_LIBS += -lcares
+CFLAGS +=
+MY_LIBS =
 
 ifneq ($(debug), 0)
     CFLAGS += -g -DDEBUG -D_DEBUG
@@ -17,7 +26,7 @@ endif
 
 all: dohclient
 
-dohclient: src/main.o $(OBJS)
+dohclient: $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MY_LIBS)
 
 %.o: %.c
