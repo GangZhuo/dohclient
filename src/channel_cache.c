@@ -289,6 +289,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 
 channel_t* cache_create(
 	const char* name,
+	const char* args,
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,

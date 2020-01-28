@@ -34,7 +34,6 @@ typedef struct rbn_t {
 static int req_rbkeycmp(const void* a, const void* b);
 static config_t conf = {
 	.timeout = -1,
-	.dns_timeout = -1,
 };
 static int running = 0;
 static listen_t listens[MAX_LISTEN] = { 0 };
@@ -66,6 +65,7 @@ static void usage()
 Usage:\n\
 \n\
 dohclient [-b BIND_ADDR] [-p BIND_PORT] [--config=CONFIG_PATH]\n\
+         [--channel=CHANNEL] [--channel-args=ARGS]\n\
          [--log=LOG_FILE_PATH] [--log-level=LOG_LEVEL]\n\
          [--chnroute=CHNROUTE_FILE] [--proxy=SOCKS5_PROXY]\n\
          [--daemon] [--pid=PID_FILE_PATH] [-v] [-V] [-h]\n\
@@ -79,12 +79,9 @@ Options:\n\
                            e.g. -b 127.0.0.1:5354,[::1]:5354.\n\
   -p BIND_PORT             Port that listen on, default: " DEFAULT_LISTEN_PORT ".\n\
                            The port specified in \"-b\" is priority .\n\
-  -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".");
-	printf("%s\n", "\
-  --dns-server=DNS_SERVER  DNS servers, e.g. " DEFAULT_DNS_SERVER ".");
-	printf("%s\n", "\
-  --dns-timeout=TIMEOUT    DNS cache timeout (seconds), default: " XSTR(DEFAULT_DNS_TIMEOUT) ".\n\
-                           0 mean no cache.\n\
+  -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
+  --channel=CHANNEL        Channel name, e.g. os,bridge,doh.\n\
+  --channel-args=ARGS      Channel arguments. e.g. server=8.8.8.8:53&noproxy=1.\n\
   --daemon                 Daemonize.\n\
   --pid=PID_FILE_PATH      pid file, default: " DEFAULT_PID_FILE ", \n\
                            only available on daemonize.\n\
@@ -851,14 +848,15 @@ static int init_dohclient()
 		logflags = LOG_MASK_RAW;
 	}
 
-	cache = channel_create("cache",
+	cache = channel_create("cache", NULL,
 		&conf, proxy_list, proxy_num, chnr, NULL);
 	if (!cache) {
 		loge("init_dohclient() error: create cache error\n");
 		return -1;
 	}
 
-	channel = channel_create(conf.channel,
+	channel = channel_create(
+        conf.channel, conf.channel_args,
 		&conf, proxy_list, proxy_num, chnr, NULL);
 	if (!channel) {
 		loge("init_dohclient() error: no channel\n");

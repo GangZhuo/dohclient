@@ -5,8 +5,6 @@
 #define DEFAULT_LISTEN_PORT "53"
 #define DEFAULT_PID_FILE "/var/run/dohclient.pid"
 #define DEFAULT_TIMEOUT 5
-#define DEFAULT_DNS_TIMEOUT 10
-#define DEFAULT_DNS_SERVER "https://dns.google/dns-query"
 #define DEFAULT_CHANNEL "os"
 
 #ifdef __cplusplus
@@ -25,8 +23,7 @@ typedef struct config_t {
 	char* proxy;
 	char* chnroute;
 	char* channel;
-	int dns_timeout;
-	char* dns_server;
+	char* channel_args;
 	int log_level;
 	int is_print_version;
 	int is_print_help;

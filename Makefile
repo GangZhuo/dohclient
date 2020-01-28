@@ -17,7 +17,7 @@ OBJS = \
 	src/utils.o
 
 CFLAGS +=
-MY_LIBS =
+MYLIBS =
 
 ifneq ($(debug), 0)
     CFLAGS += -g -DDEBUG -D_DEBUG
@@ -27,7 +27,7 @@ endif
 all: dohclient
 
 dohclient: $(OBJS)
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MY_LIBS)
+	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)

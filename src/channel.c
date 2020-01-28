@@ -21,6 +21,7 @@ static channel_info_t _infos[] = {
 
 channel_t* channel_create(
 	const char* name,
+    const char* args,
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,
@@ -34,7 +35,7 @@ channel_t* channel_create(
 
 		if (strcmp(info->name, name) == 0) {
 			return info->create(
-				name, conf,
+				name, args, conf,
 				proxies, proxy_num,
 				chnr, data);
 		}

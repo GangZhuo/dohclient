@@ -144,6 +144,7 @@ static int query(channel_t* ctx,
 
 channel_t* channel_os_create(
 	const char* name,
+	const char* args,
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,
