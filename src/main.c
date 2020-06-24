@@ -848,17 +848,15 @@ static int init_dohclient()
 		logflags = LOG_MASK_RAW;
 	}
 
-	cache = channel_create("cache", NULL,
-		&conf, proxy_list, proxy_num, chnr, NULL);
-	if (!cache) {
+	if (channel_create(&cache, "cache", NULL,
+		&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
 		loge("init_dohclient() error: create cache error\n");
 		return -1;
 	}
 
-	channel = channel_create(
-        conf.channel, conf.channel_args,
-		&conf, proxy_list, proxy_num, chnr, NULL);
-	if (!channel) {
+	if (channel_create(
+		&channel, conf.channel, conf.channel_args,
+		&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
 		loge("init_dohclient() error: no channel\n");
 		return -1;
 	}

@@ -1,22 +1,33 @@
-#include "channel_os.h"
+#include "channel_bridge.h"
+#include "../rbtree/rbtree.h"
 
 #define _M
 
-typedef struct channel_os_t {
+typedef struct channel_bridge_t {
 	CHANNEL_BASE(_M)
 	dllist_t reqs;
-} channel_os_t;
+	struct rbtree_t reqdic;
+} channel_bridge_t;
 
 typedef struct myreq_t {
+	uint16_t req_id;
 	uint16_t id;
 	ns_flags_t flags;
 	ns_qr_t qr;
 	channel_query_cb callback;
 	void* state;
 	dlitem_t entry;
+	struct rbnode_t rbn;
 } myreq_t;
 
+static uint16_t new_req_id(channel_bridge_t* ctx)
+{
+	//TODO: 
+	return 0;
+}
+
 static myreq_t* myreq_new(
+	channel_bridge_t *ctx,
 	const ns_msg_t* msg,
 	channel_query_cb callback, void* state)
 {
@@ -30,12 +41,14 @@ static myreq_t* myreq_new(
 
 	memset(req, 0, sizeof(myreq_t));
 
+	req->req_id = new_req_id(ctx);
 	req->id = msg->id;
 	req->flags = msg->flags;
 	req->qr = msg->qrs[0];
 	req->qr.qname = strdup(msg->qrs[0].qname);
 	req->callback = callback;
 	req->state = state;
+	req->rbn.key = req;
 
 	return req;
 }
@@ -48,7 +61,7 @@ static void myreq_destroy(myreq_t* req)
 
 static void destroy(channel_t* ctx)
 {
-	channel_os_t* c = (channel_os_t*)ctx;
+	channel_bridge_t* c = (channel_bridge_t*)ctx;
 	dlitem_t* cur, * nxt;
 	myreq_t* req;
 	dllist_foreach(&c->reqs, cur, nxt,
@@ -116,7 +129,7 @@ error:
 static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
-	channel_os_t* c = (channel_os_t*)ctx;
+	channel_bridge_t* c = (channel_bridge_t*)ctx;
 	dlitem_t* cur, * nxt;
 	myreq_t* req;
 	dllist_foreach(&c->reqs, cur, nxt,
@@ -132,17 +145,25 @@ static int query(channel_t* ctx,
 	const ns_msg_t* msg,
 	channel_query_cb callback, void* state)
 {
-	channel_os_t* c = (channel_os_t*)ctx;
+	channel_bridge_t* c = (channel_bridge_t*)ctx;
 	myreq_t* req;
 
-	req = myreq_new(msg, callback, state);
+	req = myreq_new(c, msg, callback, state);
 	if (!req)
 		return -1;
 	dllist_add(&c->reqs, &req->entry);
+	rbtree_insert(&c->reqdic, &req->rbn);
 	return 0;
 }
 
-int channel_os_create(
+static int rbcmp(const void* a, const void* b)
+{
+	int x = (int)((myreq_t*)a)->req_id;
+	int y = (int)((myreq_t*)b)->req_id;
+	return x - y;
+}
+
+int channel_bridge_create(
 	channel_t** pctx,
 	const char* name,
 	const char* args,
@@ -152,16 +173,17 @@ int channel_os_create(
 	const chnroute_ctx* chnr,
 	void* data)
 {
-	channel_os_t* ctx;
+	channel_bridge_t* ctx;
 
-	ctx = (channel_os_t*)malloc(sizeof(channel_os_t));
+	ctx = (channel_bridge_t*)malloc(sizeof(channel_bridge_t));
 	if (!ctx) {
 		loge("channel_os_create() error: alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
-	memset(ctx, 0, sizeof(channel_os_t));
+	memset(ctx, 0, sizeof(channel_bridge_t));
 
+	rbtree_init(&ctx->reqdic, rbcmp);
 	dllist_init(&ctx->reqs);
 
 	ctx->name = name;

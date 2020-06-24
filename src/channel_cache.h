@@ -8,7 +8,8 @@
 extern "C" {
 #endif
 
-channel_t* cache_create(
+int cache_create(
+	channel_t** pctx,
 	const char* name,
 	const char* args,
 	const config_t* conf,

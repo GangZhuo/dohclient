@@ -287,7 +287,8 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	return 0;
 }
 
-channel_t* cache_create(
+int cache_create(
+	channel_t** pctx,
 	const char* name,
 	const char* args,
 	const config_t* conf,
@@ -301,7 +302,7 @@ channel_t* cache_create(
 	ctx = (cache_t*)malloc(sizeof(cache_t));
 	if (!ctx) {
 		loge("cache_create() error: alloc\n");
-		return NULL;
+		return CHANNEL_ALLOC;
 	}
 
 	memset(ctx, 0, sizeof(cache_t));
@@ -322,5 +323,8 @@ channel_t* cache_create(
 	ctx->query = query;
 	ctx->destroy = destroy;
 
-	return (channel_t*)ctx;
+
+	*pctx = (channel_t*)ctx;
+
+	return CHANNEL_OK;
 }

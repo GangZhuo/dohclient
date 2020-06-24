@@ -12,7 +12,8 @@ extern "C" {
 #endif
 
 typedef struct channel_t channel_t;
-typedef channel_t* (*channel_create_func)(
+typedef int (*channel_create_func)(
+	channel_t** pctx,
 	const char *name,
 	const char *args,
 	const config_t* conf,
@@ -51,7 +52,13 @@ struct channel_t {
 	CHANNEL_BASE(const)
 };
 
-channel_t* channel_create(
+#define CHANNEL_OK				0
+#define CHANNEL_NO_EXIST		1
+#define CHANNEL_WRONG_ARG		2
+#define CHANNEL_ALLOC			3
+
+int channel_create(
+	channel_t** pctx,
 	const char* name,
     const char* args,
 	const config_t* conf,

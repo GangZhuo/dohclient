@@ -1,6 +1,7 @@
 #include "channel.h"
 #include "channel_cache.h"
 #include "channel_os.h"
+#include "channel_bridge.h"
 
 typedef struct channel_info_t{
 	const char* name;
@@ -16,10 +17,15 @@ static channel_info_t _infos[] = {
 		.name = "cache",
 		.create = cache_create,
 	},
+	{
+		.name = "bridge",
+		.create = channel_bridge_create,
+	},
 	NULL
 };
 
-channel_t* channel_create(
+int channel_create(
+	channel_t** pctx,
 	const char* name,
     const char* args,
 	const config_t* conf,
@@ -34,7 +40,7 @@ channel_t* channel_create(
 	while (info) {
 
 		if (strcmp(info->name, name) == 0) {
-			return info->create(
+			return info->create(pctx,
 				name, args, conf,
 				proxies, proxy_num,
 				chnr, data);
@@ -42,7 +48,7 @@ channel_t* channel_create(
 
 		info++;
 	}
-	return NULL;
+	return CHANNEL_NO_EXIST;
 }
 
 void channel_destroy(channel_t *ctx)
