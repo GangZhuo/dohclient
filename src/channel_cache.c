@@ -125,7 +125,7 @@ static void cache_check_expire(cache_t* c)
 		cache_item_t, item, entry) {
 
 		if (item->expire <= now) {
-			logd("cache   timeout - %s\n", item->node.key);
+			logd("cache timeout - %s\n", item->node.key);
 			dllist_remove(&item->entry);
 			rbtree_remove(&c->dic, &item->node);
 			cache_item_destroy(item);
@@ -181,11 +181,11 @@ static void reslove(channel_t* ctx, cache_req_t* req)
 	item = rbtree_container_of(rbn, cache_item_t, node);
 
 	if (loglevel > LOG_DEBUG) {
-		logd("cache   hit: %s - %s\n",
+		logd("hit cache: %s - %s\n",
 			key, msg_answers(item->msg));
 	}
 	else {
-		logd("cache   hit: %s\n", key);
+		logd("hit cache: %s\n", key);
 	}
 
 	if (req->callback)
@@ -258,10 +258,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
 		if (loglevel > LOG_DEBUG) {
-			logd("cache   added: %s - %s\n", key, msg_answers(msg));
+			logd("cache added: %s - %s\n", key, msg_answers(msg));
 		}
 		else {
-			logd("cache   added: %s\n", key);
+			logd("cache added: %s\n", key);
 		}
 	}
 	else {
@@ -277,10 +277,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		dllist_remove(&item->entry);
 		cache_item_add(c, item);
 		if (loglevel > LOG_DEBUG) {
-			logd("cache   updated: %s - %s\n", key, msg_answers(msg));
+			logd("cache updated: %s - %s\n", key, msg_answers(msg));
 		}
 		else {
-			logd("cache   updated: %s\n", key);
+			logd("cache updated: %s\n", key);
 		}
 	}
 

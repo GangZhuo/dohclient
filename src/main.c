@@ -94,7 +94,7 @@ Options:\n\
   --proxy=SOCKS5_PROXY     Socks5 proxy, e.g. --proxy=127.0.0.1:1080\n\
                            or --proxy=[::1]:1080. More than one proxy is supported,\n\
                            in the case, if first proxy is unconnectable, it is \n\
-                           automatic to switch to next proxy.\n\
+                           automatic switch to next one.\n\
                            Only socks5 with no authentication is supported.\n\
   -v                       Verbose logging.\n\
   -h                       Show this help message and exit.\n\
@@ -195,7 +195,7 @@ static int reqdic_add(req_t *req, const char* key)
 		rbn->node.key = rbn->key;
 		rbtree_insert(&reqdic, &rbn->node);
 		dllist_add(&rbn->reqs, &req->entry_rbn);
-		logd("reqdic  added   - %s\n", rbn->key);
+		logd("reqdic added - %s\n", rbn->key);
 	}
 	return TRUE;
 }
@@ -211,7 +211,7 @@ static void reqdic_remove(req_t* req, const char* key)
 	if (req->entry_rbn.prev->next == req->entry_rbn.prev) {
 		rbn = rbtree_container_of(req->entry_rbn.prev, rbn_t, reqs.head);
 		rbtree_remove(&reqdic, &rbn->node);
-		logd("reqdic  removed - %s\n", rbn->key);
+		logd("reqdic removed - %s\n", rbn->key);
 		free(rbn->key);
 		free(rbn);
 	}
@@ -256,7 +256,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	key = req_key(req);
 
 	if (loglevel >= LOG_INFO) {
-		logi("query:  %s - %s \tproto:%s\n",
+		logi("query %s from %s by %s\n",
 			key,
 			req->fromtcp
 			? get_sockname(((peer_t*)req->from)->conn.sock)
@@ -281,7 +281,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	/* set expire */
 	req->expire = time(NULL) + conf.timeout;
 
-	logd("request added   (id:%d) - %s\n",
+	logd("request added (id:%d) - %s\n",
 		req->id,
 		key);
 
