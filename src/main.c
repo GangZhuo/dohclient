@@ -793,7 +793,7 @@ static int do_loop()
 			if (!running) break;
 
 			if (!r && is_expired(&peer->conn, now)) {
-				logd("peer    timeout - %s\n", get_sockname(peer->conn.sock));
+				logd("peer timeout - %s\n", get_sockname(peer->conn.sock));
 				r = -1;
 			}
 
@@ -822,6 +822,8 @@ static int do_loop()
 static int init_dohclient()
 {
 	int i;
+
+	srand((unsigned int)time(NULL));
 
 	if (conf.log_file) {
 		open_logfile(conf.log_file);

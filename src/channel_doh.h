@@ -1,5 +1,5 @@
-#ifndef DOHCLIENT_CHANNEL_BRIDGE_H_
-#define DOHCLIENT_CHANNEL_BRIDGE_H_
+#ifndef DOHCLIENT_CHANNEL_DOH_H_
+#define DOHCLIENT_CHANNEL_DOH_H_
 
 #include "channel.h"
 #include "dllist.h"
@@ -8,10 +8,10 @@
 extern "C" {
 #endif
 
-int channel_bridge_create(
+int channel_doh_create(
 	channel_t** pctx,
-	const char* name, /* fixed as bridge */
-	const char* args, /* example: server=8.8.8.8:53&tcp=1&proxy=1 */
+	const char* name, /* fixed as 'doh' */
+	const char* args, /* example: ip=172.67.153.110&port=443&host=doh.beike.workers.dev&path=/dns-query&proxy=0 */
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,

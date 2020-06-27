@@ -1,7 +1,7 @@
 #include "channel.h"
 #include "channel_cache.h"
 #include "channel_os.h"
-#include "channel_bridge.h"
+#include "channel_doh.h"
 
 typedef struct channel_info_t{
 	const char* name;
@@ -18,8 +18,8 @@ static channel_info_t _infos[] = {
 		.create = cache_create,
 	},
 	{
-		.name = "bridge",
-		.create = channel_bridge_create,
+		.name = "doh",
+		.create = channel_doh_create,
 	},
 	NULL
 };

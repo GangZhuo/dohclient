@@ -60,7 +60,7 @@
     <ClCompile Include="..\src\channel_cache.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\channel_bridge.c">
+    <ClCompile Include="..\src\channel_doh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -110,7 +110,7 @@
     <ClInclude Include="..\src\channel_cache.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\channel_bridge.h">
+    <ClInclude Include="..\src\channel_doh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
