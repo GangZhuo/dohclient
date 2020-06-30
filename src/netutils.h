@@ -84,6 +84,10 @@ typedef int sock_t;
 #define EAI_ADDRFAMILY EAI_NODATA
 #endif
 
+#ifndef SO_EXCLUSIVEADDRUSE
+#define SO_EXCLUSIVEADDRUSE SO_REUSEADDR
+#endif
+
 #define is_eagain(err) ((err) == EAGAIN || (err) == EINPROGRESS || (err) == EWOULDBLOCK || (err) == WSAEWOULDBLOCK)
 
 typedef struct sockaddr_t sockaddr_t;
@@ -152,6 +156,10 @@ int try_parse_as_ip6(sockaddr_t* addr, const char* host, const char* port);
 int try_parse_as_ip(sockaddr_t* addr, const char* host, const char* port);
 
 int setnonblock(sock_t sock);
+
+int setreuseaddr(sock_t sock);
+
+int setnodelay(sock_t sock);
 
 int getsockerr(sock_t sock);
 

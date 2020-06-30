@@ -17,6 +17,11 @@ struct dllist_t {
 	dlitem_t  head;
 };
 
+struct dliterator_t {
+    struct dlitem_t* cur;
+    struct dlitem_t* nxt;
+};
+
 #define DLLIST_INIT(list)  { { &(list).head, &(list).head } }
 
 #define dllist_init(list) \
@@ -132,6 +137,27 @@ struct dllist_t {
 #define dllist_container_of(field, struct_type, field_name) \
     ((struct_type *) (((char *)(field)) - dllist_offsetof(struct_type, field_name)))
 
+
+#define DLITERATOR_INIT(iterator)  { NULL, NULL }
+
+static inline void dliterator_reset(struct dliterator_t* iterator)
+{
+    iterator->cur = NULL;
+    iterator->nxt = NULL;
+}
+
+static inline int dliterator_next(struct dllist_t* list, struct dliterator_t* iterator)
+{
+    if (!iterator->cur) {
+        iterator->cur = dllist_start(list);
+        iterator->nxt = iterator->cur->next;
+    }
+    else {
+        iterator->cur = iterator->nxt;
+        iterator->nxt = iterator->cur->next;
+    }
+    return !dllist_is_end(list, iterator->cur);
+}
 
 #ifdef __cplusplus
 }

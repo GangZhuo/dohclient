@@ -28,6 +28,9 @@ extern void win_uninit();
 
 const char* win_strerror(int err_code);
 
+/* See https://support.microsoft.com/en-us/kb/263823 */
+int disable_udp_connreset(SOCKET sockfd);
+
 #ifdef __cplusplus
 }
 #endif

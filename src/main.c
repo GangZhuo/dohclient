@@ -529,6 +529,19 @@ static int peer_accept(int listen_index)
 		return -1;
 	}
 	logv("server  accept - %s\n", get_sockaddrname(&from));
+
+	if (setnonblock(sock) != 0) {
+		loge("peer_accept() error: set sock non-block failed\n");
+		close(sock);
+		return -1;
+	}
+
+	if (setnodelay(sock) != 0) {
+		loge("peer_accept() error: set sock nodelay failed\n");
+		close(sock);
+		return -1;
+	}
+
 	peer = peer_new(sock, listen_index);
 	if (!peer) {
 		close(sock);

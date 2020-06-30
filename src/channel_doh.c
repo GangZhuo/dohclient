@@ -1,5 +1,6 @@
 #include "channel_doh.h"
 #include "../rbtree/rbtree.h"
+#include "http.h"
 
 #define _M
 #define MAX_QUEUE_SIZE	30000
@@ -9,6 +10,7 @@ typedef struct channel_doh_t {
 	dllist_t reqs;
 	struct rbtree_t reqdic;
 	int req_count;
+	http_ctx_t* http;
 } channel_doh_t;
 
 typedef struct myreq_t {
@@ -78,12 +80,16 @@ static void destroy(channel_t* ctx)
 			req->callback(ctx, -1, NULL, req->cb_state);
 		myreq_destroy(req);
 	}
+	http_destroy(c->http);
 	free(ctx);
 }
 
 static int fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
+	channel_doh_t* c = (channel_doh_t*)ctx;
+	if (!http_fdset(c->http, readset, writeset, errorset))
+		return -1;
 	return 0;
 }
 
@@ -139,6 +145,7 @@ static int step(channel_t* ctx,
 	channel_doh_t* c = (channel_doh_t*)ctx;
 	dlitem_t* cur, * nxt;
 	myreq_t* req;
+	
 	dllist_foreach(&c->reqs, cur, nxt,
 		myreq_t, req, entry) {
 		dllist_remove(&req->entry);
@@ -147,6 +154,8 @@ static int step(channel_t* ctx,
 		reslove(ctx, req);
 		myreq_destroy(req);
 	}
+	if (!http_step(c->http, readset, writeset, errorset))
+		return -1;
 	return 0;
 }
 
@@ -199,6 +208,12 @@ int channel_doh_create(
 	}
 
 	memset(ctx, 0, sizeof(channel_doh_t));
+
+	ctx->http = http_create(DEFAULT_HTTP_TIMEOUT);
+	if (!ctx->http) {
+		free(ctx);
+		return CHANNEL_ALLOC;
+	}
 
 	rbtree_init(&ctx->reqdic, rbcmp);
 	dllist_init(&ctx->reqs);

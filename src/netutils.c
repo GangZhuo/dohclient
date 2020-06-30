@@ -66,6 +66,30 @@ int setnonblock(sock_t sock)
 	return 0;
 }
 
+int setreuseaddr(sock_t sock)
+{
+	int opt = 1;
+
+	if (setsockopt(sock, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&opt, sizeof(opt)) != 0) {
+		loge("setsockopt() error: errno=%d, %s\n", errno, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
+int setnodelay(sock_t sock)
+{
+	int opt = 1;
+
+	if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(opt)) != 0) {
+		loge("setsockopt() error: errno=%d, %s\n", errno, strerror(errno));
+		return -1;
+	}
+
+	return 0;
+}
+
 int getsockerr(sock_t sock)
 {
 	int err = 0, len = sizeof(int);
@@ -303,6 +327,12 @@ int tcp_listen(listen_t* ctx)
 		return -1;
 	}
 
+	if (setreuseaddr(sock) != 0) {
+		loge("tcp_listen() error: set sock reuse address failed\n");
+		close(sock);
+		return -1;
+	}
+
 	if (bind(sock, sockaddr, addr->addrlen) != 0) {
 		loge("tcp_listen() error: bind() error: %s errno=%d, %s\n",
 			get_sockaddrname(addr), errno, strerror(errno));
@@ -343,6 +373,16 @@ int udp_listen(listen_t* ctx)
 		close(sock);
 		return -1;
 	}
+
+	if (setreuseaddr(sock) != 0) {
+		loge("udp_listen() error: set sock reuse address failed\n");
+		close(sock);
+		return -1;
+	}
+
+#ifdef WINDOWS
+	disable_udp_connreset(sock);
+#endif
 
 	if (bind(sock, sockaddr, addr->addrlen) != 0) {
 		loge("udp_listen() error: bind() error: %s errno=%d, %s\n",
