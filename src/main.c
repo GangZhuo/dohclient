@@ -793,11 +793,11 @@ static int do_loop()
 					err, strerror(err));
 				r = -1;
 			}
-			else if (FD_ISSET(peer->conn.sock, &writeset)) {
-				r = peer_write(peer);
-			}
 			else if (FD_ISSET(peer->conn.sock, &readset)) {
 				r = peer_recv(peer);
+			}
+			else if (FD_ISSET(peer->conn.sock, &writeset)) {
+				r = peer_write(peer);
 			}
 			else {
 				r = 0;

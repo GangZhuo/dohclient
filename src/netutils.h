@@ -117,6 +117,18 @@ typedef enum conn_status {
 	cs_closing, /* close immediately */
 	cs_rsp_closing, /* close after response */
 
+	cs_handshaking0,
+	cs_handshaking1,
+	cs_handshaking2,
+	cs_handshaking3,
+	cs_handshaking4,
+	cs_handshaking5,
+	cs_handshaking6,
+	cs_handshaking7,
+	cs_handshaking8,
+	cs_handshaking9,
+	cs_handshaked,
+
 	cs_error,
 	cs_err_create_sock = cs_error, /* error when create sock */
 	cs_err_set_nonblock, /* error when set non-block */

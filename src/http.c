@@ -14,6 +14,7 @@ typedef struct http_pool_item_t {
 	sockaddr_t addr; /* server's address */
 	dllist_t idle_conns;  /* connections */
 	dllist_t busy_conns;  /* connections */
+	dllist_t fly_conns;  /* connections */
 	struct rbnode_t rbn;
 } http_pool_item_t;
 
@@ -74,6 +75,7 @@ static void http_pool_item_free(http_pool_item_t* item)
 {
 	http_pool_item_free_conns(&item->idle_conns);
 	http_pool_item_free_conns(&item->busy_conns);
+	http_pool_item_free_conns(&item->fly_conns);
 	free(item);
 }
 
@@ -102,6 +104,8 @@ static void rbnfree(rbnode_t* node, void* state)
 	http_pool_item_t* item = rbtree_container_of(node, http_pool_item_t, rbn);
 	http_pool_item_free(item);
 }
+
+
 
 http_request_t* http_request_create(
 	const char *method, const char *path,
@@ -257,6 +261,8 @@ int http_request_header_next(http_request_t* request, struct dliterator_t* itera
 	return r;
 }
 
+
+
 http_response_t* http_response_create()
 {
 	http_response_t* res = (http_response_t*)malloc(sizeof(http_response_t));
@@ -370,6 +376,81 @@ int http_response_header_next(http_response_t* response, struct dliterator_t* it
 	return r;
 }
 
+
+
+static http_conn_t* http_get_conn(http_ctx_t* ctx, sockaddr_t* addr)
+{
+	http_conn_t* conn = NULL;
+	http_pool_item_t* pi = NULL;
+	struct rbnode_t* rbn = rbtree_lookup(&ctx->pool, addr);
+	if (rbn) {
+		pi = rbtree_container_of(rbn, http_pool_item_t, rbn);
+		if (!dllist_is_empty(&pi->idle_conns)) {
+			dlitem_t* first = dllist_start(&pi->idle_conns);
+			conn = dllist_container_of(first, http_conn_t, entry);
+			dllist_remove(first);
+			dllist_add(&pi->busy_conns, first);
+		}
+	}
+
+	if (!conn) {
+
+		sock_t sock;
+		conn_status cs = tcp_connect(addr, &sock);
+		if (cs != cs_connected && cs != cs_connecting) {
+			loge("http_get_conn() error: tcp_connect() error\n");
+			return NULL;
+		}
+
+		conn = (http_conn_t*)malloc(sizeof(http_conn_t));
+		if (!conn) {
+			loge("http_get_conn() error: alloc\n");
+			return NULL;
+		}
+		memset(conn, 0, sizeof(http_conn_t));
+
+		if (conn_init(&conn->conn, sock)) {
+			loge("http_get_conn() error: conn_init() error\n");
+			free(conn);
+			close(sock);
+			return NULL;
+		}
+
+		conn->conn.status = cs;
+
+		if (!pi) {
+			pi = (http_pool_item_t*)malloc(sizeof(http_pool_item_t));
+			if (!pi) {
+				loge("http_get_conn() error: alloc\n");
+				conn_free(&conn->conn);
+				free(conn);
+				return NULL;
+			}
+			memset(pi, 0, sizeof(http_pool_item_t));
+			dllist_init(&pi->busy_conns);
+			dllist_init(&pi->fly_conns);
+			dllist_init(&pi->idle_conns);
+			memcpy(&pi->addr, addr, sizeof(sockaddr_t));
+			pi->rbn.key = &pi->addr;
+			rbtree_insert(&ctx->pool, &pi->rbn);
+		}
+
+		dllist_add(&pi->fly_conns, &conn->entry);
+	}
+
+	return conn;
+}
+
+static int http_request_serialize(/*write stream*/stream_t *ws, http_request_t* request)
+{
+	return 0;
+}
+
+static int conn_send(http_conn_t* conn)
+{
+	return 0;
+}
+
 http_ctx_t* http_create(int timeout)
 {
 	http_ctx_t* ctx = (http_ctx_t*)malloc(sizeof(http_ctx_t));
@@ -411,5 +492,32 @@ int http_step(http_ctx_t* ctx,
 int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	http_callback_fun_t callback, void* state)
 {
+	http_conn_t* conn;
+
+	conn = http_get_conn(ctx, addr);
+	if (!conn) {
+		loge("http_send() error: http_get_conn() error\n");
+		return -1;
+	}
+
+	request->callback = callback;
+	request->state = state;
+
+	conn->request = request;
+
+	if (conn->conn.status == cs_handshaked) {
+		int r;
+		int len = http_request_serialize(&conn->conn.ws, request);
+		if (len < 0) {
+			loge("http_send() error: http_request_serialize() error\n");
+			return -1;
+		}
+		r = conn_send(conn);
+		if (r < 0) {
+			loge("http_send() error: conn_send() error\n");
+			return -1;
+		}
+	}
+
 	return 0;
 }
