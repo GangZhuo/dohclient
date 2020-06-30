@@ -88,9 +88,7 @@ static int fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;
-	if (!http_fdset(c->http, readset, writeset, errorset))
-		return -1;
-	return 0;
+	return http_fdset(c->http, readset, writeset, errorset);
 }
 
 static void reslove(channel_t* ctx, myreq_t* req)
@@ -154,9 +152,8 @@ static int step(channel_t* ctx,
 		reslove(ctx, req);
 		myreq_destroy(req);
 	}
-	if (!http_step(c->http, readset, writeset, errorset))
-		return -1;
-	return 0;
+
+	return http_step(c->http, readset, writeset, errorset);
 }
 
 static int query(channel_t* ctx,

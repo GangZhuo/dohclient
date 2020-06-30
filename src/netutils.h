@@ -132,7 +132,7 @@ struct conn_t {
 	time_t expire;
 	uint64_t rx; /* receive bytes */
 	uint64_t tx; /* transmit bytes */
-	void* data;
+	/*void* data;*/
 };
 
 struct peer_t {

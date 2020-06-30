@@ -3,6 +3,7 @@
 #include "../rbtree/rbtree.h"
 #include "netutils.h"
 #include "log.h"
+#include "stream.h"
 
 struct http_ctx_t {
 	struct rbtree_t pool;
@@ -17,7 +18,7 @@ typedef struct http_pool_item_t {
 } http_pool_item_t;
 
 typedef struct http_conn_t {
-	sock_t sock;
+	struct conn_t conn;
 	dlitem_t entry;
 	http_request_t* request;
 } http_conn_t;
@@ -50,7 +51,7 @@ typedef struct http_header_t {
 
 static void http_conn_free(http_conn_t *conn)
 {
-	closesocket(conn->sock);
+	conn_free(&conn->conn);
 	free(conn);
 }
 
@@ -396,7 +397,9 @@ void http_destroy(http_ctx_t* ctx)
 int http_fdset(http_ctx_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
-	return 0;
+	int max_fd = 0;
+
+	return max_fd;
 }
 
 int http_step(http_ctx_t* ctx,
