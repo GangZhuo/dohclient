@@ -42,3 +42,5 @@ dohclient
 windows/Debug
 windows/x64
 
+windows/openssl
+
