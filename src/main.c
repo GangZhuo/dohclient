@@ -20,6 +20,7 @@
 #include "../rbtree/rbtree.h"
 #include "channel.h"
 #include "channel_cache.h"
+#include "http.h"
 
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
@@ -859,8 +860,10 @@ static int init_dohclient()
 		return -1;
 
 	loglevel = conf.log_level;
-	if (conf.log_level >= LOG_DEBUG) {
-		logflags = LOG_MASK_RAW;
+
+	if (http_init(&conf) != 0) {
+		loge("init_dohclient() error: http_init() error\n");
+		return -1;
 	}
 
 	if (channel_create(&cache, "cache", NULL,
@@ -972,6 +975,8 @@ static void uninit_dohclient()
 	chnr = NULL;
 
 	proxy_num = 0;
+
+	http_uninit();
 
 	if (is_use_logfile()) {
 		close_logfile();
@@ -1171,9 +1176,6 @@ int main(int argc, char** argv)
 	}
 
 	loglevel = conf.log_level;
-	if (conf.log_level >= LOG_DEBUG) {
-		logflags = LOG_MASK_RAW;
-	}
 
 	if (conf.daemonize) {
 		run_as_daemonize();

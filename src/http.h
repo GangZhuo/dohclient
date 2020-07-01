@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #endif
 
+#include "config.h"
 #include "netutils.h"
 
 #ifdef __cplusplus
@@ -35,6 +36,10 @@ typedef void (*http_callback_fun_t)(
 	http_request_t* request,
 	http_response_t* response,
 	void* state);
+
+int http_init(const config_t* conf);
+
+void http_uninit();
 
 http_request_t* http_request_create(
 	const char* method, const char* path,
@@ -93,7 +98,7 @@ http_ctx_t* http_create(int timeout);
 
 void http_destroy(http_ctx_t* ctx);
 
-int http_fdset(http_ctx_t* ctx,
+sock_t http_fdset(http_ctx_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset);
 
 int http_step(http_ctx_t* ctx,

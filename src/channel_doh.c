@@ -84,7 +84,7 @@ static void destroy(channel_t* ctx)
 	free(ctx);
 }
 
-static int fdset(channel_t* ctx,
+static sock_t fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;

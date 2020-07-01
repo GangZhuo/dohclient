@@ -22,7 +22,7 @@ typedef int (*channel_create_func)(
 	const chnroute_ctx *chnr,
 	void *data);
 typedef void (*channel_destroy_func)(channel_t* ctx);
-typedef int (*channel_fdset_func)(channel_t* ctx,
+typedef sock_t(*channel_fdset_func)(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset);
 typedef int (*channel_step_func)(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset);

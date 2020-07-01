@@ -115,19 +115,15 @@ typedef enum conn_status {
 	cs_connecting,
 	cs_connected,
 	cs_closing, /* close immediately */
-	cs_rsp_closing, /* close after response */
+	cs_rsp_closing, /* close after send */
 
-	cs_handshaking0,
-	cs_handshaking1,
-	cs_handshaking2,
-	cs_handshaking3,
-	cs_handshaking4,
-	cs_handshaking5,
-	cs_handshaking6,
-	cs_handshaking7,
-	cs_handshaking8,
-	cs_handshaking9,
-	cs_handshaked,
+	cs_proxy_handshaking,
+	cs_proxy_handshaked,
+
+	cs_ssl_handshaking,
+	cs_ssl_handshaking_want_read,
+	cs_ssl_handshaking_want_write,
+	cs_ssl_handshaked,
 
 	cs_error,
 	cs_err_create_sock = cs_error, /* error when create sock */
