@@ -42,6 +42,9 @@ typedef int sock_t;
 #include "dllist.h"
 #include "stream.h"
 
+#define PROXY_SOCKS5	0
+#define PROXY_HTTP		1
+
 #define LISTEN_BACKLOG	128
 
 #ifndef MAX_LISTEN
@@ -88,6 +91,18 @@ typedef int sock_t;
 #define SO_EXCLUSIVEADDRUSE SO_REUSEADDR
 #endif
 
+#ifndef SHUT_RD
+#define SHUT_RD SD_RECEIVE
+#endif
+
+#ifndef SHUT_WR
+#define SHUT_WR SD_SEND
+#endif
+
+#ifndef SHUT_RDWR
+#define SHUT_RDWR SD_BOTH
+#endif
+
 #define is_eagain(err) ((err) == EAGAIN || (err) == EINPROGRESS || (err) == EWOULDBLOCK || (err) == WSAEWOULDBLOCK)
 
 typedef struct sockaddr_t sockaddr_t;
@@ -100,6 +115,7 @@ struct sockaddr_t {
 };
 
 typedef struct proxy_t {
+	int proxy_type;
 	sockaddr_t addr;
 	int proxy_index;
 } proxy_t;

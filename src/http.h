@@ -94,7 +94,10 @@ int http_response_add_header(http_response_t* response,
 int http_response_set_header(http_response_t* response,
 	const char* name, const char* value);
 
-http_ctx_t* http_create(int timeout);
+http_ctx_t* http_create(
+	const proxy_t* proxies,
+	const int proxy_num,
+	int timeout);
 
 void http_destroy(http_ctx_t* ctx);
 

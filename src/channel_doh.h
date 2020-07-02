@@ -11,7 +11,7 @@ extern "C" {
 int channel_doh_create(
 	channel_t** pctx,
 	const char* name, /* fixed as 'doh' */
-	const char* args, /* example: ip=172.67.153.110&port=443&host=doh.beike.workers.dev&path=/dns-query&proxy=0 */
+	const char* args, /* example: addr=172.67.153.110:443&host=doh.beike.workers.dev&path=/dns-query&proxy=0 */
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,

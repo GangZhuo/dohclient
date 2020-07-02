@@ -11,6 +11,10 @@ typedef struct channel_doh_t {
 	struct rbtree_t reqdic;
 	int req_count;
 	http_ctx_t* http;
+	sockaddr_t http_addr;
+	char* host;
+	char* path;
+	int use_proxy;
 } channel_doh_t;
 
 typedef struct myreq_t {
@@ -22,6 +26,7 @@ typedef struct myreq_t {
 	void* cb_state;
 	dlitem_t entry;
 	struct rbnode_t rbn;
+	channel_doh_t* ctx;
 } myreq_t;
 
 static uint16_t new_req_id(channel_doh_t* ctx)
@@ -58,6 +63,7 @@ static myreq_t* myreq_new(
 	req->callback = callback;
 	req->cb_state = cb_state;
 	req->rbn.key = &req->req_id;
+	req->ctx = ctx;
 
 	return req;
 }
@@ -81,7 +87,9 @@ static void destroy(channel_t* ctx)
 		myreq_destroy(req);
 	}
 	http_destroy(c->http);
-	free(ctx);
+	free(c->host);
+	free(c->path);
+	free(c);
 }
 
 static sock_t fdset(channel_t* ctx,
@@ -156,6 +164,28 @@ static int step(channel_t* ctx,
 	return http_step(c->http, readset, writeset, errorset);
 }
 
+static void http_cb(
+	int status,
+	http_request_t* request,
+	http_response_t* response,
+	void* state)
+{
+
+}
+
+static int doh_query(channel_doh_t* c, myreq_t* rq)
+{
+	http_request_t* req;
+
+	req = http_request_create("GET", "/", "doh.beike.workers.dev");
+	if (!req) {
+		loge("doh_query() error: http_request_create() error");
+		return -1;
+	}
+
+	return http_send(c->http, &c->http_addr, req, http_cb, rq);
+}
+
 static int query(channel_t* ctx,
 	const ns_msg_t* msg,
 	channel_query_cb callback, void* state)
@@ -186,6 +216,58 @@ static int rbcmp(const void* a, const void* b)
 	return x - y;
 }
 
+static int parse_args(channel_doh_t *ctx, const char* args)
+{
+	char* cpy;
+	char* p;
+	char* v;
+
+	if (!args) return -1;
+
+	cpy = strdup(args);
+
+	for (p = strtok(cpy, "&");
+		p && *p;
+		p = strtok(NULL, "&")) {
+
+		v = strchr(p, '=');
+		if (!v) continue;
+
+		*v = '\0';
+		v++;
+
+		if (strcmp(p, "addr") == 0) {
+			p = v;
+			v = strchr(p, ':');
+			if (v) {
+				*v = '\0';
+				v++;
+			}
+			if (!try_parse_as_ip( &ctx->http_addr, p, (v && (*v)) ? v : "443") ) {
+				loge(
+					"parse address failed: %s:%s\n",
+					p,
+					(v && (*v)) ? v : "443"
+				);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "host") == 0) {
+			ctx->host = strdup(v);
+		}
+		else if (strcmp(p, "path") == 0) {
+			ctx->path = strdup(v);
+		}
+		else if (strcmp(p, "proxy") == 0) {
+			ctx->use_proxy = strcmp(v, "0");
+		}
+	}
+
+	free(cpy);
+	return 0;
+}
+
 int channel_doh_create(
 	channel_t** pctx,
 	const char* name,
@@ -206,7 +288,15 @@ int channel_doh_create(
 
 	memset(ctx, 0, sizeof(channel_doh_t));
 
-	ctx->http = http_create(DEFAULT_HTTP_TIMEOUT);
+	if (parse_args(ctx, args)) {
+		loge("channel_os_create() error: parse_args() error\n");
+		return CHANNEL_WRONG_ARG;
+	}
+
+	ctx->http = http_create(
+		proxies,
+		ctx->use_proxy ? proxy_num : 0,
+		DEFAULT_HTTP_TIMEOUT);
 	if (!ctx->http) {
 		free(ctx);
 		return CHANNEL_ALLOC;

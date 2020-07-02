@@ -12,25 +12,38 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
+#define HTTP_CONN_ST_NONE		0
+#define HTTP_CONN_ST_FLY		1
+#define HTTP_CONN_ST_IDLE		2
+#define HTTP_CONN_ST_BUSY		3
+
 struct http_ctx_t {
 	struct rbtree_t pool;
+	const proxy_t* proxies;
+	int proxy_num;
 	int timeout;
 };
 
 typedef struct http_pool_item_t {
 	sockaddr_t addr; /* server's address */
-	dllist_t idle_conns;  /* connections */
-	dllist_t busy_conns;  /* connections */
-	dllist_t fly_conns;  /* connections */
+	dllist_t idle_conns;
+	dllist_t busy_conns;
+	dllist_t fly_conns;
+	int idle_count;
+	int busy_count;
+	int fly_count;
 	struct rbnode_t rbn;
 } http_pool_item_t;
 
 typedef struct http_conn_t {
 	struct conn_t conn;
 	SSL* ssl;
+	int ssl_status;
+	int status;				/* HTTP_CONN_ST_[NONE|FLY|IDLE|BUSY] */
 	http_pool_item_t* pool;
 	dlitem_t entry;
 	http_request_t* request;
+	http_response_t* response;
 } http_conn_t;
 
 struct http_request_t {
@@ -42,7 +55,7 @@ struct http_request_t {
 	int         data_len;
 	http_conn_t* conn;
 	http_callback_fun_t callback;
-	void* state;
+	void* cb_state;
 };
 
 struct http_response_t {
@@ -80,11 +93,21 @@ static SSL_CTX* sslctx = NULL;
 
 static void http_conn_free(http_conn_t *conn)
 {
+	if (conn->request && conn->request->callback) {
+		conn->request->conn = NULL;
+		conn->request->callback(
+			HTTP_ABORT,
+			conn->request,
+			NULL,
+			conn->request->cb_state);
+	}
 	if (conn->ssl) {
 		SSL_free(conn->ssl);
 	}
 	conn_free(&conn->conn);
 	free(conn);
+
+	logd("http_conn_free()\n");
 }
 
 static void http_pool_item_free_conns(dllist_t *conns)
@@ -94,20 +117,18 @@ static void http_pool_item_free_conns(dllist_t *conns)
 	dllist_foreach(conns, cur, nxt,
 		http_conn_t, conn, entry) {
 		dllist_remove(&conn->entry);
-		if (conn->request && conn->request->callback) {
-			conn->request->conn = NULL;
-			conn->request->callback(HTTP_ABORT, conn->request, NULL, conn->request->state);
-		}
 		http_conn_free(conn);
 	}
 }
 
 static void http_pool_item_free(http_pool_item_t* item)
 {
+	http_pool_item_free_conns(&item->fly_conns);
 	http_pool_item_free_conns(&item->idle_conns);
 	http_pool_item_free_conns(&item->busy_conns);
-	http_pool_item_free_conns(&item->fly_conns);
 	free(item);
+
+	logd("http_pool_item_free()\n");
 }
 
 static int rbcmp(const void* a, const void* b)
@@ -488,28 +509,64 @@ static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	return -1;
 }
 
-static void http_move_to_busy(http_conn_t* conn)
+static void http_remove_conn(http_conn_t* conn)
 {
 	dllist_remove(&conn->entry);
+	if (conn->status == HTTP_CONN_ST_FLY)
+		conn->pool->fly_count--;
+	else if (conn->status == HTTP_CONN_ST_IDLE)
+		conn->pool->idle_count--;
+	else if (conn->status == HTTP_CONN_ST_BUSY)
+		conn->pool->busy_count--;
+	conn->status = HTTP_CONN_ST_NONE;
+}
+
+static void http_add_to_busy(http_conn_t* conn)
+{
 	dllist_add(&conn->pool->busy_conns, &conn->entry);
+	conn->pool->busy_count++;
+	conn->status = HTTP_CONN_ST_BUSY;
+}
+
+static void http_add_to_idle(http_conn_t* conn)
+{
+	dllist_add(&conn->pool->idle_conns, &conn->entry);
+	conn->pool->idle_count++;
+	conn->status = HTTP_CONN_ST_IDLE;
+}
+
+static void http_add_to_fly(http_conn_t* conn)
+{
+	dllist_add(&conn->pool->fly_conns, &conn->entry);
+	conn->pool->fly_count++;
+	conn->status = HTTP_CONN_ST_FLY;
+}
+
+static void http_move_to_busy(http_conn_t* conn)
+{
+	http_remove_conn(conn);
+	http_add_to_busy(conn);
 }
 
 static void http_move_to_idle(http_conn_t* conn)
 {
-	dllist_remove(&conn->entry);
-	dllist_add(&conn->pool->idle_conns, &conn->entry);
+	http_remove_conn(conn);
+	http_add_to_idle(conn);
 }
 
 static void http_move_to_fly(http_conn_t* conn)
 {
-	dllist_remove(&conn->entry);
-	dllist_add(&conn->pool->fly_conns, &conn->entry);
+	http_remove_conn(conn);
+	http_add_to_fly(conn);
 }
 
 static void http_conn_close(http_ctx_t* ctx, http_conn_t* conn)
 {
 	conn->conn.status = cs_closing;
 	http_move_to_fly(conn);
+	if (conn->conn.sock) {
+		shutdown(conn->conn.sock, SHUT_RDWR);
+	}
 }
 
 static http_conn_t* http_conn_create(http_ctx_t* ctx, sockaddr_t* addr)
@@ -554,8 +611,13 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, sockaddr_t* addr)
 
 	conn->ssl = ssl;
 
+	/* set expire */
+	conn->conn.expire = time(NULL) + ctx->timeout;
+
 	SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE);
 	SSL_set_fd(ssl, sock);
+
+	logd("http_conn_create()\n");
 
 	return conn;
 }
@@ -576,6 +638,8 @@ static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr
 	memcpy(&pi->addr, addr, sizeof(sockaddr_t));
 	pi->rbn.key = &pi->addr;
 	rbtree_insert(&ctx->pool, &pi->rbn);
+
+	logd("http_pool_item_create()\n");
 
 	return pi;
 }
@@ -614,22 +678,179 @@ static http_conn_t* http_get_conn(http_ctx_t* ctx, sockaddr_t* addr)
 
 		conn->pool = pi;
 
-		dllist_add(&pi->fly_conns, &conn->entry);
+		http_add_to_fly(conn);
 	}
 
 	return conn;
 }
 
-static int http_request_serialize(/*write stream*/stream_t *ws, http_request_t* request)
+static int http_request_serialize(/*write stream*/stream_t *s, http_request_t* req)
 {
-	return 0;
+	struct dliterator_t it;
+	const char* name;
+	const char* value;
+	int have_connection = FALSE;
+	int have_host = FALSE;
+
+	stream_reset(s);
+	if (stream_appendf(s,
+		"%s %s HTTP/1.1\r\n",
+		req->method,
+		req->path) == -1) {
+		loge("http_request_serialize() error: stream_appendf()");
+		return -1;
+	}
+
+	dliterator_reset(&it);
+
+	while (http_request_header_next(req, &it, &name, &value)) {
+		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+		if (strcmp(name, "Connection") == 0)
+			have_connection = TRUE;
+		else if (strcmp(name, "Host") == 0)
+			have_host = TRUE;
+	}
+
+	if (!have_host) {
+		if (stream_appendf(s, "Host: %s\r\n", req->host) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	if (!have_connection) {
+		if (stream_appendf(s, "Connection: %s\r\n", "keep-alive") == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	if (strcmp(req->method, "POST") == 0) {
+		if (stream_appendf(s, "Content-Length: %d\r\n\r\n", req->data_len) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+
+		if (req->data_len > 0) {
+			if (stream_writes(s, req->data, req->data_len) == -1) {
+				loge("http_request_serialize() error: stream_appendf()");
+				return -1;
+			}
+		}
+	}
+	else {
+		if (stream_writes(s, "\r\n", 2) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	s->pos = 0;
+
+	logv("Request Headers:\r\n%s\r\n", s->array);
+
+	return s->size;
 }
 
-static int conn_send(http_conn_t* conn)
+static int http_conn_send(http_conn_t* conn)
 {
-	return 0;
+	stream_t* s = &conn->conn.ws;
+	int rsize = stream_rsize(s);
+	int nsend;
+
+	if (rsize == 0)
+		return 0;
+
+	nsend = SSL_write(conn->ssl, s->array + s->pos, rsize);
+	if (nsend <= 0) {
+		int err = SSL_get_error(conn->ssl, nsend);
+		if (err == SSL_ERROR_WANT_READ) {
+			conn->ssl_status = SSL_ERROR_WANT_READ;
+			return 0;
+		}
+		else if (err == SSL_ERROR_WANT_WRITE) {
+			conn->ssl_status = SSL_ERROR_WANT_WRITE;
+			return 0;
+		}
+		else {
+			loge("http_conn_send() error: errno=%d \n", err);
+			return -1;
+		}
+	}
+	else {
+		conn->ssl_status = 0;
+		s->pos += nsend;
+		logv("http_conn_send(): send %d bytes\n", nsend);
+		if (stream_quake(s)) {
+			loge("http_conn_send() error: stream_quake()\n");
+			return -1;
+		}
+		return nsend;
+	}
 }
 
+static int http_conn_recv(http_conn_t* conn)
+{
+	stream_t* s = &conn->conn.rs;
+	char* buffer;
+	int buflen, nread;
+
+	if (stream_set_cap(s, 8 * 1024)) {
+		return -1;
+	}
+
+	buffer = s->array + s->size;
+	buflen = s->cap - s->size;
+
+	nread = SSL_read(conn->ssl, buffer, buflen);
+
+	if (nread <= 0) {
+		int err = SSL_get_error(conn->ssl, nread);
+		if (err == SSL_ERROR_WANT_READ) {
+			conn->ssl_status = SSL_ERROR_WANT_READ;
+			return 0;
+		}
+		else if (err == SSL_ERROR_WANT_WRITE) {
+			conn->ssl_status = SSL_ERROR_WANT_WRITE;
+			return 0;
+		}
+		else {
+			loge("http_conn_recv() error: errno=%d \n", err);
+			return -1;
+		}
+	}
+	else {
+		conn->ssl_status = 0;
+		s->size += nread;
+		logv("http_conn_recv(): recv %d bytes\n", nread);
+		if (stream_quake(s)) {
+			loge("http_conn_recv() error: stream_quake()\n");
+			return -1;
+		}
+		return nread;
+	}
+}
+
+static inline int http_is_expired(conn_t* conn, time_t now)
+{
+	return conn->expire <= now;
+}
+
+
+static void http_call_callback(http_request_t* req, int err, http_response_t *res)
+{
+	if (!req) return;
+	if (req->conn) {
+		req->conn->request = NULL;
+		req->conn = NULL;
+	}
+	if (req->callback) {
+		req->callback(err, req, res, req->cb_state);
+	}
+}
 
 static void dl_fdset_func(dllist_t* conns, http_fdset_state* st)
 {
@@ -642,11 +863,19 @@ static void dl_fdset_func(dllist_t* conns, http_fdset_state* st)
 		cs = conn->conn.status;
 		if (cs == cs_ssl_handshaked) {
 			st->maxfd = MAX(st->maxfd, conn->conn.sock);
-			is_sending = stream_rsize(&conn->conn.ws) > 0;
-			if (is_sending)
-				FD_SET(conn->conn.sock, st->writeset);
-			else
+			if (conn->ssl_status == SSL_ERROR_WANT_READ) {
 				FD_SET(conn->conn.sock, st->readset);
+			}
+			else if (conn->ssl_status == SSL_ERROR_WANT_WRITE) {
+				FD_SET(conn->conn.sock, st->writeset);
+			}
+			else {
+				is_sending = stream_rsize(&conn->conn.ws) > 0;
+				if (is_sending)
+					FD_SET(conn->conn.sock, st->writeset);
+				else
+					FD_SET(conn->conn.sock, st->readset);
+			}
 			FD_SET(conn->conn.sock, st->errorset);
 		}
 		else if (cs == cs_ssl_handshaking_want_read) {
@@ -672,20 +901,109 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 	dlitem_t* cur, * nxt;
 	http_conn_t* conn;
 	conn_status cs;
+	http_request_t* req;
+	http_response_t* res;
+	time_t now;
+	int r = 0;
+	int is_sending;
+	now = time(NULL);
 	dllist_foreach(conns, cur, nxt,
 		http_conn_t, conn, entry) {
 		cs = conn->conn.status;
-		if (cs == cs_ssl_handshaked) {
-
+		r = 0;
+		if (cs == cs_closing || cs == cs_rsp_closing) {
+			r = -1;
 		}
-		else if (cs == cs_ssl_handshaking_want_read) {
-
+		else if (FD_ISSET(conn->conn.sock, st->errorset)) {
+			int err = getsockerr(conn->conn.sock);
+			loge("dl_step_func(): peer.conn.sock error: errno=%d, %s \n",
+				err, strerror(err));
+			r = -1;
 		}
-		else if (cs == cs_ssl_handshaking_want_write) {
-
+		else {
+			if (cs == cs_ssl_handshaked) {
+				if (conn->ssl_status == SSL_ERROR_WANT_READ) {
+					if (FD_ISSET(conn->conn.sock, st->readset)) {
+						is_sending = stream_rsize(&conn->conn.ws) > 0;
+						if (is_sending) {
+							r = http_conn_send(conn);
+							if (r >= 0)
+								r = 0;
+						}
+						else {
+							r = http_conn_recv(conn);
+							if (r >= 0)
+								r = 0;
+						}
+					}
+				}
+				else if (conn->ssl_status == SSL_ERROR_WANT_WRITE) {
+					if (FD_ISSET(conn->conn.sock, st->writeset)) {
+						is_sending = stream_rsize(&conn->conn.ws) > 0;
+						if (is_sending) {
+							r = http_conn_send(conn);
+							if (r >= 0)
+								r = 0;
+						}
+						else {
+							r = http_conn_recv(conn);
+							if (r >= 0)
+								r = 0;
+						}
+					}
+				}
+				else {
+					is_sending = stream_rsize(&conn->conn.ws) > 0;
+					if (is_sending) {
+						if (FD_ISSET(conn->conn.sock, st->writeset)) {
+							r = http_conn_send(conn);
+							if (r >= 0)
+								r = 0;
+						}
+					}
+					else if (FD_ISSET(conn->conn.sock, st->readset)) {
+						r = http_conn_recv(conn);
+						if (r >= 0)
+							r = 0;
+					}
+				}
+			}
+			else if (cs == cs_ssl_handshaking_want_read) {
+				if (FD_ISSET(conn->conn.sock, st->readset)) {
+					r = http_ssl_handshake(st->ctx, conn);
+				}
+			}
+			else if (cs == cs_ssl_handshaking_want_write) {
+				if (FD_ISSET(conn->conn.sock, st->writeset)) {
+					r = http_ssl_handshake(st->ctx, conn);
+				}
+			}
+			else if (cs == cs_connecting) {
+				if (FD_ISSET(conn->conn.sock, st->writeset)) {
+					r = http_ssl_handshake(st->ctx, conn);
+				}
+			}
 		}
-		else if (cs == cs_connecting) {
 
+		if (!r && http_is_expired(&conn->conn, now)) {
+			logd("http timeout - %s\n", get_sockname(conn->conn.sock));
+			r = -1;
+			req = conn->request;
+			res = conn->response;
+			http_remove_conn(conn);
+			http_conn_free(conn);
+			if (req) {
+				http_call_callback(req, HTTP_TIMEOUT, res);
+			}
+		}
+		else if (r) {
+			req = conn->request;
+			res = conn->response;
+			http_remove_conn(conn);
+			http_conn_free(conn);
+			if (req) {
+				http_call_callback(req, HTTP_ERROR, res);
+			}
 		}
 	}
 }
@@ -694,9 +1012,11 @@ static int rb_fdset_func(rbtree_t* tree, rbnode_t* n, void* state)
 {
 	http_fdset_state* st = (http_fdset_state*)state;
 	http_pool_item_t* pi = rbtree_container_of(n, http_pool_item_t, rbn);
+	/* "fly" should be first, then "idle", then "busy". */
+	/* otherwise, some connection maybe processed twice. */
+	dl_fdset_func(&pi->fly_conns, st);
 	dl_fdset_func(&pi->idle_conns, st);
 	dl_fdset_func(&pi->busy_conns, st);
-	dl_fdset_func(&pi->fly_conns, st);
 	return 0;
 }
 
@@ -710,7 +1030,10 @@ static int rb_step_func(rbtree_t* tree, rbnode_t* n, void* state)
 	return 0;
 }
 
-http_ctx_t* http_create(int timeout)
+http_ctx_t* http_create(
+	const proxy_t* proxies,
+	const int proxy_num,
+	int timeout)
 {
 	http_ctx_t* ctx = (http_ctx_t*)malloc(sizeof(http_ctx_t));
 	if (!ctx) {
@@ -722,9 +1045,11 @@ http_ctx_t* http_create(int timeout)
 
 	rbtree_init(&ctx->pool, rbcmp);
 
+	ctx->proxies = proxies;
+	ctx->proxy_num = proxy_num;
 	ctx->timeout = timeout;
 
-	return NULL;
+	return ctx;
 }
 
 void http_destroy(http_ctx_t* ctx)
@@ -792,16 +1117,16 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	}
 
 	if (conn->conn.status == cs_ssl_handshaked) {
-		r = conn_send(conn);
+		r = http_conn_send(conn);
 		if (r < 0) {
-			loge("http_send() error: conn_send() error\n");
+			loge("http_send() error: http_conn_send() error\n");
 			http_conn_close(ctx, conn);
 			return -1;
 		}
 	}
 
 	request->callback = callback;
-	request->state = state;
+	request->cb_state = state;
 	conn->request = request;
 
 	return 0;
