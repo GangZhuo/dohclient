@@ -152,14 +152,14 @@ static int step(channel_t* ctx,
 	dlitem_t* cur, * nxt;
 	myreq_t* req;
 	
-	dllist_foreach(&c->reqs, cur, nxt,
-		myreq_t, req, entry) {
-		dllist_remove(&req->entry);
-		rbtree_remove(&c->reqdic, &req->rbn);
-		c->req_count--;
-		reslove(ctx, req);
-		myreq_destroy(req);
-	}
+	//dllist_foreach(&c->reqs, cur, nxt,
+	//	myreq_t, req, entry) {
+	//	dllist_remove(&req->entry);
+	//	rbtree_remove(&c->reqdic, &req->rbn);
+	//	c->req_count--;
+	//	reslove(ctx, req);
+	//	myreq_destroy(req);
+	//}
 
 	return http_step(c->http, readset, writeset, errorset);
 }
@@ -173,17 +173,17 @@ static void http_cb(
 
 }
 
-static int doh_query(channel_doh_t* c, myreq_t* rq)
+static int doh_query(myreq_t* rq)
 {
 	http_request_t* req;
 
 	req = http_request_create("GET", "/", "doh.beike.workers.dev");
 	if (!req) {
-		loge("doh_query() error: http_request_create() error");
+		loge("doh_query() error: http_request_create() error\n");
 		return -1;
 	}
 
-	return http_send(c->http, &c->http_addr, req, http_cb, rq);
+	return http_send(rq->ctx->http, &rq->ctx->http_addr, req, http_cb, rq);
 }
 
 static int query(channel_t* ctx,
@@ -194,7 +194,7 @@ static int query(channel_t* ctx,
 	myreq_t* req;
 
 	if (c->req_count > MAX_QUEUE_SIZE) {
-		loge("request queue is full");
+		loge("request queue is full\n");
 		return -1;
 	}
 
@@ -205,6 +205,15 @@ static int query(channel_t* ctx,
 	dllist_add(&c->reqs, &req->entry);
 	rbtree_insert(&c->reqdic, &req->rbn);
 	c->req_count++;
+
+	if (doh_query(req)) {
+		loge("doh_query() failed\n");
+		dllist_remove(&req->entry);
+		rbtree_remove(&c->reqdic, &req->rbn);
+		c->req_count--;
+		myreq_destroy(req);
+		return -1;
+	}
 
 	return 0;
 }
