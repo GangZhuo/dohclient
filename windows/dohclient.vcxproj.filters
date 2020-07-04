@@ -66,6 +66,9 @@
     <ClCompile Include="..\src\http.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\http-parser\http_parser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\log.h">
@@ -117,6 +120,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\http.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\http-parser\http_parser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

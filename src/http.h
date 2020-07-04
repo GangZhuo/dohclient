@@ -76,6 +76,10 @@ void http_request_set_data(http_request_t* request,
 int http_request_header_next(http_request_t* request, struct dliterator_t* iterator,
 	const char** name, const char** value);
 
+int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* req);
+
+int http_request_serialize(/*write stream*/stream_t* s, http_request_t* req);
+
 http_response_t* http_response_create();
 
 void http_response_destroy(http_response_t* response);
@@ -88,16 +92,11 @@ int http_response_header_next(http_response_t* response, struct dliterator_t* it
 const char* http_response_get_header(http_response_t* response,
 	const char* name);
 
-int http_response_add_header(http_response_t* response,
-	const char* name, const char* value);
-
-int http_response_set_header(http_response_t* response,
-	const char* name, const char* value);
-
 char* http_response_get_data(http_response_t* response, int* data_len);
 
-void http_response_set_data(http_response_t* response,
-	char* data, int data_len);
+int http_response_headers_serialize(stream_t* s, http_response_t* response);
+
+int http_response_serialize(stream_t* s, http_response_t* response);
 
 http_ctx_t* http_create(
 	const proxy_t* proxies,

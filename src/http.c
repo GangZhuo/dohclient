@@ -4,6 +4,7 @@
 #include "netutils.h"
 #include "log.h"
 #include "stream.h"
+#include "../http-parser/http_parser.h"
 
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -35,7 +36,14 @@ typedef struct http_pool_item_t {
 	struct rbnode_t rbn;
 } http_pool_item_t;
 
+typedef enum http_field_status {
+	fs_none = 0,
+	fs_name,
+	fs_value,
+} http_field_status;
+
 typedef struct http_conn_t {
+	http_ctx_t* http_ctx;
 	struct conn_t conn;
 	SSL* ssl;
 	int ssl_status;
@@ -44,6 +52,13 @@ typedef struct http_conn_t {
 	dlitem_t entry;
 	http_request_t* request;
 	http_response_t* response;
+	http_parser parser;
+	struct {
+		stream_t name;
+		stream_t value;
+		http_field_status status;
+	} field;
+	int keep_alive;
 } http_conn_t;
 
 struct http_request_t {
@@ -59,11 +74,12 @@ struct http_request_t {
 };
 
 struct http_response_t {
+	unsigned short http_major;
+	unsigned short http_minor;
 	int      status_code;
 	char*    status_text;
 	dllist_t headers;
-	char*    content;
-	int      content_len;
+	stream_t data;
 	http_conn_t* conn;
 };
 
@@ -88,10 +104,43 @@ typedef struct http_step_state {
 	fd_set* errorset;
 } http_step_state;
 
+static void http_call_callback(http_request_t* req, int err, http_response_t* res);
+static int on_message_begin(http_parser* parser);
+static int on_status(http_parser* parser, const char* at, size_t length);
+static int on_header_field(http_parser* parser, const char* at, size_t length);
+static int on_header_value(http_parser* parser, const char* at, size_t length);
+static int on_headers_complete(http_parser* parser);
+static int on_body(http_parser* parser, const char* at, size_t length);
+static int on_message_complete(http_parser* parser);
+static int on_chunk_header(http_parser* parser);
+static int on_chunk_complete(http_parser* parser);
+
 
 static SSL_CTX* sslctx = NULL;
 
-static void http_call_callback(http_request_t* req, int err, http_response_t* res);
+static http_parser_settings parser_settings = {
+	.on_message_begin = on_message_begin,
+	.on_url = NULL,
+	.on_status = on_status,
+	.on_header_field = on_header_field,
+	.on_header_value = on_header_value,
+	.on_headers_complete = on_headers_complete,
+	.on_body = on_body,
+	.on_message_complete = on_message_complete,
+	.on_chunk_header = on_chunk_header,
+	.on_chunk_complete = on_chunk_complete,
+};
+
+static inline void http_update_expire(http_conn_t* conn)
+{
+	http_ctx_t* ctx = conn->http_ctx;
+	conn->conn.expire = time(NULL) + ctx->timeout;
+}
+
+static inline int http_is_expired(http_conn_t* conn, time_t now)
+{
+	return conn->conn.expire <= now;
+}
 
 static void http_conn_free(http_conn_t *conn)
 {
@@ -158,6 +207,17 @@ static void rbnfree(rbnode_t* node, void* state)
 	http_pool_item_free(item);
 }
 
+static char* http_strdup(const char* s, int len)
+{
+	char* r = (char*)malloc(len + 1);
+	if (!r) {
+		loge("http_strdup() error: alloc\n");
+		return NULL;
+	}
+	memcpy(r, s, len);
+	r[len] = '\0';
+	return r;
+}
 
 
 http_request_t* http_request_create(
@@ -317,6 +377,84 @@ int http_request_header_next(http_request_t* request, struct dliterator_t* itera
 	return r;
 }
 
+int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* req)
+{
+	struct dliterator_t it;
+	const char* name;
+	const char* value;
+	int have_connection = FALSE;
+	int have_host = FALSE;
+
+	if (stream_appendf(s,
+		"%s %s HTTP/1.1\r\n",
+		req->method,
+		req->path) == -1) {
+		loge("http_request_serialize() error: stream_appendf()");
+		return -1;
+	}
+
+	dliterator_reset(&it);
+
+	while (http_request_header_next(req, &it, &name, &value)) {
+		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+		if (strcmp(name, "Connection") == 0)
+			have_connection = TRUE;
+		else if (strcmp(name, "Host") == 0)
+			have_host = TRUE;
+	}
+
+	if (!have_host) {
+		if (stream_appendf(s, "Host: %s\r\n", req->host) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	if (!have_connection) {
+		if (stream_appendf(s, "Connection: %s\r\n", "keep-alive") == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	if (strcmp(req->method, "POST") == 0) {
+		if (stream_appendf(s, "Content-Length: %d\r\n\r\n", req->data_len) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+	else {
+		if (stream_appends(s, "\r\n", 2) == -1) {
+			loge("http_request_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	return s->size - s->pos;
+}
+
+int http_request_serialize(/*write stream*/stream_t* s, http_request_t* req)
+{
+	if (http_request_headers_serialize(s, req) == -1) {
+		loge("http_request_serialize() error: http_request_headers_serialize()");
+		return -1;
+	}
+
+	if (strcmp(req->method, "POST") == 0) {
+		if (req->data_len > 0) {
+			if (stream_appends(s, req->data, req->data_len) == -1) {
+				loge("http_request_serialize() error: stream_appendf()");
+				return -1;
+			}
+		}
+	}
+
+	return s->size - s->pos;
+}
+
 
 
 http_response_t* http_response_create()
@@ -330,6 +468,8 @@ http_response_t* http_response_create()
 	memset(res, 0, sizeof(http_response_t));
 
 	dllist_init(&res->headers);
+
+	stream_init(&res->data);
 
 	return res;
 }
@@ -350,7 +490,7 @@ void http_response_destroy(http_response_t* response)
 			free(header);
 		}
 		free(response->status_text);
-		free(response->content);
+		stream_free(&response->data);
 		free(response);
 	}
 }
@@ -437,16 +577,72 @@ int http_response_header_next(http_response_t* response, struct dliterator_t* it
 
 char* http_response_get_data(http_response_t* response, int* data_len)
 {
-	if (data_len) *data_len = response->content_len;
-	return response->content;
+	if (data_len) *data_len = response->data.size;
+	return response->data.array;
 }
 
-void http_response_set_data(http_response_t* response,
-	char* data, int data_len)
+int http_response_append_data(http_response_t* response,
+	const char* data, int data_len)
 {
-	response->content = data;
-	response->content_len = data_len;
+	if (stream_appends(&response->data, data, data_len) == -1) {
+		loge("http_response_append_data() error: stream_appends()\n");
+		return -1;
+	}
+	return 0;
 }
+
+int http_response_headers_serialize(/*write stream*/stream_t* s, http_response_t* response)
+{
+	struct dliterator_t it;
+	const char* name;
+	const char* value;
+	int have_connection = FALSE;
+	int have_host = FALSE;
+
+	if (stream_appendf(s,
+		"HTTP/%d.%d %d %s\r\n",
+		response->http_major,
+		response->http_minor,
+		response->status_code,
+		response->status_text) == -1) {
+		loge("http_response_headers_serialize() error: stream_appendf()");
+		return -1;
+	}
+
+	dliterator_reset(&it);
+
+	while (http_response_header_next(response, &it, &name, &value)) {
+		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
+			loge("http_response_headers_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	if (stream_appends(s, "\r\n", 2) == -1) {
+		loge("http_response_headers_serialize() error: stream_appendf()");
+		return -1;
+	}
+
+	return s->size - s->pos;
+}
+
+int http_response_serialize(/*write stream*/stream_t* s, http_response_t* response)
+{
+	if (http_response_headers_serialize(s, response) == -1) {
+		loge("http_response_serialize() error: http_response_headers_serialize()");
+		return -1;
+	}
+
+	if (response->data.size > 0) {
+		if (stream_appends(s, response->data.array, response->data.size) == -1) {
+			loge("http_response_serialize() error: stream_appendf()");
+			return -1;
+		}
+	}
+
+	return s->size - s->pos;
+}
+
 
 
 int http_init(const config_t* conf)
@@ -610,18 +806,21 @@ static void http_add_to_fly(http_conn_t* conn)
 
 static void http_move_to_busy(http_conn_t* conn)
 {
+	logd("http_move_to_busy()\n");
 	http_remove_conn(conn);
 	http_add_to_busy(conn);
 }
 
 static void http_move_to_idle(http_conn_t* conn)
 {
+	logd("http_move_to_idle()\n");
 	http_remove_conn(conn);
 	http_add_to_idle(conn);
 }
 
 static void http_move_to_fly(http_conn_t* conn)
 {
+	logd("http_move_to_fly()\n");
 	http_remove_conn(conn);
 	http_add_to_fly(conn);
 }
@@ -676,9 +875,10 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr
 	conn->conn.status = cs;
 
 	conn->ssl = ssl;
+	conn->http_ctx = ctx;
 
 	/* set expire */
-	conn->conn.expire = time(NULL) + ctx->timeout;
+	http_update_expire(conn);
 
 	SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE);
 	SSL_set_fd(ssl, sock);
@@ -759,77 +959,6 @@ static http_conn_t* http_get_conn(http_ctx_t* ctx, const char *host, sockaddr_t*
 	return conn;
 }
 
-static int http_request_serialize(/*write stream*/stream_t *s, http_request_t* req)
-{
-	struct dliterator_t it;
-	const char* name;
-	const char* value;
-	int have_connection = FALSE;
-	int have_host = FALSE;
-
-	stream_reset(s);
-	if (stream_appendf(s,
-		"%s %s HTTP/1.1\r\n",
-		req->method,
-		req->path) == -1) {
-		loge("http_request_serialize() error: stream_appendf()");
-		return -1;
-	}
-
-	dliterator_reset(&it);
-
-	while (http_request_header_next(req, &it, &name, &value)) {
-		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
-			return -1;
-		}
-		if (strcmp(name, "Connection") == 0)
-			have_connection = TRUE;
-		else if (strcmp(name, "Host") == 0)
-			have_host = TRUE;
-	}
-
-	if (!have_host) {
-		if (stream_appendf(s, "Host: %s\r\n", req->host) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
-			return -1;
-		}
-	}
-
-	if (!have_connection) {
-		if (stream_appendf(s, "Connection: %s\r\n", "keep-alive") == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
-			return -1;
-		}
-	}
-
-	if (strcmp(req->method, "POST") == 0) {
-		if (stream_appendf(s, "Content-Length: %d\r\n\r\n", req->data_len) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
-			return -1;
-		}
-
-		if (req->data_len > 0) {
-			if (stream_appends(s, req->data, req->data_len) == -1) {
-				loge("http_request_serialize() error: stream_appendf()");
-				return -1;
-			}
-		}
-	}
-	else {
-		if (stream_appends(s, "\r\n", 2) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
-			return -1;
-		}
-	}
-
-	s->pos = 0;
-
-	logv("Request Headers:\r\n%s\r\n", s->array);
-
-	return s->size;
-}
-
 static int http_conn_send(http_conn_t* conn)
 {
 	stream_t* s = &conn->conn.ws;
@@ -839,9 +968,6 @@ static int http_conn_send(http_conn_t* conn)
 	if (rsize == 0)
 		return 0;
 
-	if (s->pos == 0) {
-		logd("sending:\n%s\n", s->array);
-	}
 	nsend = SSL_write(conn->ssl, s->array + s->pos, rsize);
 	if (nsend <= 0) {
 		int err = SSL_get_error(conn->ssl, nsend);
@@ -876,13 +1002,16 @@ static int http_conn_recv(http_conn_t* conn)
 	stream_t* s = &conn->conn.rs;
 	char* buffer;
 	int buflen, nread;
+	size_t nparsed;
 
-	if (stream_set_cap(s, 8 * 1024)) {
-		return -1;
+	if (s->cap < 8*1024) {
+		if (stream_set_cap(s, 8 * 1024)) {
+			return -1;
+		}
 	}
 
-	buffer = s->array + s->size;
-	buflen = s->cap - s->size;
+	buffer = s->array;
+	buflen = s->cap;
 
 	nread = SSL_read(conn->ssl, buffer, buflen);
 
@@ -904,19 +1033,155 @@ static int http_conn_recv(http_conn_t* conn)
 	}
 	else {
 		conn->ssl_status = 0;
-		s->size += nread;
+
 		logv("http_conn_recv(): recv %d bytes\n", nread);
-		if (stream_quake(s)) {
-			loge("http_conn_recv() error: stream_quake()\n");
+
+		http_update_expire(conn);
+
+		nparsed = http_parser_execute(&conn->parser, &parser_settings, s->array, nread);
+
+		if (nparsed <= 0) {
+			loge("http_conn_recv() error: %s\n", http_errno_name(conn->parser.http_errno));
 			return -1;
 		}
+
 		return nread;
 	}
 }
 
-static inline int http_is_expired(conn_t* conn, time_t now)
+static int on_message_begin(http_parser* parser)
 {
-	return conn->expire <= now;
+	http_conn_t* conn = (http_conn_t*)parser->data;
+	return 0;
+}
+
+static int on_status(http_parser* parser, const char* at, size_t length)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+	http_response_t* response = conn->response;
+	response->status_code = parser->status_code;
+	response->status_text = http_strdup(at, length);
+	response->http_major = parser->http_major;
+	response->http_minor = parser->http_minor;
+	return 0;
+}
+
+static int on_header_field_complete(http_parser* parser)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+	http_response_t* response = conn->response;
+
+	http_response_add_header(response,
+		conn->field.name.array,
+		conn->field.value.array);
+
+	stream_reset(&conn->field.name);
+	stream_reset(&conn->field.value);
+	conn->field.status = fs_none;
+
+	return 0;
+}
+
+static int on_header_field(http_parser* parser, const char* at, size_t length)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+
+	if (conn->field.status == fs_value) {
+		if (on_header_field_complete(parser))
+			return -1;
+	}
+
+	conn->field.status = fs_name;
+
+	if (stream_writes(&conn->field.name, at, (int)length) == -1) {
+		loge("on_header_field() error: stream_writes()\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int on_header_value(http_parser* parser, const char* at, size_t length)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+
+	conn->field.status = fs_value;
+
+	if (stream_writes(&conn->field.value, at, (int)length) == -1) {
+		loge("on_header_value() error: stream_writes()\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int on_headers_complete(http_parser* parser)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+
+	if (conn->field.status != fs_none) {
+		if (on_header_field_complete(parser))
+			return -1;
+	}
+
+	conn->keep_alive = http_should_keep_alive(parser);
+
+	return 0;
+}
+
+static int on_body(http_parser* parser, const char* at, size_t length)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+	http_response_t* response = conn->response;
+
+	if (http_response_append_data(response, at, (int)length) == -1) {
+		loge("on_body() error: http_response_append_data()\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int on_message_complete(http_parser* parser)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+	http_request_t* request = conn->request;
+	http_response_t* response = conn->response;
+
+	if (loglevel > LOG_DEBUG) {
+		stream_t s = STREAM_INIT();
+		http_response_serialize(&s, response);
+		logv("Response Headers:\r\n%s\r\n", s.array);
+		stream_free(&s);
+	}
+
+	http_call_callback(request, HTTP_OK, response);
+
+	if (conn->keep_alive) {
+		http_move_to_idle(conn);
+	}
+	else {
+		http_remove_conn(conn);
+		http_conn_free(conn);
+	}
+	return 0;
+}
+
+static int on_chunk_header(http_parser* parser)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+
+	loge("on_chunk_header() error: chunk is not support\n");
+
+	return -1;
+}
+
+static int on_chunk_complete(http_parser* parser)
+{
+	http_conn_t* conn = (http_conn_t*)parser->data;
+
+	loge("on_chunk_header() error: chunk is not support\n");
+
+	return -1;
 }
 
 
@@ -1067,7 +1332,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			}
 		}
 
-		if (!r && http_is_expired(&conn->conn, now)) {
+		if (!r && http_is_expired(conn, now)) {
 			logd("http timeout - %s\n", get_sockname(conn->conn.sock));
 			r = -1;
 			req = conn->request;
@@ -1201,6 +1466,8 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		}
 	}
 
+	stream_reset(&conn->conn.ws);
+
 	r = http_request_serialize(&conn->conn.ws, request);
 	if (r <= 0) {
 		loge("http_send() error: http_request_serialize() error\n");
@@ -1208,6 +1475,14 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		http_response_destroy(response);
 		return -1;
 	}
+
+	logv("Request Headers:\r\n%s\r\n", conn->conn.ws.array);
+
+	http_parser_init(&conn->parser, HTTP_RESPONSE);
+	stream_reset(&conn->field.name);
+	stream_reset(&conn->field.value);
+
+	conn->parser.data = conn;
 
 	if (conn->conn.status == cs_ssl_handshaked) {
 		r = http_conn_send(conn);

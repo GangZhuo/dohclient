@@ -87,6 +87,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\http-parser\http_parser.c" />
     <ClCompile Include="..\rbtree\rbtree.c" />
     <ClCompile Include="..\src\channel.c" />
     <ClCompile Include="..\src\channel_doh.c" />
@@ -106,6 +107,7 @@
     <ClCompile Include="win.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\http-parser\http_parser.h" />
     <ClInclude Include="..\rbtree\rbtree.h" />
     <ClInclude Include="..\src\channel.h" />
     <ClInclude Include="..\src\channel_doh.h" />
