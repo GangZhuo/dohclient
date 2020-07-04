@@ -1,3 +1,6 @@
 [submodule "rbtree"]
 	path = rbtree
 	url = https://github.com/GangZhuo/rbtree.git
+[submodule "http-parser"]
+	path = http-parser
+	url = https://github.com/nodejs/http-parser.git
