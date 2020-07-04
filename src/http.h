@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#define DEFAULT_HTTP_TIMEOUT 5000
+#define DEFAULT_HTTP_TIMEOUT 50000
 
 #define HTTP_OK			0
 #define HTTP_ABORT		1
@@ -68,10 +68,10 @@ const char* http_request_get_host(http_request_t* request);
 void http_request_set_host(http_request_t* request,
 	const char* value);
 
-const char* http_request_get_data(http_request_t* request, int* data_len);
+char* http_request_get_data(http_request_t* request, int* data_len);
 
 void http_request_set_data(http_request_t* request,
-	const char* data, int data_len);
+	char* data, int data_len);
 
 int http_request_header_next(http_request_t* request, struct dliterator_t* iterator,
 	const char** name, const char** value);
@@ -93,6 +93,11 @@ int http_response_add_header(http_response_t* response,
 
 int http_response_set_header(http_response_t* response,
 	const char* name, const char* value);
+
+char* http_response_get_data(http_response_t* response, int* data_len);
+
+void http_response_set_data(http_response_t* response,
+	char* data, int data_len);
 
 http_ctx_t* http_create(
 	const proxy_t* proxies,

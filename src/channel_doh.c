@@ -99,68 +99,10 @@ static sock_t fdset(channel_t* ctx,
 	return http_fdset(c->http, readset, writeset, errorset);
 }
 
-static void reslove(channel_t* ctx, myreq_t* req)
-{
-	sockaddr_t addr = { 0 };
-	void* ip = (struct sockaddr_in*) & addr.addr;
-	int family, r;
-	ns_msg_t msg;
-	ns_flags_t flg = { 0 };
-
-	if (req->qr.qtype == NS_QTYPE_A) {
-		family = AF_INET;
-		ip = &((struct sockaddr_in*)(&addr.addr))->sin_addr;
-	}
-	else if (req->qr.qtype == NS_QTYPE_AAAA) {
-		family = AF_INET6;
-		ip = &((struct sockaddr_in6*)(&addr.addr))->sin6_addr;
-	}
-	else {
-		loge("channel_os_reslove() error: invalid qtype %s - %s\n",
-			ns_typename(req->qr.qtype),
-			req->qr.qname);
-		goto error;
-	}
-
-	r = host2addr(&addr, req->qr.qname, "55555", family);
-	if (r) {
-		goto error;
-	}
-
-	flg.bits.qr = 1;
-	if (channel_build_msg(&msg, req->id, &flg, &req->qr, ip, family)) {
-		loge("channel_os_reslove() error: channel_build_msg() error");
-		goto error;
-	}
-
-	if (req->callback)
-		req->callback(ctx, 0, &msg, req->cb_state);
-
-	ns_msg_free(&msg);
-
-	return;
-
-error:
-	if (req->callback)
-		req->callback(ctx, -1, NULL, req->cb_state);
-}
-
 static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;
-	dlitem_t* cur, * nxt;
-	myreq_t* req;
-	
-	//dllist_foreach(&c->reqs, cur, nxt,
-	//	myreq_t, req, entry) {
-	//	dllist_remove(&req->entry);
-	//	rbtree_remove(&c->reqdic, &req->rbn);
-	//	c->req_count--;
-	//	reslove(ctx, req);
-	//	myreq_destroy(req);
-	//}
-
 	return http_step(c->http, readset, writeset, errorset);
 }
 
@@ -170,20 +112,75 @@ static void http_cb(
 	http_response_t* response,
 	void* state)
 {
+	myreq_t* rq = (myreq_t*)state;
+	channel_doh_t* c = rq->ctx;
+	int result_status = -1;
+	ns_msg_t* result = NULL;
+	char* data;
+	int datalen;
 
+	dllist_remove(&rq->entry);
+	rbtree_remove(&c->reqdic, &rq->rbn);
+	c->req_count--;
+
+	if (status == HTTP_OK) {
+		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
+		if (!result) {
+			loge("http_cb() error: alloc");
+			goto exit;
+		}
+		
+		if (init_ns_msg(result)) {
+			loge("req_new() error: init_ns_msg() error");
+			free(result);
+			result = NULL;
+			goto exit;
+		}
+
+		data = http_response_get_data(response, &datalen);
+		if (ns_parse(result, (const uint8_t*)data, datalen)) {
+			loge("req_new() error: ns_parse() error");
+			ns_msg_free(result);
+			free(result);
+			result = NULL;
+			goto exit;
+		}
+
+		result_status = 0;
+	}
+
+exit:
+	if (rq->callback) {
+		rq->callback((channel_t*)c, result_status, result, rq->cb_state);
+	}
+
+	myreq_destroy(rq);
+	data = http_request_get_data(request, &datalen);
+	free(data);
+	http_request_destroy(request);
+	http_response_destroy(response);
 }
 
 static int doh_query(myreq_t* rq)
 {
+	channel_doh_t* c = rq->ctx;
 	http_request_t* req;
+	int r;
 
-	req = http_request_create("GET", "/", "doh.beike.workers.dev");
+	req = http_request_create("GET", "/", c->host);
 	if (!req) {
 		loge("doh_query() error: http_request_create() error\n");
 		return -1;
 	}
 
-	return http_send(rq->ctx->http, &rq->ctx->http_addr, req, http_cb, rq);
+	r = http_send(c->http, &c->http_addr, req, http_cb, rq);
+	if (r) {
+		loge("doh_query() error: http_send() error\n");
+		http_request_destroy(req);
+		return -1;
+	}
+
+	return r;
 }
 
 static int query(channel_t* ctx,

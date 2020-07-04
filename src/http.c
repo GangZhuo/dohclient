@@ -51,7 +51,7 @@ struct http_request_t {
 	const char* path;   /* request path */
 	const char* host;
 	dllist_t    headers;
-	const char* data;
+	char*       data;
 	int         data_len;
 	http_conn_t* conn;
 	http_callback_fun_t callback;
@@ -64,6 +64,7 @@ struct http_response_t {
 	dllist_t headers;
 	char*    content;
 	int      content_len;
+	http_conn_t* conn;
 };
 
 typedef struct http_header_t {
@@ -90,16 +91,16 @@ typedef struct http_step_state {
 
 static SSL_CTX* sslctx = NULL;
 
+static void http_call_callback(http_request_t* req, int err, http_response_t* res);
 
 static void http_conn_free(http_conn_t *conn)
 {
-	if (conn->request && conn->request->callback) {
-		conn->request->conn = NULL;
-		conn->request->callback(
-			HTTP_ABORT,
-			conn->request,
-			NULL,
-			conn->request->cb_state);
+	if (conn->request) {
+		http_call_callback(conn->request, HTTP_ABORT, conn->response);
+	}
+	if (conn->response) {
+		conn->response->conn = NULL;
+		conn->response = NULL;
 	}
 	if (conn->ssl) {
 		SSL_free(conn->ssl);
@@ -185,6 +186,9 @@ void http_request_destroy(http_request_t *request)
 	if (request) {
 		dlitem_t* cur, * nxt;
 		http_header_t* header;
+		if (request->conn) {
+			request->conn->request = NULL;
+		}
 		dllist_foreach(&request->headers, cur, nxt,
 			http_header_t, header, entry) {
 			dllist_remove(&header->entry);
@@ -287,14 +291,14 @@ void http_request_set_host(http_request_t* request,
 	}
 }
 
-const char* http_request_get_data(http_request_t* request, int* data_len)
+char* http_request_get_data(http_request_t* request, int* data_len)
 {
 	if (data_len) *data_len = request->data_len;
 	return request->data;
 }
 
 void http_request_set_data(http_request_t* request,
-	const char* data, int data_len)
+	char* data, int data_len)
 {
 	request->data = data;
 	request->data_len = data_len;
@@ -335,6 +339,9 @@ void http_response_destroy(http_response_t* response)
 	if (response) {
 		dlitem_t* cur, * nxt;
 		http_header_t* header;
+		if (response->conn) {
+			response->conn->response = NULL;
+		}
 		dllist_foreach(&response->headers, cur, nxt,
 			http_header_t, header, entry) {
 			dllist_remove(&header->entry);
@@ -428,44 +435,98 @@ int http_response_header_next(http_response_t* response, struct dliterator_t* it
 	return r;
 }
 
+char* http_response_get_data(http_response_t* response, int* data_len)
+{
+	if (data_len) *data_len = response->content_len;
+	return response->content;
+}
+
+void http_response_set_data(http_response_t* response,
+	char* data, int data_len)
+{
+	response->content = data;
+	response->content_len = data_len;
+}
+
 
 int http_init(const config_t* conf)
 {
 	const SSL_METHOD* method;
+	SSL* ssl;
+	STACK_OF(SSL_CIPHER)* active_ciphers;
+	char ciphers[300];
 
-	/* ---------------------------------------------------------- *
-     * These function calls initialize openssl for correct work.  *
-     * ---------------------------------------------------------- */
-	OpenSSL_add_all_algorithms();
-	ERR_load_BIO_strings();
-	ERR_load_crypto_strings();
-	SSL_load_error_strings();
+	/* Whitelist of candidate ciphers. */
+	static const char* const candidates[] = {
+	  "AES128-GCM-SHA256", "AES128-SHA256", "AES256-SHA256", /* strong ciphers */
+	  "AES128-SHA", "AES256-SHA", /* strong ciphers, also in older versions */
+	  "RC4-SHA", "RC4-MD5", /* backwards compatibility, supposed to be weak */
+	  "DES-CBC3-SHA", "DES-CBC3-MD5", /* more backwards compatibility */
+	  NULL
+	};
 
-	/* ---------------------------------------------------------- *
-	 * initialize SSL library and register algorithms             *
-	 * ---------------------------------------------------------- */
 	if (SSL_library_init() < 0) {
 		loge("http_init() error: Could not initialize the OpenSSL library !\n");
 		return -1;
 	}
 
-	/* ---------------------------------------------------------- *
-	 * Set SSLv2 client hello, also announce SSLv3 and TLSv1      *
-	 * ---------------------------------------------------------- */
+	OpenSSL_add_all_algorithms();
+	SSL_load_error_strings();
+	ERR_load_BIO_strings();
+	ERR_load_crypto_strings();
+
 	method = SSLv23_client_method();
 
-	/* ---------------------------------------------------------- *
-	 * Try to create a new SSL context                            *
-	 * ---------------------------------------------------------- */
 	if ((sslctx = SSL_CTX_new(method)) == NULL) {
 		loge("http_init() error: Unable to create a new SSL context structure.\n");
 		return -1;
 	}
 
-	/* ---------------------------------------------------------- *
-	 * Disabling SSLv2 will leave v3 and TSLv1 for negotiation    *
-	 * ---------------------------------------------------------- */
-	SSL_CTX_set_options(sslctx, SSL_OP_NO_SSLv2);
+	SSL_CTX_set_options(sslctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION);
+
+	if (SSL_CTX_set_cipher_list(sslctx, "HIGH:MEDIUM") != 1) {
+		loge("http_init() error: SSL_CTX_set_cipher_list() error.\n");
+		return -1;
+	}
+
+	/* Create a dummy SSL session to obtain the cipher list. */
+	ssl = SSL_new(sslctx);
+	if (ssl == NULL) {
+		loge("http_init() error: SSL_new() error.\n");
+		return -1;
+	}
+
+	active_ciphers = SSL_get_ciphers(ssl);
+	if (active_ciphers == NULL) {
+		loge("http_init() error: active_ciphers() error.\n");
+		SSL_free(ssl);
+		return -1;
+	}
+
+	/* Actually selected ciphers. */
+	ciphers[0] = '\0';
+	for (const char* const* c = candidates; *c; ++c) {
+		for (int i = 0; i < sk_SSL_CIPHER_num(active_ciphers); ++i) {
+			if (strcmp(SSL_CIPHER_get_name(sk_SSL_CIPHER_value(active_ciphers, i)),
+				*c) == 0) {
+				if (*ciphers) {
+					strcat(ciphers, ":");
+				}
+				strcat(ciphers, *c);
+				break;
+			}
+		}
+	}
+
+	SSL_free(ssl);
+
+	logd("cipher list: %s\n", ciphers);
+
+	/* Apply final cipher list. */
+	if (SSL_CTX_set_cipher_list(sslctx, ciphers) != 1) {
+		loge("http_init() error: SSL_CTX_set_cipher_list() error.\n");
+		return -1;
+	}
 
 	return 0;
 }
@@ -487,6 +548,7 @@ static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	if (r == 1) {
 		/* connected */
 		conn->conn.status = cs_ssl_handshaked;
+		logd("http_ssl_handshake(): ssl handshaked\n");
 		return 0;
 	}
 	
@@ -499,6 +561,10 @@ static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		else if (err == SSL_ERROR_WANT_WRITE) {
 			conn->conn.status = cs_ssl_handshaking_want_write;
 			return 0;
+		}
+		else {
+			loge("http_ssl_handshake() error: errno=%d, %s\n",
+				err, ERR_error_string(err, NULL));
 		}
 	}
 
@@ -569,10 +635,10 @@ static void http_conn_close(http_ctx_t* ctx, http_conn_t* conn)
 	}
 }
 
-static http_conn_t* http_conn_create(http_ctx_t* ctx, sockaddr_t* addr)
+static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr_t* addr)
 {
 	http_conn_t* conn = NULL;
-	sock_t sock;
+	sock_t sock = 0;
 	conn_status cs;
 	SSL* ssl;
 
@@ -617,6 +683,15 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, sockaddr_t* addr)
 	SSL_set_mode(ssl, SSL_MODE_ENABLE_PARTIAL_WRITE);
 	SSL_set_fd(ssl, sock);
 
+	/* Enable the ServerNameIndication extension */
+	if (!SSL_set_tlsext_host_name(ssl, host)) {
+		loge("http_conn_create() error: SSL_set_tlsext_host_name() error\n");
+		close(sock);
+		free(conn);
+		SSL_free(ssl);
+		return NULL;
+	}
+
 	logd("http_conn_create()\n");
 
 	return conn;
@@ -644,7 +719,7 @@ static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr
 	return pi;
 }
 
-static http_conn_t* http_get_conn(http_ctx_t* ctx, sockaddr_t* addr)
+static http_conn_t* http_get_conn(http_ctx_t* ctx, const char *host, sockaddr_t* addr)
 {
 	http_conn_t* conn = NULL;
 	http_pool_item_t* pi = NULL;
@@ -660,7 +735,7 @@ static http_conn_t* http_get_conn(http_ctx_t* ctx, sockaddr_t* addr)
 
 	if (!conn) {
 
-		conn = http_conn_create(ctx, addr);
+		conn = http_conn_create(ctx, host, addr);
 		if (!conn) {
 			loge("http_get_conn() error: http_conn_create() error\n");
 			return NULL;
@@ -735,14 +810,14 @@ static int http_request_serialize(/*write stream*/stream_t *s, http_request_t* r
 		}
 
 		if (req->data_len > 0) {
-			if (stream_writes(s, req->data, req->data_len) == -1) {
+			if (stream_appends(s, req->data, req->data_len) == -1) {
 				loge("http_request_serialize() error: stream_appendf()");
 				return -1;
 			}
 		}
 	}
 	else {
-		if (stream_writes(s, "\r\n", 2) == -1) {
+		if (stream_appends(s, "\r\n", 2) == -1) {
 			loge("http_request_serialize() error: stream_appendf()");
 			return -1;
 		}
@@ -764,6 +839,9 @@ static int http_conn_send(http_conn_t* conn)
 	if (rsize == 0)
 		return 0;
 
+	if (s->pos == 0) {
+		logd("sending:\n%s\n", s->array);
+	}
 	nsend = SSL_write(conn->ssl, s->array + s->pos, rsize);
 	if (nsend <= 0) {
 		int err = SSL_get_error(conn->ssl, nsend);
@@ -776,7 +854,8 @@ static int http_conn_send(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_send() error: errno=%d \n", err);
+			loge("http_conn_send() error: errno=%d, %s\n",
+				err, ERR_error_string(err, NULL));
 			return -1;
 		}
 	}
@@ -818,7 +897,8 @@ static int http_conn_recv(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_recv() error: errno=%d \n", err);
+			loge("http_conn_recv() error: errno=%d, %s\n",
+				err, ERR_error_string(err, NULL));
 			return -1;
 		}
 	}
@@ -849,6 +929,8 @@ static void http_call_callback(http_request_t* req, int err, http_response_t *re
 	}
 	if (req->callback) {
 		req->callback(err, req, res, req->cb_state);
+		req->callback = NULL;
+		req->cb_state = NULL;
 	}
 }
 
@@ -990,20 +1072,20 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			r = -1;
 			req = conn->request;
 			res = conn->response;
-			http_remove_conn(conn);
-			http_conn_free(conn);
 			if (req) {
 				http_call_callback(req, HTTP_TIMEOUT, res);
 			}
+			http_remove_conn(conn);
+			http_conn_free(conn);
 		}
 		else if (r) {
 			req = conn->request;
 			res = conn->response;
-			http_remove_conn(conn);
-			http_conn_free(conn);
 			if (req) {
 				http_call_callback(req, HTTP_ERROR, res);
 			}
+			http_remove_conn(conn);
+			http_conn_free(conn);
 		}
 	}
 }
@@ -1094,11 +1176,19 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	http_callback_fun_t callback, void* state)
 {
 	http_conn_t* conn;
+	http_response_t* response;
 	int r;
 
-	conn = http_get_conn(ctx, addr);
+	response = http_response_create();
+	if (!response) {
+		loge("http_send() error: http_response_create() error\n");
+		return -1;
+	}
+
+	conn = http_get_conn(ctx, request->host, addr);
 	if (!conn) {
 		loge("http_send() error: http_get_conn() error\n");
+		http_response_destroy(response);
 		return -1;
 	}
 
@@ -1106,6 +1196,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		if (http_ssl_handshake(ctx, conn)) {
 			loge("http_send() error: http_ssl_handshake() error\n");
 			http_conn_close(ctx, conn);
+			http_response_destroy(response);
 			return -1;
 		}
 	}
@@ -1113,6 +1204,8 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	r = http_request_serialize(&conn->conn.ws, request);
 	if (r <= 0) {
 		loge("http_send() error: http_request_serialize() error\n");
+		http_conn_close(ctx, conn);
+		http_response_destroy(response);
 		return -1;
 	}
 
@@ -1121,13 +1214,19 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		if (r < 0) {
 			loge("http_send() error: http_conn_send() error\n");
 			http_conn_close(ctx, conn);
+			http_response_destroy(response);
 			return -1;
 		}
 	}
 
+	request->conn = conn;
 	request->callback = callback;
 	request->cb_state = state;
+
+	response->conn = conn;
+
 	conn->request = request;
+	conn->response = response;
 
 	return 0;
 }
