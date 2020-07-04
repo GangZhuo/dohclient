@@ -106,6 +106,18 @@ static int step(channel_t* ctx,
 	return http_step(c->http, readset, writeset, errorset);
 }
 
+static int build_request_nsmsg(ns_msg_t* msg, myreq_t* req)
+{
+	init_ns_msg(msg);
+
+	msg->id = req->req_id;
+	msg->flags = req->flags;
+	msg->qdcount = 1;
+	msg->qrs = ns_qr_clone(&req->qr, 1);
+
+	return 0;
+}
+
 static void http_cb(
 	int status,
 	http_request_t* request,
@@ -126,12 +138,12 @@ static void http_cb(
 	if (status == HTTP_OK) {
 		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 		if (!result) {
-			loge("http_cb() error: alloc");
+			loge("http_cb() error: alloc\n");
 			goto exit;
 		}
 		
 		if (init_ns_msg(result)) {
-			loge("req_new() error: init_ns_msg() error");
+			loge("req_new() error: init_ns_msg() error\n");
 			free(result);
 			result = NULL;
 			goto exit;
@@ -139,7 +151,7 @@ static void http_cb(
 
 		data = http_response_get_data(response, &datalen);
 		if (ns_parse(result, (const uint8_t*)data, datalen)) {
-			loge("req_new() error: ns_parse() error");
+			loge("req_new() error: ns_parse() error\n");
 			ns_msg_free(result);
 			free(result);
 			result = NULL;
@@ -165,17 +177,48 @@ static int doh_query(myreq_t* rq)
 {
 	channel_doh_t* c = rq->ctx;
 	http_request_t* req;
-	int r;
+	ns_msg_t msg;
+	int r, len;
+	stream_t s = STREAM_INIT();
 
-	req = http_request_create("GET", "/", c->host);
-	if (!req) {
-		loge("doh_query() error: http_request_create() error\n");
+	init_ns_msg(&msg);
+
+	r = build_request_nsmsg(&msg, rq);
+	if (r) {
+		loge("doh_query() error: build_request_nsmsg() error\n");
 		return -1;
 	}
+
+	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
+		loge("doh_query() error: ns_serialize() error\n");
+		stream_free(&s);
+		ns_msg_free(&msg);
+		return -1;
+	}
+
+	ns_msg_free(&msg);
+
+	req = http_request_create("POST", c->path, c->host);
+	if (!req) {
+		loge("doh_query() error: http_request_create() error\n");
+		stream_free(&s);
+		return -1;
+	}
+
+	r = http_request_set_header(req, "Content-Type", "application/dns-message");
+	if (r) {
+		loge("doh_query() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return -1;
+	}
+
+	http_request_set_data(req, s.array, s.size);
 
 	r = http_send(c->http, &c->http_addr, req, http_cb, rq);
 	if (r) {
 		loge("doh_query() error: http_send() error\n");
+		stream_free(&s);
 		http_request_destroy(req);
 		return -1;
 	}

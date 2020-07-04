@@ -1022,7 +1022,7 @@ static void ServiceMain(int argc, char** argv)
 	hStatus = RegisterServiceCtrlHandler(PROGRAM_NAME, (LPHANDLER_FUNCTION)ControlHandler);
 	if (hStatus == (SERVICE_STATUS_HANDLE)0)
 	{
-		loge("ServiceMain(): cannot register service ctrl handler");
+		loge("ServiceMain(): cannot register service ctrl handler\n");
 		return;
 	}
 
@@ -1080,7 +1080,7 @@ static void run_as_daemonize()
 	ServiceTable[1].lpServiceProc = NULL;
 
 	if (!StartServiceCtrlDispatcher(ServiceTable)) {
-		loge("run_as_daemonize(): cannot start service ctrl dispatcher");
+		loge("run_as_daemonize(): cannot start service ctrl dispatcher\n");
 	}
 #else
 	pid_t pid, sid;

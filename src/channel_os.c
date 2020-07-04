@@ -97,7 +97,7 @@ static void reslove(channel_t* ctx, myreq_t* req)
 
 	flg.bits.qr = 1;
 	if (channel_build_msg(&msg, req->id, &flg, &req->qr, ip, family)) {
-		loge("channel_os_reslove() error: channel_build_msg() error");
+		loge("channel_os_reslove() error: channel_build_msg() error\n");
 		goto error;
 	}
 

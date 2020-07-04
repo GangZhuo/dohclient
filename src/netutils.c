@@ -557,13 +557,13 @@ conn_t* conn_new(sock_t sock)
 {
 	conn_t* conn = (conn_t*)malloc(sizeof(conn_t));
 	if (!conn) {
-		loge("conn_new() error: alloc");
+		loge("conn_new() error: alloc\n");
 		return NULL;
 	}
 
 	if (conn_init(conn, sock)) {
 		free(conn);
-		loge("conn_new() error: conn_init() error");
+		loge("conn_new() error: conn_init() error\n");
 		return NULL;
 	}
 
@@ -575,13 +575,13 @@ int conn_init(conn_t* conn, sock_t sock)
 	memset(conn, 0, sizeof(conn_t));
 
 	if (stream_init(&conn->rs)) {
-		loge("conn_init() error: stream_init() error");
+		loge("conn_init() error: stream_init() error\n");
 		return -1;
 	}
 
 	if (stream_init(&conn->ws)) {
 		stream_free(&conn->rs);
-		loge("conn_init() error: stream_init() error");
+		loge("conn_init() error: stream_init() error\n");
 		return -1;
 	}
 
@@ -612,13 +612,13 @@ peer_t* peer_new(sock_t sock, int listen)
 {
 	peer_t* peer = (peer_t*)malloc(sizeof(peer_t));
 	if (!peer) {
-		loge("peer_new() error: alloc");
+		loge("peer_new() error: alloc\n");
 		return NULL;
 	}
 
 	if (peer_init(peer, sock, listen)) {
 		free(peer);
-		loge("peer_new() error: peer_init() error");
+		loge("peer_new() error: peer_init() error\n");
 		return NULL;
 	}
 
@@ -630,7 +630,7 @@ int peer_init(peer_t* peer, sock_t sock, int listen)
 	memset(peer, 0, sizeof(peer_t));
 
 	if (conn_init(&peer->conn, sock)) {
-		loge("peer_init() error: conn_init() error");
+		loge("peer_init() error: conn_init() error\n");
 		return -1;
 	}
 

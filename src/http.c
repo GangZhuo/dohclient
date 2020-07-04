@@ -389,7 +389,7 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 		"%s %s HTTP/1.1\r\n",
 		req->method,
 		req->path) == -1) {
-		loge("http_request_serialize() error: stream_appendf()");
+		loge("http_request_serialize() error: stream_appendf()\n");
 		return -1;
 	}
 
@@ -397,7 +397,7 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 
 	while (http_request_header_next(req, &it, &name, &value)) {
 		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
+			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 		if (strcmp(name, "Connection") == 0)
@@ -408,27 +408,27 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 
 	if (!have_host) {
 		if (stream_appendf(s, "Host: %s\r\n", req->host) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
+			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
 
 	if (!have_connection) {
 		if (stream_appendf(s, "Connection: %s\r\n", "keep-alive") == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
+			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
 
 	if (strcmp(req->method, "POST") == 0) {
 		if (stream_appendf(s, "Content-Length: %d\r\n\r\n", req->data_len) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
+			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
 	else {
 		if (stream_appends(s, "\r\n", 2) == -1) {
-			loge("http_request_serialize() error: stream_appendf()");
+			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
@@ -439,14 +439,14 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 int http_request_serialize(/*write stream*/stream_t* s, http_request_t* req)
 {
 	if (http_request_headers_serialize(s, req) == -1) {
-		loge("http_request_serialize() error: http_request_headers_serialize()");
+		loge("http_request_serialize() error: http_request_headers_serialize()\n");
 		return -1;
 	}
 
 	if (strcmp(req->method, "POST") == 0) {
 		if (req->data_len > 0) {
 			if (stream_appends(s, req->data, req->data_len) == -1) {
-				loge("http_request_serialize() error: stream_appendf()");
+				loge("http_request_serialize() error: stream_appendf()\n");
 				return -1;
 			}
 		}
@@ -605,7 +605,7 @@ int http_response_headers_serialize(/*write stream*/stream_t* s, http_response_t
 		response->http_minor,
 		response->status_code,
 		response->status_text) == -1) {
-		loge("http_response_headers_serialize() error: stream_appendf()");
+		loge("http_response_headers_serialize() error: stream_appendf()\n");
 		return -1;
 	}
 
@@ -613,13 +613,13 @@ int http_response_headers_serialize(/*write stream*/stream_t* s, http_response_t
 
 	while (http_response_header_next(response, &it, &name, &value)) {
 		if (stream_appendf(s, "%s: %s\r\n", name, value) == -1) {
-			loge("http_response_headers_serialize() error: stream_appendf()");
+			loge("http_response_headers_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
 
 	if (stream_appends(s, "\r\n", 2) == -1) {
-		loge("http_response_headers_serialize() error: stream_appendf()");
+		loge("http_response_headers_serialize() error: stream_appendf()\n");
 		return -1;
 	}
 
@@ -629,13 +629,13 @@ int http_response_headers_serialize(/*write stream*/stream_t* s, http_response_t
 int http_response_serialize(/*write stream*/stream_t* s, http_response_t* response)
 {
 	if (http_response_headers_serialize(s, response) == -1) {
-		loge("http_response_serialize() error: http_response_headers_serialize()");
+		loge("http_response_serialize() error: http_response_headers_serialize()\n");
 		return -1;
 	}
 
 	if (response->data.size > 0) {
 		if (stream_appends(s, response->data.array, response->data.size) == -1) {
-			loge("http_response_serialize() error: stream_appendf()");
+			loge("http_response_serialize() error: stream_appendf()\n");
 			return -1;
 		}
 	}
@@ -1118,6 +1118,7 @@ static int on_header_value(http_parser* parser, const char* at, size_t length)
 static int on_headers_complete(http_parser* parser)
 {
 	http_conn_t* conn = (http_conn_t*)parser->data;
+	http_response_t* response = conn->response;
 
 	if (conn->field.status != fs_none) {
 		if (on_header_field_complete(parser))
@@ -1125,6 +1126,13 @@ static int on_headers_complete(http_parser* parser)
 	}
 
 	conn->keep_alive = http_should_keep_alive(parser);
+
+	if (loglevel > LOG_DEBUG) {
+		stream_t s = STREAM_INIT();
+		http_response_headers_serialize(&s, response);
+		logv("Response Headers:\r\n%s\r\n", s.array);
+		stream_free(&s);
+	}
 
 	return 0;
 }
@@ -1146,13 +1154,6 @@ static int on_message_complete(http_parser* parser)
 	http_conn_t* conn = (http_conn_t*)parser->data;
 	http_request_t* request = conn->request;
 	http_response_t* response = conn->response;
-
-	if (loglevel > LOG_DEBUG) {
-		stream_t s = STREAM_INIT();
-		http_response_serialize(&s, response);
-		logv("Response Headers:\r\n%s\r\n", s.array);
-		stream_free(&s);
-	}
 
 	http_call_callback(request, HTTP_OK, response);
 
