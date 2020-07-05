@@ -6,6 +6,7 @@
 #define DEFAULT_PID_FILE "/var/run/dohclient.pid"
 #define DEFAULT_TIMEOUT 5
 #define DEFAULT_CHANNEL "doh"
+#define DEFAULT_CHANNEL_ARGS "addr=8.8.4.4:443&host=dns.google&path=/dns-query&proxy=0"
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,8 +23,8 @@ typedef struct config_t {
 	int timeout;
 	char* proxy;
 	char* chnroute;
-	char* channel;
-	char* channel_args;
+	char** channels;
+	char** channel_args;
 	int log_level;
 	int is_print_version;
 	int is_print_help;

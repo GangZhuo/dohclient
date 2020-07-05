@@ -46,7 +46,8 @@ static chnroute_ctx chnr = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
 static channel_t* cache = NULL;
-static channel_t* channel = NULL;
+static channel_t** channels = NULL;
+static int channel_num = 0;
 
 #ifdef WINDOWS
 
@@ -388,6 +389,12 @@ static void req_check_expire(time_t now)
 	}
 }
 
+static channel_t* choose_channel()
+{
+	int i = rand() % channel_num;
+	return channels[i];
+}
+
 /* get a query result */
 static int _query_cb(channel_t* ctx,
 	int status,
@@ -466,6 +473,7 @@ static int cache_cb(channel_t* ctx,
 	req_t* req = state;
 
 	if (status || !result || result->qdcount < 1) {
+		channel_t* channel = choose_channel();
 		return channel->query(channel, req->msg, query_cb, req);
 	}
 	else {
@@ -752,12 +760,13 @@ static int do_loop()
 
 		max_fd = MAX(max_fd, fd);
 
-		fd = channel->fdset(channel, &readset, &writeset, &errorset);
-		if (fd < 0) {
-			return -1;
+		for (i = 0; i < channel_num; i++) {
+			fd = channels[i]->fdset(channels[i], &readset, &writeset, &errorset);
+			if (fd < 0) {
+				return -1;
+			}
+			max_fd = MAX(max_fd, fd);
 		}
-
-		max_fd = MAX(max_fd, fd);
 
 		timeout.tv_sec = 0;
 		timeout.tv_usec = 50 * 1000;
@@ -836,9 +845,11 @@ static int do_loop()
 			return -1;
 		}
 
-		r = channel->step(channel, &readset, &writeset, &errorset);
-		if (r) {
-			return -1;
+		for (i = 0; i < channel_num; i++) {
+			r = channels[i]->step(channels[i], &readset, &writeset, &errorset);
+			if (r) {
+				return -1;
+			}
 		}
 	}
 
@@ -848,6 +859,7 @@ static int do_loop()
 static int init_dohclient()
 {
 	int i;
+	char** ch, ** args;
 
 	srand((unsigned int)time(NULL));
 
@@ -912,11 +924,31 @@ static int init_dohclient()
 		return -1;
 	}
 
-	if (channel_create(
-		&channel, conf.channel, conf.channel_args,
-		&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
-		loge("init_dohclient() error: no channel\n");
+	ch = conf.channels;
+	while (ch && *ch) {
+		ch++;
+		channel_num++;
+	}
+
+	channels = (channel_t**)malloc(sizeof(channel_t*) * channel_num);
+	if (!channels) {
+		loge("init_dohclient() error: create channels\n");
 		return -1;
+	}
+
+	ch = conf.channels;
+	args = conf.channel_args;
+	i = 0;
+	while (ch && *ch) {
+		if (channel_create(
+			&channels[i], *ch, *args,
+			&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
+			loge("init_dohclient() error: no channel\n");
+			return -1;
+		}
+		ch++;
+		args++;
+		i++;
 	}
 
 	listen_num = str2listens(
@@ -973,9 +1005,13 @@ static void uninit_dohclient()
 
 	rbtree_init(&reqdic, req_rbkeycmp);
 
-	if (channel) {
-		channel->destroy(channel);
-		channel = NULL;
+	if (channels) {
+		for (i = 0; i < channel_num; i++) {
+			channels[i]->destroy(channels[i]);
+		}
+		free(channels);
+		channels = NULL;
+		channel_num = 0;
 	}
 
 	if (cache) {

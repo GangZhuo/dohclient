@@ -11,6 +11,59 @@
 #include "log.h"
 #include "utils.h"
 
+static int conf_add_channel(config_t* conf, const char *channel)
+{
+	char** channels;
+	int num = 0;
+	char** p;
+
+	p = conf->channels;
+	while (p && *p) {
+		num++;
+		p++;
+	}
+	
+	channels = (char**)realloc(conf->channels, sizeof(char*) * (num + 2));
+
+	if (!channels) {
+		loge("alloc\n");
+		return -1;
+	}
+
+	conf->channels = channels;
+	channels[num++] = strdup(channel);
+	channels[num] = NULL;
+
+	return 0;
+}
+
+static int conf_add_channel_args(config_t* conf, const char* args)
+{
+	char** channel_args;
+	int num = 0;
+	char** p;
+
+	p = conf->channel_args;
+	while (p && *p) {
+		num++;
+		p++;
+	}
+
+	channel_args = (char**)realloc(conf->channel_args, sizeof(char*) * (num + 2));
+
+	if (!channel_args) {
+		loge("alloc\n");
+		return -1;
+	}
+
+	conf->channel_args = channel_args;
+	channel_args[num++] = strdup(args);
+	channel_args[num] = NULL;
+
+	return 0;
+
+}
+
 int conf_parse_args(config_t *conf, int argc, char** argv)
 {
 	int ch;
@@ -56,10 +109,14 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			conf->chnroute = strdup(optarg);
 			break;
 		case 9:
-			conf->channel = strdup(optarg);
+			if (conf_add_channel(conf, optarg)) {
+				return -1;
+			}
 			break;
 		case 10:
-			conf->channel_args = strdup(optarg);
+			if (conf_add_channel_args(conf, optarg)) {
+				return -1;
+			}
 			break;
 		case 'h':
 			conf->is_print_help = 1;
@@ -89,6 +146,10 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 
 int conf_check(config_t* conf)
 {
+	int channel_num = 0;
+	int channel_args_num = 0;
+	char** p;
+
 	if (conf->listen_addr == NULL) {
 		conf->listen_addr = strdup(DEFAULT_LISTEN_ADDR);
 	}
@@ -98,14 +159,40 @@ int conf_check(config_t* conf)
 	if (conf->timeout <= 0) {
 		conf->timeout = DEFAULT_TIMEOUT;
 	}
-	if (conf->channel == NULL) {
-		conf->channel = strdup(DEFAULT_CHANNEL);
+	if (conf->channels == NULL) {
+		if (conf_add_channel(conf, DEFAULT_CHANNEL)) {
+			return -1;
+		}
 	}
+	if (conf->channel_args == NULL) {
+		if (conf_add_channel_args(conf, DEFAULT_CHANNEL_ARGS)) {
+			return -1;
+		}
+	}
+
+	p = conf->channels;
+	while (p && *p) {
+		channel_num++;
+		p++;
+	}
+
+	p = conf->channel_args;
+	while (p && *p) {
+		channel_args_num++;
+		p++;
+	}
+
+	if (channel_num != channel_args_num) {
+		loge("channel and channel_args are not match\n");
+		return -1;
+	}
+
 	return 0;
 }
 
 void conf_print(const config_t* conf)
 {
+	char** channel, ** args;
 	if (conf->log_file)
 		logn("log_file: %s\n", conf->log_file);
 
@@ -118,11 +205,15 @@ void conf_print(const config_t* conf)
 	if (conf->timeout > 0)
 		logn("peer timeout: %d\n", conf->timeout);
 
-	if (conf->channel)
-		logn("channel: %s\n", conf->channel);
+	channel = conf->channels;
+	args = conf->channel_args;
 
-    if (conf->channel_args)
-		logn("channel args: %s\n", conf->channel_args);
+	while (channel  && *channel) {
+		logn("channel: %s\n", *channel);
+		logn("channel args: %s\n", *args);
+		channel++;
+		args++;
+	}
 
 #ifndef WINDOWS
 	if (conf->daemonize) {
@@ -262,15 +353,17 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 			}
 		}
 		else if (strcmp(name, "channel") == 0 && strlen(value)) {
-			if (force || !conf->channel) {
-				free(conf->channel);
-				conf->channel = strdup(value);
+			if (force || !conf->channels) {
+				if (conf_add_channel(conf, value)) {
+					return -1;
+				}
 			}
 		}
         else if (strcmp(name, "channel_args") == 0 && strlen(value)) {
 			if (force || !conf->channel_args) {
-				free(conf->channel_args);
-				conf->channel_args = strdup(value);
+				if (conf_add_channel_args(conf, value)) {
+					return -1;
+				}
 			}
 		}
 		else {
@@ -287,6 +380,8 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 
 void conf_free(config_t* conf)
 {
+	char** p;
+
 	free(conf->listen_addr);
 	conf->listen_addr = NULL;
 
@@ -308,9 +403,21 @@ void conf_free(config_t* conf)
 	free(conf->chnroute);
 	conf->chnroute = NULL;
 
+	p = conf->channel_args;
+	while (p && *p) {
+		free(*p);
+		p++;
+	}
+
+	p = conf->channels;
+	while (p && *p) {
+		free(*p);
+		p++;
+	}
+
 	free(conf->channel_args);
 	conf->channel_args = NULL;
 
-	free(conf->channel);
-	conf->channel = NULL;
+	free(conf->channels);
+	conf->channels = NULL;
 }
