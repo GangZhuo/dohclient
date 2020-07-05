@@ -29,6 +29,7 @@ typedef int (*channel_step_func)(channel_t* ctx,
 typedef int (*channel_query_cb)(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
+	int fromcache,
 	void *state);
 typedef int (*channel_query_func)(channel_t* ctx,
 	const ns_msg_t* request,

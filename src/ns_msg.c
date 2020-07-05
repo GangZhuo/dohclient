@@ -38,6 +38,8 @@ typedef struct serialize_ctx {
 
 static int indexof_char(char *p, int ch);
 
+static void ns_msg_free_rdata(ns_rr_t* rr);
+
 int init_ns_msg(ns_msg_t *msg)
 {
 	memset(msg, 0, sizeof(ns_msg_t));
@@ -68,6 +70,124 @@ ns_qr_t* ns_qr_clone(const ns_qr_t* array, int num)
 	return copy;
 }
 
+static ns_hinfo_t* ns_rdata_clone_hinfo(const ns_rr_t* rr)
+{
+	ns_hinfo_t* old = rr->rdata;
+	ns_hinfo_t* hinfo = (ns_hinfo_t*)malloc(sizeof(ns_hinfo_t));
+	if (hinfo) {
+		hinfo->cpu = old->cpu ? strdup(old->cpu) : NULL;
+		hinfo->os = old->os ? strdup(old->os) : NULL;
+	}
+	return hinfo;
+}
+
+static ns_minfo_t* ns_rdata_clone_minfo(const ns_rr_t* rr)
+{
+	ns_minfo_t* old = rr->rdata;
+	ns_minfo_t* minfo = (ns_minfo_t*)malloc(sizeof(ns_minfo_t));
+	if (minfo) {
+		minfo->rmailbx = old->rmailbx ? strdup(old->rmailbx) : NULL;
+		minfo->emailbx = old->emailbx ? strdup(old->emailbx) : NULL;
+	}
+	return minfo;
+}
+
+static ns_mx_t* ns_rdata_clone_mx(const ns_rr_t* rr)
+{
+	ns_mx_t* old = rr->rdata;
+	ns_mx_t* mx = (ns_mx_t*)malloc(sizeof(ns_mx_t));
+	if (mx) {
+		mx->preference = old->preference;
+		mx->exchange = old->exchange ? strdup(old->exchange) : NULL;
+	}
+	return mx;
+}
+
+static void* ns_rdata_clone_any(const ns_rr_t* rr)
+{
+	char* data = (char*)malloc(rr->rdlength);
+	if (data) {
+		memcpy(data, rr->rdata, rr->rdlength);
+	}
+	return data;
+}
+
+static ns_soa_t* ns_rdata_clone_soa(const ns_rr_t* rr)
+{
+	ns_soa_t* old = rr->rdata;
+	ns_soa_t* soa = (ns_soa_t*)malloc(sizeof(ns_soa_t));
+	if (soa) {
+		memcpy(soa, old, sizeof(ns_soa_t));
+		soa->mname = old->mname ? strdup(old->mname) : NULL;
+		soa->rname = old->rname ? strdup(old->rname) : NULL;
+	}
+	return soa;
+}
+
+static char* ns_rdata_clone_domainname(const ns_rr_t* rr)
+{
+	return rr->rdata ? strdup(rr->rdata) : NULL;
+}
+
+static ns_optlist_t* ns_rdata_clone_opts(const ns_rr_t* rr)
+{
+	ns_optlist_t* old = rr->rdata;
+	ns_optlist_t* opts = (ns_optlist_t*)malloc(sizeof(ns_optlist_t));
+	int i;
+	if (opts) {
+		opts->opts = (ns_opt_t*)malloc(sizeof(ns_opt_t) * old->optcount);
+		if (!opts->opts) {
+			free(opts);
+			return NULL;
+		}
+		opts->optcount = old->optcount;
+		for (i = 0; i < opts->optcount; i++) {
+			opts->opts[i].code = old->opts[i].code;
+			opts->opts[i].length = old->opts[i].length;
+			opts->opts[i].data = malloc(opts->opts[i].length);
+			if (!opts->opts[i].data) {
+				for (; i >= 0; i--) {
+					free(opts->opts[i].data);
+				}
+				free(opts);
+				return NULL;
+			}
+			memcpy(opts->opts[i].data, old->opts[i].data, opts->opts[i].length);
+		}
+	}
+
+	return opts;
+}
+
+static void* ns_msg_clone_rdata(const ns_rr_t* rr)
+{
+	switch (rr->type) {
+	case NS_TYPE_HINFO:
+		return ns_rdata_clone_hinfo(rr);
+	case NS_TYPE_CNAME:
+	case NS_TYPE_MB:
+	case NS_TYPE_MD:
+	case NS_TYPE_MF:
+	case NS_TYPE_MG:
+	case NS_TYPE_MR:
+	case NS_TYPE_NS:
+	case NS_TYPE_PTR:
+		return ns_rdata_clone_domainname(rr);
+	case NS_TYPE_MINFO:
+		return ns_rdata_clone_minfo(rr);
+		break;
+	case NS_TYPE_MX:
+		return ns_rdata_clone_mx(rr);
+	case NS_TYPE_SOA:
+		return ns_rdata_clone_soa(rr);
+	case NS_TYPE_OPT:
+		return ns_rdata_clone_opts(rr);
+	case NS_TYPE_NULL:
+	default:
+		return ns_rdata_clone_any(rr);
+	}
+}
+
 ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num)
 {
 	ns_rr_t* copy, * dst;
@@ -93,18 +213,17 @@ ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num)
 		dst->rdata = NULL;
 
 		if (src->rdata) {
-			dst->rdata = (char*)malloc(dst->rdlength);
+			dst->rdata = ns_msg_clone_rdata(src);
 			if (!dst->rdata) {
 				loge("ns_rr_clone() error: alloc \n");
 				for (; i >= 0; i--) {
 					dst = copy + i;
+					ns_msg_free_rdata(dst);
 					free(dst->name);
-					free(dst->rdata);
 				}
 				free(copy);
 				return NULL;
 			}
-			memcpy(dst->rdata, src->rdata, dst->rdlength);
 		}
 	}
 	return copy;

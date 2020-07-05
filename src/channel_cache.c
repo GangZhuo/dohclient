@@ -146,7 +146,7 @@ static void destroy(channel_t* ctx)
 		cache_req_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
-			req->callback(ctx, -1, NULL, req->state);
+			req->callback(ctx, -1, NULL, TRUE, req->state);
 		cache_req_destroy(req);
 	}
 	dllist_foreach(&c->items, cur, nxt,
@@ -189,12 +189,12 @@ static void reslove(channel_t* ctx, cache_req_t* req)
 	}
 
 	if (req->callback)
-		req->callback(ctx, 0, item->msg, req->state);
+		req->callback(ctx, 0, item->msg, TRUE, req->state);
 
 	return;
 error:
 	if (req->callback)
-		req->callback(ctx, -1, NULL, req->state);
+		req->callback(ctx, -1, NULL, TRUE, req->state);
 }
 
 static int step(channel_t* ctx,

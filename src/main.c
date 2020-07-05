@@ -392,8 +392,8 @@ static void req_check_expire(time_t now)
 static int _query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
-	void* state,
-	int fromcache)
+	int fromcache,
+	void* state)
 {
 	const char* key;
 	rbn_t* rbn;
@@ -420,7 +420,7 @@ static int _query_cb(channel_t* ctx,
 
 	rbn = reqdic_find(key);
 	if (!rbn) {
-		if (result) {
+		if (result && !fromcache) {
 			ns_msg_free(result);
 			free(result);
 		}
@@ -440,7 +440,7 @@ static int _query_cb(channel_t* ctx,
 			break;
 	}
 
-	if (result) {
+	if (result && !fromcache) {
 		ns_msg_free(result);
 		free(result);
 	}
@@ -451,14 +451,16 @@ static int _query_cb(channel_t* ctx,
 static int query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
+	int fromcache,
 	void* state)
 {
-	return _query_cb(ctx, status, result, state, FALSE);
+	return _query_cb(ctx, status, result, fromcache, state);
 }
 
 static int cache_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
+	int fromcache,
 	void* state)
 {
 	req_t* req = state;
@@ -467,7 +469,7 @@ static int cache_cb(channel_t* ctx,
 		return channel->query(channel, req->msg, query_cb, req);
 	}
 	else {
-		return _query_cb(ctx, status, result, state, TRUE);
+		return _query_cb(ctx, status, result, fromcache, state);
 	}
 }
 

@@ -98,7 +98,7 @@ static void destroy(channel_t* ctx)
 		myreq_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
-			req->callback(ctx, -1, NULL, req->cb_state);
+			req->callback(ctx, -1, NULL, FALSE, req->cb_state);
 		myreq_destroy(req);
 	}
 	http_destroy(c->http);
@@ -201,7 +201,7 @@ exit:
 
 	if (rq->wait_num == 0) {
 		if (rq->callback) {
-			rq->callback((channel_t*)c, result_status, result, rq->cb_state);
+			rq->callback((channel_t*)c, result_status, result, FALSE, rq->cb_state);
 		}
 		myreq_destroy(rq);
 	}
