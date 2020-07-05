@@ -262,6 +262,8 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 	char line[2048], * ln;
 	char* option, * name, * value;
 	int len = 0, cnf_index = -1;
+    int have_channel = !!conf->channels;
+    int have_channel_args = !!conf->channel_args;
 
 	pf = fopen(config_file, "r");
 	if (!pf) {
@@ -353,14 +355,14 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 			}
 		}
 		else if (strcmp(name, "channel") == 0 && strlen(value)) {
-			if (force || !conf->channels) {
+			if (force || !have_channel) {
 				if (conf_add_channel(conf, value)) {
 					return -1;
 				}
 			}
 		}
         else if (strcmp(name, "channel_args") == 0 && strlen(value)) {
-			if (force || !conf->channel_args) {
+			if (force || !have_channel_args) {
 				if (conf_add_channel_args(conf, value)) {
 					return -1;
 				}
