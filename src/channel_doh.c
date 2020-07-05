@@ -179,6 +179,7 @@ static int http_addr_query_cb(channel_t* ctx,
 			addr->sin_family = AF_INET;
 			addr->sin_port = port;
 			memcpy(&addr->sin_addr, in, sizeof(struct in_addr));
+			break;
 		}
 		else if (rr->type == NS_QTYPE_AAAA) {
 			struct in6_addr* in6 = (struct in6_addr*)rr->rdata;
@@ -188,6 +189,7 @@ static int http_addr_query_cb(channel_t* ctx,
 			addr->sin6_family = AF_INET;
 			addr->sin6_port = port;
 			memcpy(&addr->sin6_addr, in6, sizeof(struct in6_addr));
+			break;
 		}
 	}
 

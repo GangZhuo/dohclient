@@ -247,14 +247,14 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	if (msg->rrs->type != NS_TYPE_A && msg->rrs->type != NS_TYPE_AAAA)
 		return 0;
 
-	item = cache_item_new(msg, key);
-	if (!item) {
-		loge("cache_add() error: cache_item_new() error\n");
-		return -1;
-	}
-
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
+		item = cache_item_new(msg, key);
+		if (!item) {
+			loge("cache_add() error: cache_item_new() error\n");
+			return -1;
+		}
+
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
 		if (loglevel > LOG_DEBUG) {
@@ -265,6 +265,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		}
 	}
 	else {
+		item = rbtree_container_of(rbn, cache_item_t, node);
 		ns_msg_t* newmsg = ns_msg_clone(msg);
 		if (!newmsg) {
 			loge("cache_add() error: ns_msg_clone() error\n");
