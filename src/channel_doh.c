@@ -33,6 +33,7 @@ typedef struct channel_doh_t {
 	int req_count;
 	http_ctx_t* http;
 	sockaddr_t http_addr;
+	time_t http_addr_expire;
 	char* host;
 	char* path;
 	int use_proxy;
@@ -57,6 +58,8 @@ typedef struct myreq_t {
 	int result_num;
 	int wait_num;
 } myreq_t;
+
+static int doh_query(myreq_t* rq);
 
 static uint16_t new_req_id(channel_doh_t* ctx)
 {
@@ -131,6 +134,116 @@ static void destroy(channel_t* ctx)
 	free(c);
 }
 
+static int http_addr_query_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	int fromcache,
+	void* state)
+{
+	channel_doh_t* c = (channel_doh_t*)state;
+	const char* key;
+	int i, rrcount;
+	ns_rr_t* rr;
+	uint16_t port;
+
+	/* ignore failed result */
+	if (status || !result || result->qdcount < 1) {
+		if (c->http_addr_expire < time(NULL) + 1 * 60 * 60) {
+			c->http_addr_expire += 60;
+		}
+		return 0;
+	}
+
+	key = msg_key(result);
+
+	logn("new DoH server's IP: %s - %s\n",
+		key, msg_answers(result));
+	
+	c->http_addr_expire = time(NULL) + 1 * 60 * 60;
+
+	if (c->http_addr.addr.ss_family == AF_INET) {
+		port = ((struct sockaddr_in*)&c->http_addr.addr)->sin_port;
+	}
+	else {
+		port = ((struct sockaddr_in6*)&c->http_addr.addr)->sin6_port;
+	}
+
+	rrcount = result->ancount + result->nscount;
+	for (i = 0; i < rrcount; i++) {
+		rr = result->rrs + i;
+		if (rr->type == NS_QTYPE_A) {
+			struct in_addr* in = (struct in_addr*)rr->rdata;
+			struct sockaddr_in* addr = (struct sockaddr_in*)&c->http_addr.addr;
+			memset(&c->http_addr, 0, sizeof(sockaddr_t));
+			c->http_addr.addrlen = sizeof(struct sockaddr_in);
+			addr->sin_family = AF_INET;
+			addr->sin_port = port;
+			memcpy(&addr->sin_addr, in, sizeof(struct in_addr));
+		}
+		else if (rr->type == NS_QTYPE_AAAA) {
+			struct in6_addr* in6 = (struct in6_addr*)rr->rdata;
+			struct sockaddr_in6* addr = (struct sockaddr_in6*)&c->http_addr.addr;
+			memset(&c->http_addr, 0, sizeof(sockaddr_t));
+			c->http_addr.addrlen = sizeof(struct sockaddr_in6);
+			addr->sin6_family = AF_INET;
+			addr->sin6_port = port;
+			memcpy(&addr->sin6_addr, in6, sizeof(struct in6_addr));
+		}
+	}
+
+	if (result && !fromcache) {
+		ns_msg_free(result);
+		free(result);
+	}
+	return 0;
+}
+
+static void query_http_addr(channel_doh_t* c)
+{
+	myreq_t* req;
+	ns_msg_t msg;
+
+	c->http_addr_expire = time(NULL) + 60;
+
+	init_ns_msg(&msg);
+
+	msg.id = 0;
+	msg.flags.bits.aa = 1;
+	msg.flags.bits.ra = 1;
+	msg.qdcount = 1;
+	msg.qrs = (ns_qr_t*)malloc(sizeof(ns_qr_t));
+	if (!msg.qrs) {
+		return;
+	}
+
+	msg.qrs->qclass = NS_QCLASS_IN;
+	msg.qrs->qtype = NS_QTYPE_A;
+	msg.qrs->qname = (char*)malloc(strlen(c->host) + 2);
+	strcpy(msg.qrs->qname, c->host);
+	strcat(msg.qrs->qname, ".");
+
+	req = myreq_new(c, &msg, http_addr_query_cb, c);
+
+	ns_msg_free(&msg);
+
+	if (!req) {
+		return;
+	}
+
+	dllist_add(&c->reqs, &req->entry);
+	rbtree_insert(&c->reqdic, &req->rbn);
+	c->req_count++;
+
+	if (doh_query(req)) {
+		loge("query_http_addr() failed\n");
+		dllist_remove(&req->entry);
+		rbtree_remove(&c->reqdic, &req->rbn);
+		c->req_count--;
+		myreq_destroy(req);
+		return;
+	}
+}
+
 static sock_t fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
@@ -142,6 +255,9 @@ static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;
+	if (c->http_addr_expire < time(NULL)) {
+		query_http_addr(c);
+	}
 	return http_step(c->http, readset, writeset, errorset);
 }
 

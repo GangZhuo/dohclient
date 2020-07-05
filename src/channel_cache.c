@@ -235,7 +235,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 
 	if (!key || !msg || !msg->qrs || !msg->rrs ||
 		msg->qdcount < 1 || msg->ancount < 1) {
-		loge("cache_add() error: invalid msg\n");
+		loge("cache_add() error: invalid msg (no ip)\n");
 		return -1;
 	}
 
