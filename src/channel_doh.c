@@ -723,66 +723,80 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 		*v = '\0';
 		v++;
 
-		if (strcmp(p, "addr") == 0) {
-			p = v;
-			v = strchr(p, ':');
-			if (v) {
-				*v = '\0';
-				v++;
-			}
-			if (!try_parse_as_ip( &ctx->http_addr, p, (v && (*v)) ? v : "443") ) {
-				loge("parse address failed: %s:%s\n",
-					p,
-					(v && (*v)) ? v : "443"
-				);
-				free(cpy);
-				return -1;
-			}
-		}
-		else if (strcmp(p, "host") == 0) {
-			ctx->host = strdup(v);
-		}
-		else if (strcmp(p, "path") == 0) {
-			ctx->path = strdup(v);
-		}
-		else if (strcmp(p, "proxy") == 0) {
-			ctx->use_proxy = strcmp(v, "0");
-		}
-		else if (strcmp(p, "ecs") == 0) {
-			ctx->ecs = strcmp(v, "0");
-		}
-		else if (strcmp(p, "china-ip4") == 0) {
-			if (v && *v && parse_subnet(&ctx->china_net, v)) {
-				loge("parse \"china-ip4\" failed: %s\n", v);
-				free(cpy);
-				return -1;
-			}
-		}
-		else if (strcmp(p, "china-ip6") == 0) {
-			if (v && *v && parse_subnet(&ctx->china_net6, v)) {
-				loge("parse \"china-ip6\" failed: %s\n", v);
-				free(cpy);
-				return -1;
-			}
-		}
-		else if (strcmp(p, "foreign-ip4") == 0) {
-			if (v && *v && parse_subnet(&ctx->foreign_net, v)) {
-				loge("parse \"foreign-ip4\" failed: %s\n", v);
-				free(cpy);
-				return -1;
-			}
-		}
-		else if (strcmp(p, "foreign-ip6") == 0) {
-			if (v && *v && parse_subnet(&ctx->foreign_net6, v)) {
-				loge("parse \"foreign-ip6\" failed: %s\n", v);
-				free(cpy);
-				return -1;
-			}
-		}
-		else {
-			logw("unknown argument: %s=%s\n", p, v);
-		}
-	}
+        if (strcmp(p, "addr") == 0) {
+            p = v;
+            if (*p == '[') {
+                p++;
+                v = strchr(p, ']');
+                if (v) {
+                    *v = '\0';
+                    v++;
+                    if (*v == ':') {
+                        v++;
+                    }
+                }
+            }
+            else {
+                v = strchr(p, ':');
+                if (v) {
+                    *v = '\0';
+                    v++;
+                }
+            }
+
+            if (!try_parse_as_ip( &ctx->http_addr, p, (v && (*v)) ? v : "443") ) {
+                loge("parse address failed: %s:%s\n",
+                        p,
+                        (v && (*v)) ? v : "443"
+                    );
+                free(cpy);
+                return -1;
+            }
+        }
+        else if (strcmp(p, "host") == 0) {
+            ctx->host = strdup(v);
+        }
+        else if (strcmp(p, "path") == 0) {
+            ctx->path = strdup(v);
+        }
+        else if (strcmp(p, "proxy") == 0) {
+            ctx->use_proxy = strcmp(v, "0");
+        }
+        else if (strcmp(p, "ecs") == 0) {
+            ctx->ecs = strcmp(v, "0");
+        }
+        else if (strcmp(p, "china-ip4") == 0) {
+            if (v && *v && parse_subnet(&ctx->china_net, v)) {
+                loge("parse \"china-ip4\" failed: %s\n", v);
+                free(cpy);
+                return -1;
+            }
+        }
+        else if (strcmp(p, "china-ip6") == 0) {
+            if (v && *v && parse_subnet(&ctx->china_net6, v)) {
+                loge("parse \"china-ip6\" failed: %s\n", v);
+                free(cpy);
+                return -1;
+            }
+        }
+        else if (strcmp(p, "foreign-ip4") == 0) {
+            if (v && *v && parse_subnet(&ctx->foreign_net, v)) {
+                loge("parse \"foreign-ip4\" failed: %s\n", v);
+                free(cpy);
+                return -1;
+            }
+        }
+        else if (strcmp(p, "foreign-ip6") == 0) {
+            if (v && *v && parse_subnet(&ctx->foreign_net6, v)) {
+                loge("parse \"foreign-ip6\" failed: %s\n", v);
+                free(cpy);
+                return -1;
+            }
+        }
+        else {
+            logw("unknown argument: %s=%s\n", p, v);
+        }
+    }
 
 	free(cpy);
 	return 0;
