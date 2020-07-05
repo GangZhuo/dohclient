@@ -5,7 +5,7 @@
 #define DEFAULT_LISTEN_PORT "53"
 #define DEFAULT_PID_FILE "/var/run/dohclient.pid"
 #define DEFAULT_TIMEOUT 5
-#define DEFAULT_CHANNEL "os"
+#define DEFAULT_CHANNEL "doh"
 
 #ifdef __cplusplus
 extern "C" {

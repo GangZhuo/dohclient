@@ -81,8 +81,11 @@ Options:\n\
   -p BIND_PORT             Port that listen on, default: " DEFAULT_LISTEN_PORT ".\n\
                            The port specified in \"-b\" is priority .\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
-  --channel=CHANNEL        Channel name, e.g. os,bridge,doh.\n\
-  --channel-args=ARGS      Channel arguments. e.g. server=8.8.8.8:53&noproxy=1.\n\
+  --channel=CHANNEL        Channel name, e.g. os,doh.\n\
+  --channel-args=ARGS      Channel arguments. e.g. --channel-args=\"addr=8.8.4.4:443\n\
+                           &host=dns.google&path=/dns-query&proxy=1&ecs=1\n\
+                           &china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32\n\
+                           &foreign-ip4=8.8.8.8/24&foreign-ip6=2001:df2:8300::/48\".\n\
   --daemon                 Daemonize.\n\
   --pid=PID_FILE_PATH      pid file, default: " DEFAULT_PID_FILE ", \n\
                            only available on daemonize.\n\
@@ -93,9 +96,7 @@ Options:\n\
   --chnroute=CHNROUTE_FILE Path to china route file, \n\
                            e.g.: --chnroute=lan.txt,chnroute.txt,chnroute6.txt.\n\
   --proxy=SOCKS5_PROXY     Socks5 proxy, e.g. --proxy=127.0.0.1:1080\n\
-                           or --proxy=[::1]:1080. More than one proxy is supported,\n\
-                           in the case, if first proxy is unconnectable, it is \n\
-                           automatic switch to next one.\n\
+                           or --proxy=[::1]:1080.\n\
                            Only socks5 with no authentication is supported.\n\
   -v                       Verbose logging.\n\
   -h                       Show this help message and exit.\n\
@@ -418,8 +419,13 @@ static int _query_cb(channel_t* ctx,
 	}
 
 	rbn = reqdic_find(key);
-	if (!rbn)
+	if (!rbn) {
+		if (result) {
+			ns_msg_free(result);
+			free(result);
+		}
 		return 0;
+	}
 
 	dllist_foreach(&rbn->reqs, cur, nxt,
 		req_t, req, entry_rbn) {
@@ -434,6 +440,10 @@ static int _query_cb(channel_t* ctx,
 			break;
 	}
 
+	if (result) {
+		ns_msg_free(result);
+		free(result);
+	}
 	return 0;
 }
 

@@ -5,6 +5,13 @@
 #define _M
 #define MAX_QUEUE_SIZE	30000
 
+typedef struct subnet_t {
+	int is_set;
+	char* name;
+	struct sockaddr_storage addr;
+	int mask;
+} subnet_t;
+
 typedef struct channel_doh_t {
 	CHANNEL_BASE(_M)
 	dllist_t reqs;
@@ -15,6 +22,11 @@ typedef struct channel_doh_t {
 	char* host;
 	char* path;
 	int use_proxy;
+	int ecs;
+	subnet_t china_net;
+	subnet_t foreign_net;
+	subnet_t china_net6;
+	subnet_t foreign_net6;
 } channel_doh_t;
 
 typedef struct myreq_t {
@@ -27,6 +39,9 @@ typedef struct myreq_t {
 	dlitem_t entry;
 	struct rbnode_t rbn;
 	channel_doh_t* ctx;
+	ns_msg_t** results;
+	int result_num;
+	int wait_num;
 } myreq_t;
 
 static uint16_t new_req_id(channel_doh_t* ctx)
@@ -143,7 +158,7 @@ static void http_cb(
 		}
 		
 		if (init_ns_msg(result)) {
-			loge("req_new() error: init_ns_msg() error\n");
+			loge("http_cb() error: init_ns_msg() error\n");
 			free(result);
 			result = NULL;
 			goto exit;
@@ -151,7 +166,7 @@ static void http_cb(
 
 		data = http_response_get_data(response, &datalen);
 		if (ns_parse(result, (const uint8_t*)data, datalen)) {
-			loge("req_new() error: ns_parse() error\n");
+			loge("http_cb() error: ns_parse() error\n");
 			ns_msg_free(result);
 			free(result);
 			result = NULL;
@@ -159,27 +174,43 @@ static void http_cb(
 		}
 
 		result_status = 0;
+
+		if (!rq->results) {
+			rq->results = (ns_msg_t**)malloc(sizeof(ns_msg_t*) * rq->wait_num);
+			if (!rq->results) {
+				loge("http_cb() error: alloc\n");
+				ns_msg_free(result);
+				free(result);
+				result = NULL;
+				goto exit;
+			}
+			memset(rq->results, 0, sizeof(ns_msg_t*) * rq->wait_num);
+		}
+		rq->results[rq->result_num++] = result;
 	}
 	else {
 		loge("query %s failed\n", rq->qr.qname);
 	}
 
 exit:
-	if (rq->callback) {
-		rq->callback((channel_t*)c, result_status, result, rq->cb_state);
-	}
-
-	myreq_destroy(rq);
-	data = http_request_get_data(request, &datalen);
-	free(data);
+	free(http_request_get_data(request, &datalen));
 	http_request_destroy(request);
 	http_response_destroy(response);
+
+	rq->wait_num--;
+
+	if (rq->wait_num == 0) {
+		if (rq->callback) {
+			rq->callback((channel_t*)c, result_status, result, rq->cb_state);
+		}
+		myreq_destroy(rq);
+	}
 }
 
-static int doh_query(myreq_t* rq)
+static http_request_t* doh_build_http_request(myreq_t* rq, subnet_t* subnet)
 {
 	channel_doh_t* c = rq->ctx;
-	http_request_t* req;
+	http_request_t* req = NULL;
 	ns_msg_t msg;
 	int r, len;
 	stream_t s = STREAM_INIT();
@@ -188,74 +219,166 @@ static int doh_query(myreq_t* rq)
 
 	r = build_request_nsmsg(&msg, rq);
 	if (r) {
-		loge("doh_query() error: build_request_nsmsg() error\n");
-		return -1;
+		loge("doh_build_http_request() error: build_request_nsmsg() error\n");
+		return NULL;
+	}
+
+	if (subnet) {
+		ns_rr_t* rr;
+		rr = ns_find_opt_rr(&msg);
+		if (rr == NULL) {
+			rr = ns_add_optrr(&msg);
+			if (rr == NULL) {
+				loge("doh_build_http_request(): Can't add option record to ns_msg_t\n");
+				ns_msg_free(&msg);
+				return NULL;
+			}
+		}
+
+		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
+
+		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
+			loge("doh_build_http_request(): Can't add ecs option\n");
+			ns_msg_free(&msg);
+			return NULL;
+		}
 	}
 
 	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
-		loge("doh_query() error: ns_serialize() error\n");
+		loge("doh_build_http_request() error: ns_serialize() error\n");
 		stream_free(&s);
 		ns_msg_free(&msg);
-		return -1;
+		return NULL;
 	}
 
 	ns_msg_free(&msg);
 
 	req = http_request_create("POST", c->path, c->host);
 	if (!req) {
-		loge("doh_query() error: http_request_create() error\n");
+		loge("doh_build_http_request() error: http_request_create() error\n");
 		stream_free(&s);
-		return -1;
+		return NULL;
 	}
 
 	r = http_request_set_header(req, "Content-Type", "application/dns-message");
 	if (r) {
-		loge("doh_query() error: http_request_set_header() error\n");
+		loge("doh_build_http_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
-		return -1;
+		return NULL;
 	}
 
 	r = http_request_set_header(req, "Pragma", "no-cache");
 	if (r) {
-		loge("doh_query() error: http_request_set_header() error\n");
+		loge("doh_build_http_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
-		return -1;
+		return NULL;
 	}
 
 	r = http_request_set_header(req, "Cache-Control", "no-cache");
 	if (r) {
-		loge("doh_query() error: http_request_set_header() error\n");
+		loge("doh_build_http_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
-		return -1;
+		return NULL;
 	}
 
 	r = http_request_set_header(req, "Accept", "*/*");
 	if (r) {
-		loge("doh_query() error: http_request_set_header() error\n");
+		loge("doh_build_http_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
-		return -1;
+		return NULL;
 	}
 
 	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
-		loge("doh_query() error: http_request_set_header() error\n");
+		loge("doh_build_http_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
-		return -1;
+		return NULL;
 	}
 
 	http_request_set_data(req, s.array, s.size);
 
+	return req;
+}
+
+static int doh_http_query(myreq_t* rq, subnet_t* subnet)
+{
+	channel_doh_t* c = rq->ctx;
+	http_request_t* req;
+	int r;
+
+	req = doh_build_http_request(rq, subnet);
+	if (!req) {
+		loge("doh_http_query() error: doh_build_http_request() error\n");
+		return -1;
+	}
+
 	r = http_send(c->http, &c->http_addr, req, http_cb, rq);
 	if (r) {
-		loge("doh_query() error: http_send() error\n");
-		stream_free(&s);
+		loge("doh_http_query() error: http_send() error\n");
+		free(http_request_get_data(req, NULL));
 		http_request_destroy(req);
 		return -1;
+	}
+
+	return r;
+}
+
+static int doh_query(myreq_t* rq)
+{
+	channel_doh_t* c = rq->ctx;
+	int r = 0;
+
+	if (c->ecs) {
+		if (rq->qr.qtype == NS_QTYPE_AAAA) {
+			if (c->china_net6.is_set) {
+				r = doh_http_query(rq, &c->china_net6);
+				if (r) {
+					loge("doh_query() error: doh_http_query() error\n");
+					return -1;
+				}
+				rq->wait_num++;
+			}
+			if (c->foreign_net6.is_set) {
+				r = doh_http_query(rq, &c->foreign_net6);
+				if (r) {
+					loge("doh_query() error: doh_http_query() error\n");
+					return -1;
+				}
+				rq->wait_num++;
+			}
+		}
+		else if (rq->qr.qtype == NS_QTYPE_A) {
+			if (c->china_net.is_set) {
+				r = doh_http_query(rq, &c->china_net);
+				if (r) {
+					loge("doh_query() error: doh_http_query() error\n");
+					return -1;
+				}
+				rq->wait_num++;
+			}
+			if (c->foreign_net.is_set) {
+				r = doh_http_query(rq, &c->foreign_net);
+				if (r) {
+					loge("doh_query() error: doh_http_query() error\n");
+					return -1;
+				}
+				rq->wait_num++;
+			}
+		}
+	}
+
+	if (rq->wait_num == 0) {
+		r = doh_http_query(rq, NULL);
+		if (r) {
+			loge("doh_query() error: doh_http_query() error\n");
+			return -1;
+		}
+		rq->wait_num++;
 	}
 
 	return r;
@@ -300,6 +423,19 @@ static int rbcmp(const void* a, const void* b)
 	return x - y;
 }
 
+static int parse_subnet(subnet_t* subnet, const char* s)
+{
+	if (ns_ecs_parse_subnet((struct sockaddr*)(&subnet->addr),
+		&subnet->mask, s) != 0) {
+		loge("Invalid subnet %s\n", s);
+		return -1;
+	}
+	free(subnet->name);
+	subnet->name = strdup(s);
+	subnet->is_set = 1;
+	return 0;
+}
+
 static int parse_args(channel_doh_t *ctx, const char* args)
 {
 	char* cpy;
@@ -328,8 +464,7 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 				v++;
 			}
 			if (!try_parse_as_ip( &ctx->http_addr, p, (v && (*v)) ? v : "443") ) {
-				loge(
-					"parse address failed: %s:%s\n",
+				loge("parse address failed: %s:%s\n",
 					p,
 					(v && (*v)) ? v : "443"
 				);
@@ -345,6 +480,40 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 		}
 		else if (strcmp(p, "proxy") == 0) {
 			ctx->use_proxy = strcmp(v, "0");
+		}
+		else if (strcmp(p, "ecs") == 0) {
+			ctx->ecs = strcmp(v, "0");
+		}
+		else if (strcmp(p, "china-ip4") == 0) {
+			if (v && *v && parse_subnet(&ctx->china_net, v)) {
+				loge("parse \"china-ip4\" failed: %s\n", v);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "china-ip6") == 0) {
+			if (v && *v && parse_subnet(&ctx->china_net6, v)) {
+				loge("parse \"china-ip6\" failed: %s\n", v);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "foreign-ip4") == 0) {
+			if (v && *v && parse_subnet(&ctx->foreign_net, v)) {
+				loge("parse \"foreign-ip4\" failed: %s\n", v);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "foreign-ip6") == 0) {
+			if (v && *v && parse_subnet(&ctx->foreign_net6, v)) {
+				loge("parse \"foreign-ip6\" failed: %s\n", v);
+				free(cpy);
+				return -1;
+			}
+		}
+		else {
+			logw("unknown argument: %s=%s\n", p, v);
 		}
 	}
 

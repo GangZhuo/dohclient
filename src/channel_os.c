@@ -72,7 +72,7 @@ static void reslove(channel_t* ctx, myreq_t* req)
 	sockaddr_t addr = { 0 };
 	void* ip = (struct sockaddr_in*) & addr.addr;
 	int family, r;
-	ns_msg_t msg;
+	ns_msg_t *msg = NULL;
 	ns_flags_t flg = { 0 };
 
 	if (req->qr.qtype == NS_QTYPE_A) {
@@ -96,19 +96,28 @@ static void reslove(channel_t* ctx, myreq_t* req)
 	}
 
 	flg.bits.qr = 1;
-	if (channel_build_msg(&msg, req->id, &flg, &req->qr, ip, family)) {
+
+	msg = (ns_msg_t*)malloc(sizeof(ns_msg_t));
+	if (!msg) {
+		loge("channel_os_reslove() error: alloc\n");
+		goto error;
+	}
+
+	if (channel_build_msg(msg, req->id, &flg, &req->qr, ip, family)) {
 		loge("channel_os_reslove() error: channel_build_msg() error\n");
 		goto error;
 	}
 
 	if (req->callback)
-		req->callback(ctx, 0, &msg, req->state);
-
-	ns_msg_free(&msg);
+		req->callback(ctx, 0, msg, req->state);
 
 	return;
 
 error:
+	if (msg) {
+		ns_msg_free(msg);
+		free(msg);
+	}
 	if (req->callback)
 		req->callback(ctx, -1, NULL, req->state);
 }
