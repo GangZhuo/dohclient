@@ -92,7 +92,8 @@ int setnodelay(sock_t sock)
 
 int getsockerr(sock_t sock)
 {
-	int err = 0, len = sizeof(int);
+	int err = 0;
+    socklen_t len = sizeof(int);
 	if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)& err, &len) < 0)
 		return errno;
 	return err;
@@ -542,8 +543,10 @@ int udp_recv(sock_t sock, char* buf, int buflen,
 	struct sockaddr* from, int* fromlen)
 {
 	int nread;
+    socklen_t flen = 0;
 
-	nread = recvfrom(sock, buf, buflen, 0, from, fromlen);
+	nread = recvfrom(sock, buf, buflen, 0, from, &flen);
+    *fromlen = flen;
 	if (nread > 0) {
 		return nread;
 	}

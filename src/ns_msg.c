@@ -1158,7 +1158,7 @@ static int ns_set_ecs4(ns_opt_t* opt, struct sockaddr_in* addr, int srcprefix, i
 		return -1;
 	if (stream_writei8(&s, scopeprefix) != 1)
 		return -1;
-	if (stream_write(&s, saddr, addrlen) != addrlen)
+	if (stream_write(&s, (const char*)saddr, addrlen) != addrlen)
 		return -1;
 
 	return 0;
@@ -1202,7 +1202,7 @@ static int ns_set_ecs6(ns_opt_t* opt, struct sockaddr_in6* addr, int srcprefix, 
 		return -1;
 	if (stream_writei8(&s, scopeprefix) != 1)
 		return -1;
-	if (stream_write(&s, saddr, addrlen) != addrlen)
+	if (stream_write(&s, (const char*)saddr, addrlen) != addrlen)
 		return -1;
 
 	return 0;

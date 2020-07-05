@@ -3,12 +3,15 @@ debug = 0
 
 OBJS = \
 	rbtree/rbtree.o \
+	http-parser/http_parser.o \
 	src/channel.o \
 	src/channel_cache.o \
+	src/channel_doh.o \
 	src/channel_os.o \
 	src/chnroute.o \
 	src/config.o \
 	src/dns_request.o \
+	src/http.o \
 	src/log.o \
 	src/main.o \
 	src/netutils.o \
@@ -17,6 +20,7 @@ OBJS = \
 	src/utils.o
 
 CFLAGS +=
+LIBS += -lssl -lcrypto
 MYLIBS =
 
 ifneq ($(debug), 0)
@@ -34,6 +38,8 @@ dohclient: $(OBJS)
 
 .PHONY: clean
 clean:
+	-rm -f rbtree/*.o
+	-rm -f http-parser/*.o
 	-rm -f src/*.o dohclient
 
 
