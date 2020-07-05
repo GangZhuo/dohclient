@@ -196,7 +196,7 @@ static int reqdic_add(req_t *req, const char* key)
 		rbn->node.key = rbn->key;
 		rbtree_insert(&reqdic, &rbn->node);
 		dllist_add(&rbn->reqs, &req->entry_rbn);
-		logd("reqdic added - %s\n", rbn->key);
+		logv("reqdic added - %s\n", rbn->key);
 	}
 	return TRUE;
 }
@@ -212,7 +212,7 @@ static void reqdic_remove(req_t* req, const char* key)
 	if (req->entry_rbn.prev->next == req->entry_rbn.prev) {
 		rbn = rbtree_container_of(req->entry_rbn.prev, rbn_t, reqs.head);
 		rbtree_remove(&reqdic, &rbn->node);
-		logd("reqdic removed - %s\n", rbn->key);
+		logv("reqdic removed - %s\n", rbn->key);
 		free(rbn->key);
 		free(rbn);
 	}
@@ -257,7 +257,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	key = req_key(req);
 
 	if (loglevel >= LOG_INFO) {
-		logi("query %s from %s by %s\n",
+		logd("query %s from %s by %s\n",
 			key,
 			req->fromtcp
 			? get_sockname(((peer_t*)req->from)->conn.sock)
@@ -282,7 +282,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	/* set expire */
 	req->expire = time(NULL) + conf.timeout;
 
-	logd("request added (id:%d) - %s\n",
+	logv("request added (id:%d) - %s\n",
 		req->id,
 		key);
 
@@ -300,7 +300,7 @@ static void req_remove(req_t* req)
 	dllist_remove(&req->entry);
 	key = req_key(req);
 	reqdic_remove(req, key);
-	logd("request removed (id:%d) - %s\n",
+	logv("request removed (id:%d) - %s\n",
 		req->id,
 		key);
 	req_destroy(req);
@@ -374,7 +374,7 @@ static void req_check_expire(time_t now)
 	req_t* req;
 	dllist_foreach(&reqs, cur, nxt, req_t, req, entry) {
 		if (req->expire > 0 && req->expire <= now) {
-			logd("request timeout (id:%d) - %s %s %s\n",
+			loge("request timeout (id:%d) - %s %s %s\n",
 				req->id,
 				ns_typename(req->msg->qrs[0].qtype),
 				ns_classname(req->msg->qrs[0].qclass),
@@ -406,7 +406,7 @@ static int _query_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logi("result: %s - %s \tchann:%s\n",
+	logd("answer: %s - %s \tchann:%s\n",
 		key, msg_answers(result),
 		ctx->name);
 	if (loglevel > LOG_DEBUG) {
@@ -494,7 +494,7 @@ static int server_udp_recv(int listen_index)
 	if (nread == 0)
 		return 0;
 
-	logd("server  recv %d bytes - %s \tproto:udp\n",
+	logv("server  recv %d bytes - %s \tproto:udp\n",
 		nread, get_addrname((struct sockaddr*) & from));
 
 	if (loglevel > LOG_DEBUG) {
@@ -616,7 +616,7 @@ static int peer_recv(peer_t* peer)
 
 	peer->conn.rx += nread;
 
-	logd("server  recv %d bytes - %s \tproto:tcp\n",
+	logv("server  recv %d bytes - %s \tproto:tcp\n",
 		nread, get_sockname(peer->conn.sock));
 
 	if (loglevel > LOG_DEBUG) {
@@ -648,7 +648,7 @@ static int peer_write(peer_t* peer)
 
 	peer->conn.tx += nsend;
 
-	logd("peer_write(): write to %s\n", get_sockname(sock));
+	logv("peer_write(): write to %s\n", get_sockname(sock));
 
 	if (is_close_after_rsp(&peer->conn)) {
 		/* wait 3 seconds */
@@ -807,7 +807,7 @@ static int do_loop()
 			if (!running) break;
 
 			if (!r && is_expired(&peer->conn, now)) {
-				logd("peer timeout - %s\n", get_sockname(peer->conn.sock));
+				loge("peer timeout - %s\n", get_sockname(peer->conn.sock));
 				r = -1;
 			}
 

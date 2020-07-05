@@ -161,7 +161,7 @@ static void http_conn_free(http_conn_t *conn)
 	stream_free(&conn->proxy_stream);
 	free(conn);
 
-	logd("http_conn_free()\n");
+	logv("http_conn_free()\n");
 }
 
 static void http_pool_item_free_conns(dllist_t *conns)
@@ -182,7 +182,7 @@ static void http_pool_item_free(http_pool_item_t* item)
 	http_pool_item_free_conns(&item->busy_conns);
 	free(item);
 
-	logd("http_pool_item_free()\n");
+	logv("http_pool_item_free()\n");
 }
 
 static int rbcmp(const void* a, const void* b)
@@ -720,7 +720,7 @@ int http_init(const config_t* conf)
 
 	SSL_free(ssl);
 
-	logd("cipher list: %s\n", ciphers);
+	logv("cipher list: %s\n", ciphers);
 
 	/* Apply final cipher list. */
 	if (SSL_CTX_set_cipher_list(sslctx, ciphers) != 1) {
@@ -776,21 +776,21 @@ static void http_add_to_fly(http_conn_t* conn)
 
 static void http_move_to_busy(http_conn_t* conn)
 {
-	logd("http_move_to_busy()\n");
+	logv("http_move_to_busy()\n");
 	http_remove_conn(conn);
 	http_add_to_busy(conn);
 }
 
 static void http_move_to_idle(http_conn_t* conn)
 {
-	logd("http_move_to_idle()\n");
+	logv("http_move_to_idle()\n");
 	http_remove_conn(conn);
 	http_add_to_idle(conn);
 }
 
 static void http_move_to_fly(http_conn_t* conn)
 {
-	logd("http_move_to_fly()\n");
+	logv("http_move_to_fly()\n");
 	http_remove_conn(conn);
 	http_add_to_fly(conn);
 }
@@ -814,7 +814,7 @@ static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		/* connected */
 		conn->conn.status = cs_ssl_handshaked;
 		http_move_to_busy(conn);
-		logd("http_ssl_handshake(): ssl handshaked\n");
+		logv("http_ssl_handshake(): ssl handshaked\n");
 		return 0;
 	}
 
@@ -865,7 +865,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		}
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
-			logd("http_socks5_handshake() error: tcp_send() error\n");
+			loge("http_socks5_handshake() error: tcp_send() error\n");
 			return -1;
 		}
 		if (stream_rsize(s) > 0) {
@@ -878,18 +878,16 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	case cs_socks5_waiting_method:
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r != 2) {
-			logd("http_socks5_handshake() error: tcp_recv() error\n");
+			loge("http_socks5_handshake() error: tcp_recv() error\n");
 			return -1;
 		}
 		if (s->array[0] == 0x05 && s->array[1] == 0x00) {
 			s->array[0] = 0x05;
 			s->array[1] = 0x01;
 			s->array[2] = 0x00;
-			logd("proxy connect %s\n", get_sockaddrname(&conn->pool->addr));
 			if (conn->pool->addr.addr.ss_family == AF_INET) {
 				struct sockaddr_in* addr = (struct sockaddr_in*)&conn->pool->addr.addr;
 				int port = htons(addr->sin_port);
-				logd("proxy connect %s\n", get_addrname(addr));
 				s->array[3] = 0x01;
 				memcpy(s->array + 4, &addr->sin_addr, 4);
 				s->array[8] = (char)((port >> 8) & 0xff);
@@ -910,7 +908,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 			conn->conn.status = cs_socks5_sending_connect;
 			r = tcp_send(conn->conn.sock, s);
 			if (r < 0) {
-				logd("http_socks5_handshake() error: tcp_send() error\n");
+				loge("http_socks5_handshake() error: tcp_send() error\n");
 				return -1;
 			}
 			if (stream_rsize(s) > 0) {
@@ -921,14 +919,14 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 			}
 		}
 		else {
-			logd("http_socks5_handshake() error: no support method\n");
+			loge("http_socks5_handshake() error: no support method\n");
 			return -1;
 		}
 		break;
 	case cs_socks5_sending_connect:
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
-			logd("http_socks5_handshake() error: tcp_send() error\n");
+			loge("http_socks5_handshake() error: tcp_send() error\n");
 			return -1;
 		}
 		if (stream_rsize(s) > 0) {
@@ -941,22 +939,22 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	case cs_socks5_waiting_connect:
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r <= 0) {
-			logd("http_socks5_handshake() error: tcp_recv() error\n");
+			loge("http_socks5_handshake() error: tcp_recv() error\n");
 			return -1;
 		}
 		if (s->array[0] == 0x05 && s->array[1] == 0x00) {
 			conn->conn.status = cs_socks5_handshaked;
 			stream_free(s);
-			logd("http_socks5_handshake(): socks5 handshaked\n");
+			logv("http_socks5_handshake(): socks5 handshaked\n");
 			return http_ssl_handshake(ctx, conn);
 		}
 		else {
-			logd("http_socks5_handshake() error: connect error\n");
+			loge("http_socks5_handshake() error: connect error\n");
 			return -1;
 		}
 		break;
 	default:
-		logd("http_socks5_handshake() error: unknown status\n");
+		loge("http_socks5_handshake() error: unknown status\n");
 		return -1;
 	}
 
@@ -1026,7 +1024,7 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr
 		return NULL;
 	}
 
-	logd("http_conn_create()\n");
+	logv("http_conn_create()\n");
 
 	return conn;
 }
@@ -1048,7 +1046,7 @@ static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr
 	pi->rbn.key = &pi->addr;
 	rbtree_insert(&ctx->pool, &pi->rbn);
 
-	logd("http_pool_item_create()\n");
+	logv("http_pool_item_create()\n");
 
 	return pi;
 }
@@ -1304,19 +1302,13 @@ static int on_message_complete(http_parser* parser)
 static int on_chunk_header(http_parser* parser)
 {
 	http_conn_t* conn = (http_conn_t*)parser->data;
-
-	loge("on_chunk_header() error: chunk is not support\n");
-
-	return -1;
+	return 0;
 }
 
 static int on_chunk_complete(http_parser* parser)
 {
 	http_conn_t* conn = (http_conn_t*)parser->data;
-
-	loge("on_chunk_header() error: chunk is not support\n");
-
-	return -1;
+	return 0;
 }
 
 
@@ -1488,7 +1480,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 		}
 
 		if (!r && http_is_expired(conn, now)) {
-			logd("http timeout - %s\n", get_sockname(conn->conn.sock));
+			loge("http timeout - %s\n", get_sockname(conn->conn.sock));
 			r = -1;
 			req = conn->request;
 			res = conn->response;

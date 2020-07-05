@@ -135,7 +135,7 @@ static void http_cb(
 	rbtree_remove(&c->reqdic, &rq->rbn);
 	c->req_count--;
 
-	if (status == HTTP_OK) {
+	if (status == HTTP_OK && http_response_get_status_code(response, NULL) == 200) {
 		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 		if (!result) {
 			loge("http_cb() error: alloc\n");
@@ -159,6 +159,9 @@ static void http_cb(
 		}
 
 		result_status = 0;
+	}
+	else {
+		loge("query %s failed\n", rq->qr.qname);
 	}
 
 exit:
@@ -206,6 +209,38 @@ static int doh_query(myreq_t* rq)
 	}
 
 	r = http_request_set_header(req, "Content-Type", "application/dns-message");
+	if (r) {
+		loge("doh_query() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return -1;
+	}
+
+	r = http_request_set_header(req, "Pragma", "no-cache");
+	if (r) {
+		loge("doh_query() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return -1;
+	}
+
+	r = http_request_set_header(req, "Cache-Control", "no-cache");
+	if (r) {
+		loge("doh_query() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return -1;
+	}
+
+	r = http_request_set_header(req, "Accept", "*/*");
+	if (r) {
+		loge("doh_query() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return -1;
+	}
+
+	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
 		loge("doh_query() error: http_request_set_header() error\n");
 		stream_free(&s);

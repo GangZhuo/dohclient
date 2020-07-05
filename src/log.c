@@ -84,7 +84,7 @@ void log_vprintf_default(int mask, const char *fmt, va_list args)
 
 void log_vprintf_with_timestamp_default(int mask, const char *fmt, va_list args)
 {
-	char buf[640];
+	char buf[8 * 1024];
 	int level = log_level_comp(mask);
 	char date[32];
 	const char *extra_msg;
@@ -109,7 +109,7 @@ void log_vprintf_with_timestamp_default(int mask, const char *fmt, va_list args)
 
 void log_vprintf_writefile(int mask, const char* fmt, va_list args)
 {
-	char buf[640], buf2[1024];
+	char buf[8 * 1024], buf2[16 * 1024];
 	int len;
 	int level = log_level_comp(mask);
 	char date[32];
@@ -151,7 +151,7 @@ void log_vprintf_syslog(int mask, const char* fmt, va_list args)
 #ifdef WINDOWS
 	logw("log_vprintf_syslog(): not implemented in Windows port");
 #else
-	char buf[640];
+	char buf[8 * 1024];
 	int priority = log_level_comp(mask);
 
 	memset(buf, 0, sizeof(buf));
