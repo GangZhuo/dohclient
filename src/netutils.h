@@ -42,9 +42,6 @@ typedef int sock_t;
 #include "dllist.h"
 #include "stream.h"
 
-#define PROXY_SOCKS5	0
-#define PROXY_HTTP		1
-
 #define LISTEN_BACKLOG	128
 
 #ifndef MAX_LISTEN
@@ -115,7 +112,6 @@ struct sockaddr_t {
 };
 
 typedef struct proxy_t {
-	int proxy_type;
 	sockaddr_t addr;
 	int proxy_index;
 } proxy_t;
@@ -133,8 +129,11 @@ typedef enum conn_status {
 	cs_closing, /* close immediately */
 	cs_rsp_closing, /* close after send */
 
-	cs_proxy_handshaking,
-	cs_proxy_handshaked,
+	cs_socks5_sending_method,
+	cs_socks5_waiting_method,
+	cs_socks5_sending_connect,
+	cs_socks5_waiting_connect,
+	cs_socks5_handshaked,
 
 	cs_ssl_handshaking,
 	cs_ssl_handshaking_want_read,

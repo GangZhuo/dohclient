@@ -861,6 +861,34 @@ static int init_dohclient()
 
 	loglevel = conf.log_level;
 
+	if (conf.proxy) {
+		proxy_num = str2addrs(
+			conf.proxy,
+			&proxy_list[0].addr,
+			MAX_PROXY,
+			sizeof(proxy_t),
+			"1080");
+		if (proxy_num == -1) {
+			loge("init_dohclient() error: parse \"%s\" failed\n",
+				conf.proxy);
+			return -1;
+		}
+		for (i = 0; i < proxy_num; i++) {
+			proxy_list[i].proxy_index = i;
+		}
+	}
+
+	if (conf.chnroute) {
+		if ((chnr = chnroute_create()) == NULL) {
+			loge("init_dohclient() error: chnroute_create()\n");
+			return -1;
+		}
+		if (chnroute_parse(chnr, conf.chnroute)) {
+			loge("init_dohclient() error: invalid chnroute \"%s\"\n", conf.chnroute);
+			return -1;
+		}
+	}
+
 	if (http_init(&conf) != 0) {
 		loge("init_dohclient() error: http_init() error\n");
 		return -1;
@@ -896,34 +924,6 @@ static int init_dohclient()
 
 	if (init_listens(listens, listen_num) != 0)
 		return -1;
-
-	if (conf.proxy) {
-		proxy_num = str2addrs(
-			conf.proxy,
-			&proxy_list[0].addr,
-			MAX_PROXY,
-			sizeof(proxy_t),
-			"1080");
-		if (proxy_num == -1) {
-			loge("init_dohclient() error: parse \"%s\" failed\n",
-				conf.proxy);
-			return -1;
-		}
-		for (i = 0; i < proxy_num; i++) {
-			proxy_list[i].proxy_index = i;
-		}
-	}
-
-	if (conf.chnroute) {
-		if ((chnr = chnroute_create()) == NULL) {
-			loge("init_dohclient() error: chnroute_create()\n");
-			return -1;
-		}
-		if (chnroute_parse(chnr, conf.chnroute)) {
-			loge("init_dohclient() error: invalid chnroute \"%s\"\n", conf.chnroute);
-			return -1;
-		}
-	}
 
 	print_listens(listens, listen_num);
 	logn("loglevel: %d\n", loglevel);
