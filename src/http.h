@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#define DEFAULT_HTTP_TIMEOUT 5000
+#define DEFAULT_HTTP_TIMEOUT 20 * 60 * 1000
 
 #define HTTP_OK			0
 #define HTTP_ABORT		1

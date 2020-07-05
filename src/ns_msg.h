@@ -277,6 +277,8 @@ static inline const char* msg_key(const ns_msg_t* msg)
 }
 const char* msg_answers(const ns_msg_t* msg);
 
+ns_ecs_t* ns_parse_ect(ns_ecs_t* ecs, char* data, int len);
+
 #ifdef __cplusplus
 }
 #endif

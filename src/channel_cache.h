@@ -15,7 +15,7 @@ int cache_create(
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,
-	const chnroute_ctx* chnr,
+	const chnroute_ctx chnr,
 	void* data);
 
 int cache_add(channel_t* ctx, const char* key, const ns_msg_t* msg);

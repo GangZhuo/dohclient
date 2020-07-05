@@ -5,6 +5,20 @@
 #define _M
 #define MAX_QUEUE_SIZE	30000
 
+#define FLG_NONE		0
+#define FLG_POLLUTE		1
+#define FLG_A			(1 << 1)
+#define FLG_A_CHN		(1 << 2)
+#define FLG_A_FRN		(1 << 3)
+#define FLG_AAAA		(1 << 4)
+#define FLG_AAAA_CHN	(1 << 5)
+#define FLG_AAAA_FRN	(1 << 6)
+#define FLG_PTR			(1 << 7)
+#define FLG_OPT			(1 << 8)
+#define FLG_ECS			(1 << 9)
+#define FLG_ECS_CHN		(1 << 10)
+#define FLG_ECS_FRN		(1 << 11)
+
 typedef struct subnet_t {
 	int is_set;
 	char* name;
@@ -85,6 +99,16 @@ static myreq_t* myreq_new(
 
 static void myreq_destroy(myreq_t* req)
 {
+	int i;
+	ns_msg_t* msg;
+	for (i = 0; i < req->result_num; i++) {
+		msg = req->results[i];
+		if (msg) {
+			ns_msg_free(msg);
+			free(msg);
+		}
+	}
+	free(req->results);
 	free(req->qr.qname);
 	free(req);
 }
@@ -133,6 +157,119 @@ static int build_request_nsmsg(ns_msg_t* msg, myreq_t* req)
 	return 0;
 }
 
+static int get_rr_flags(channel_doh_t* ctx, ns_rr_t* rr)
+{
+	if (rr->type == NS_QTYPE_A) {
+		struct in_addr* addr = (struct in_addr*)rr->rdata;
+		if (chnroute_test4(ctx->chnr, addr)) {
+			return (FLG_A | FLG_A_CHN);
+		}
+		else {
+			return (FLG_A | FLG_A_FRN);
+		}
+	}
+	else if (rr->type == NS_QTYPE_AAAA) {
+		struct in6_addr* addr = (struct in6_addr*)rr->rdata;
+		if (chnroute_test6(ctx->chnr, addr)) {
+			return (FLG_AAAA | FLG_AAAA_CHN);
+		}
+		else {
+			return (FLG_AAAA | FLG_AAAA_FRN);
+		}
+	}
+	else if (rr->type == NS_QTYPE_PTR) {
+		return FLG_PTR;
+	}
+	else if (rr->type == NS_QTYPE_OPT) {
+		ns_opt_t* ecsopt = ns_optrr_find_ecs(rr);
+		ns_ecs_t ecs = { 0 };
+		if (ecsopt && ns_parse_ect(&ecs, ecsopt->data, ecsopt->length) && ecs.family) {
+			if (ecs.family == ADDR_FAMILY_NUM_IP) {
+				struct in_addr* addr = (struct in_addr*)ecs.subnet;
+				if (chnroute_test4(ctx->chnr, addr)) {
+					return (FLG_OPT | FLG_ECS | FLG_ECS_CHN);
+				}
+				else {
+					return (FLG_OPT | FLG_ECS | FLG_ECS_FRN);
+				}
+			}
+			else if (ecs.family == ADDR_FAMILY_NUM_IP6) {
+				struct in6_addr* addr = (struct in6_addr*)ecs.subnet;
+				if (chnroute_test6(ctx->chnr, addr)) {
+					return (FLG_OPT | FLG_ECS | FLG_ECS_CHN);
+				}
+				else {
+					return (FLG_OPT | FLG_ECS | FLG_ECS_FRN);
+				}
+			}
+		}
+		return FLG_OPT;
+	}
+	return FLG_NONE;
+}
+
+static int get_nsmsg_flags(channel_doh_t* ctx, ns_msg_t* msg)
+{
+	int i, rrcount, flags = 0;
+	ns_rr_t* rr;
+
+	rrcount = msg->ancount + msg->nscount;
+	for (i = 0; i < rrcount; i++) {
+		rr = msg->rrs + i;
+		flags |= get_rr_flags(ctx, rr);
+	}
+
+	rrcount = ns_rrcount(msg);
+	for (; i < rrcount; i++) {
+		rr = msg->rrs + i;
+		flags |= get_rr_flags(ctx, rr);
+	}
+
+	return flags;
+}
+
+static ns_msg_t* choose_best_nsmsg(myreq_t* rq)
+{
+	channel_doh_t* c = rq->ctx;
+	ns_msg_t* best = NULL;
+
+	if (rq->result_num == 0) {
+		return NULL;
+	}
+	else if (rq->result_num == 1) {
+		return rq->results[0];
+	}
+	else if (!c->chnr) {
+		return rq->results[0];
+	}
+	else {
+		int i, flags;
+		ns_msg_t* msg, * best = NULL;
+		int have_ip, chn_ecs, chn_ip;
+
+		for (i = 0; i < rq->result_num; i++) {
+			msg = rq->results[i];
+			flags = get_nsmsg_flags(c, msg);
+
+			have_ip = flags & (FLG_A | FLG_AAAA);         /* Have IP? */
+			chn_ecs = flags & FLG_ECS_CHN;                /* ECS is China? */
+			chn_ip = flags & (FLG_A_CHN | FLG_AAAA_CHN);  /* Result is China? */
+
+			if (have_ip && chn_ecs && chn_ip) {
+				return msg;
+			}
+			else if (!chn_ecs) {
+				best = msg;
+			}
+		}
+		if (!best) {
+			best = rq->results[0];
+		}
+		return best;
+
+	}
+}
+
 static void http_cb(
 	int status,
 	http_request_t* request,
@@ -141,7 +278,6 @@ static void http_cb(
 {
 	myreq_t* rq = (myreq_t*)state;
 	channel_doh_t* c = rq->ctx;
-	int result_status = -1;
 	ns_msg_t* result = NULL;
 	char* data;
 	int datalen;
@@ -173,8 +309,6 @@ static void http_cb(
 			goto exit;
 		}
 
-		result_status = 0;
-
 		if (!rq->results) {
 			rq->results = (ns_msg_t**)malloc(sizeof(ns_msg_t*) * rq->wait_num);
 			if (!rq->results) {
@@ -200,8 +334,21 @@ exit:
 	rq->wait_num--;
 
 	if (rq->wait_num == 0) {
+		int i;
+		ns_msg_t* msg;
 		if (rq->callback) {
-			rq->callback((channel_t*)c, result_status, result, FALSE, rq->cb_state);
+			result = choose_best_nsmsg(rq);
+			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, rq->cb_state);
+		}
+		else {
+			result = NULL;
+		}
+		/* Don't free the choosed result. */
+		for (i = 0; i < rq->result_num; i++) {
+			msg = rq->results[i];
+			if (msg == result) {
+				rq->results[i] = NULL;
+			}
 		}
 		myreq_destroy(rq);
 	}
@@ -343,7 +490,8 @@ static int doh_query(myreq_t* rq)
 				}
 				rq->wait_num++;
 			}
-			if (c->foreign_net6.is_set) {
+			/* Just query once when no chnroute */
+			if (c->foreign_net6.is_set && (rq->wait_num == 0 || c->chnr)) {
 				r = doh_http_query(rq, &c->foreign_net6);
 				if (r) {
 					loge("doh_query() error: doh_http_query() error\n");
@@ -361,7 +509,8 @@ static int doh_query(myreq_t* rq)
 				}
 				rq->wait_num++;
 			}
-			if (c->foreign_net.is_set) {
+			/* Just query once when no chnroute */
+			if (c->foreign_net.is_set && (rq->wait_num == 0 || c->chnr)) {
 				r = doh_http_query(rq, &c->foreign_net);
 				if (r) {
 					loge("doh_query() error: doh_http_query() error\n");
@@ -528,7 +677,7 @@ int channel_doh_create(
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,
-	const chnroute_ctx* chnr,
+	const chnroute_ctx chnr,
 	void* data)
 {
 	channel_doh_t* ctx;

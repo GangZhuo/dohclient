@@ -294,7 +294,7 @@ int cache_create(
 	const config_t* conf,
 	const proxy_t* proxies,
 	const int proxy_num,
-	const chnroute_ctx* chnr,
+	const chnroute_ctx chnr,
 	void* data)
 {
 	cache_t* ctx;

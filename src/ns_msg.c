@@ -1667,7 +1667,7 @@ static void ns_rdata_print_soa(ns_rr_t *rr)
 	}
 }
 
-static ns_ecs_t* ns_parse_ect(ns_ecs_t *ecs, char *data, int len)
+ns_ecs_t* ns_parse_ect(ns_ecs_t *ecs, char *data, int len)
 {
 	int addrlen, i;
 	stream_t ns = STREAM_INIT();
