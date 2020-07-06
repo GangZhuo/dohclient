@@ -414,7 +414,7 @@ static int _query_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logd("answer: %s - %s \tchann:%s\n",
+	logd("answer: %s - %s - %s\n",
 		key, msg_answers(result),
 		ctx->name);
 	if (loglevel > LOG_DEBUG) {

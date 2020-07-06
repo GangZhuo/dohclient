@@ -1591,7 +1591,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	http_response_t* response;
 	int r;
 
-	logd("http_send(): addr=%s\n", get_sockaddrname(addr));
+	logv("http_send(): server addr=%s\n", get_sockaddrname(addr));
 
 	response = http_response_create();
 	if (!response) {
