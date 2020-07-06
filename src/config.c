@@ -193,13 +193,13 @@ int conf_check(config_t* conf)
 void conf_print(const config_t* conf)
 {
 	char** channel, ** args;
-	if (conf->log_file)
+	if (conf->log_file && *conf->log_file)
 		logn("log_file: %s\n", conf->log_file);
 
-	if (conf->chnroute)
+	if (conf->chnroute && *conf->chnroute)
 		logn("chnroute: %s\n", conf->chnroute);
 
-	if (conf->proxy)
+	if (conf->proxy && *conf->proxy)
 		logn("proxy: %s\n", conf->proxy);
 
 	if (conf->timeout > 0)

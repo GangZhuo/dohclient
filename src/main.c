@@ -863,19 +863,19 @@ static int init_dohclient()
 
 	srand((unsigned int)time(NULL));
 
-	if (conf.log_file) {
+	if (conf.log_file && *conf.log_file) {
 		open_logfile(conf.log_file);
 	}
-	else if (conf.launch_log) {
+	else if (conf.launch_log && *conf.launch_log) {
 		open_logfile(conf.launch_log);
 	}
 
-	if (!conf.is_config_file_readed && conf.config_file) {
+	if (!conf.is_config_file_readed && conf.config_file && *conf.config_file) {
 		if (conf_load_from_file(&conf, conf.config_file, FALSE)) {
 			return -1;
 		}
 		conf.is_config_file_readed = 1;
-		if (conf.log_file) {
+		if (conf.log_file && *conf.log_file) {
 			open_logfile(conf.log_file);
 		}
 	}
@@ -885,7 +885,7 @@ static int init_dohclient()
 
 	loglevel = conf.log_level;
 
-	if (conf.proxy) {
+	if (conf.proxy && *conf.proxy) {
 		proxy_num = str2addrs(
 			conf.proxy,
 			&proxy_list[0].addr,
@@ -902,7 +902,7 @@ static int init_dohclient()
 		}
 	}
 
-	if (conf.chnroute) {
+	if (conf.chnroute && *conf.chnroute) {
 		if ((chnr = chnroute_create()) == NULL) {
 			loge("init_dohclient() error: chnroute_create()\n");
 			return -1;
@@ -1162,7 +1162,7 @@ static void run_as_daemonize()
 
 	umask(0);
 
-	if (!conf.log_file) {
+	if (!conf.log_file || !(*conf.log_file)) {
 		open_syslog(PROGRAM_NAME);
 	}
 
