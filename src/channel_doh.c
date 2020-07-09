@@ -131,6 +131,10 @@ static void destroy(channel_t* ctx)
 	http_destroy(c->http);
 	free(c->host);
 	free(c->path);
+	free(c->china_net.name);
+	free(c->foreign_net.name);
+	free(c->china_net6.name);
+	free(c->foreign_net6.name);
 	free(c);
 }
 
@@ -388,6 +392,18 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 	}
 }
 
+static void detach_result(channel_req_t* rq, ns_msg_t* result)
+{
+	ns_msg_t* msg;
+	int i;
+	for (i = 0; i < rq->result_num; i++) {
+		msg = rq->results[i];
+		if (msg == result) {
+			rq->results[i] = NULL;
+		}
+	}
+}
+
 static void http_cb(
 	int status,
 	http_request_t* request,
@@ -399,10 +415,6 @@ static void http_cb(
 	ns_msg_t* result = NULL;
 	char* data;
 	int datalen;
-
-	dllist_remove(&rq->entry);
-	rbtree_remove(&c->reqdic, &rq->rbn);
-	c->req_count--;
 
 	if (status == HTTP_OK && http_response_get_status_code(response, NULL) == 200) {
 		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
@@ -452,8 +464,11 @@ exit:
 	rq->wait_num--;
 
 	if (rq->wait_num == 0) {
-		int i;
-		ns_msg_t* msg;
+
+		dllist_remove(&rq->entry);
+		rbtree_remove(&c->reqdic, &rq->rbn);
+		c->req_count--;
+
 		if (rq->callback) {
 			result = choose_best_nsmsg(rq);
 			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, rq->cb_state);
@@ -461,13 +476,10 @@ exit:
 		else {
 			result = NULL;
 		}
-		/* Don't free the choosed result. */
-		for (i = 0; i < rq->result_num; i++) {
-			msg = rq->results[i];
-			if (msg == result) {
-				rq->results[i] = NULL;
-			}
-		}
+
+		/* Detach the result, so can keep the result in memory,
+		after myreq_destroy() called. */
+		detach_result(rq, result);
 		myreq_destroy(rq);
 	}
 }
