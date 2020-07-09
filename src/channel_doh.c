@@ -1,6 +1,7 @@
 #include "channel_doh.h"
 #include "../rbtree/rbtree.h"
 #include "http.h"
+#include "mleak.h"
 
 #define _M
 #define MAX_QUEUE_SIZE	30000
