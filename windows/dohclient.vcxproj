@@ -99,6 +99,7 @@
     <ClCompile Include="..\src\http.c" />
     <ClCompile Include="..\src\main.c" />
     <ClCompile Include="..\src\log.c" />
+    <ClCompile Include="..\src\mleak.c" />
     <ClCompile Include="..\src\netutils.c" />
     <ClCompile Include="..\src\ns_msg.c" />
     <ClCompile Include="..\src\stream.c" />
@@ -119,6 +120,7 @@
     <ClInclude Include="..\src\dns_request.h" />
     <ClInclude Include="..\src\http.h" />
     <ClInclude Include="..\src\log.h" />
+    <ClInclude Include="..\src\mleak.h" />
     <ClInclude Include="..\src\netutils.h" />
     <ClInclude Include="..\src\ns_msg.h" />
     <ClInclude Include="..\src\stream.h" />

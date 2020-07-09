@@ -8,6 +8,7 @@
 #endif
 
 #include "stream.h"
+#include "mleak.h"
 
 #define align(n) (((n) | 3) + 1)
 

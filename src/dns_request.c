@@ -1,5 +1,6 @@
 #include "dns_request.h"
 #include "log.h"
+#include "mleak.h"
 
 static int _req_id = 0;
 
@@ -60,7 +61,6 @@ req_t* req_new(const char* data, int datalen,
 	req->fromtcp = fromtcp;
 	req->id = ++_req_id;
 
-
 	return req;
 }
 
@@ -73,6 +73,7 @@ void req_destroy(req_t* req)
 			ns_msg_free(req->msg);
 			free(req->msg);
 		}
+		free(req);
 	}
 }
 

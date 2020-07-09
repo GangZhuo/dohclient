@@ -2,6 +2,7 @@
 #include "channel_cache.h"
 #include "channel_os.h"
 #include "channel_doh.h"
+#include "mleak.h"
 
 typedef struct channel_info_t{
 	const char* name;

@@ -6,6 +6,7 @@
 #ifndef WINDOWS
 #include <syslog.h>
 #endif
+#include "mleak.h"
 
 log_vprintf_fun log_vprintf = log_vprintf_default;
 log_vprintf_fun log_vprintf_with_timestamp = log_vprintf_with_timestamp_default;

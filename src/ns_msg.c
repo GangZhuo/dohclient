@@ -11,6 +11,7 @@
 #include "ns_msg.h"
 #include "log.h"
 #include "utils.h"
+#include "mleak.h"
 
 typedef struct opt_rdata_into {
 	int count; /* number of option(s) */
@@ -289,12 +290,11 @@ const char* qr_key(const ns_qr_t* qr)
 	return key;
 }
 
-const char* msg_answers(const ns_msg_t* msg)
+static const char* get_answers(stream_t *s, const ns_msg_t* msg)
 {
 	static char answers[NS_PAYLOAD_SIZE];
 	int i, rrcount, r, len = 0;
 	const ns_rr_t* rr;
-	stream_t s = STREAM_INIT();
 
 	for (i = 0, rrcount = ns_rrcount(msg); i < rrcount; i++) {
 		rr = msg->rrs + i;
@@ -302,7 +302,7 @@ const char* msg_answers(const ns_msg_t* msg)
 			char ipname[INET6_ADDRSTRLEN];
 			struct in_addr* addr = (struct in_addr*)rr->rdata;
 			inet_ntop(AF_INET, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			r = stream_writef(s, len > 0 ? ", %s" : "%s", ipname);
 			if (r < 0)
 				return NULL;
 			len += r;
@@ -311,26 +311,26 @@ const char* msg_answers(const ns_msg_t* msg)
 			struct in6_addr* addr = (struct in6_addr*)rr->rdata;
 			static char ipname[INET6_ADDRSTRLEN];
 			inet_ntop(AF_INET6, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(&s, len > 0 ? ", %s" : "%s", ipname);
+			r = stream_writef(s, len > 0 ? ", %s" : "%s", ipname);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_PTR) {
-			r = stream_writef(&s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
+			r = stream_writef(s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_CNAME) {
-			r = stream_writef(&s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
+			r = stream_writef(s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_SOA) {
 			ns_soa_t* soa = rr->rdata;
-			r = stream_writef(&s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
+			r = stream_writef(s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
 			if (r < 0)
 				return NULL;
 			len += r;
@@ -342,9 +342,17 @@ const char* msg_answers(const ns_msg_t* msg)
 
 	len = MIN(len, sizeof(answers) - 1);
 	if (len > 0)
-		strncpy(answers, s.array, len);
+		strncpy(answers, s->array, len);
 	answers[len] = '\0';
 
+	return answers;
+}
+
+const char* msg_answers(const ns_msg_t* msg)
+{
+	stream_t s = STREAM_INIT();
+	const char* answers = get_answers(&s, msg);
+	stream_free(&s);
 	return answers;
 }
 

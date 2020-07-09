@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "mleak.h"
 
 char* ltrim(char* s)
 {

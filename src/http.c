@@ -12,6 +12,7 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
+#include "mleak.h"
 
 #define HTTP_CONN_ST_NONE		0
 #define HTTP_CONN_ST_FLY		1
@@ -1550,6 +1551,7 @@ void http_destroy(http_ctx_t* ctx)
 {
 	if (ctx) {
 		rbtree_clear(&ctx->pool, rbnfree, NULL);
+		free(ctx);
 	}
 }
 

@@ -1,5 +1,6 @@
 #include "channel_cache.h"
 #include "../rbtree/rbtree.h"
+#include "mleak.h"
 
 #define _M
 #define REQ_KEY_SIZE (NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)

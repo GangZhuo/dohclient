@@ -40,6 +40,7 @@ tags
 *.user
 dohclient
 windows/Debug
+windows/Release
 windows/x64
 
 windows/openssl

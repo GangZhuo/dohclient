@@ -14,6 +14,7 @@
 
 #include "log.h"
 #include "dllist.h"
+#include "mleak.h"
 
 #ifndef FALSE
 #define FALSE               0

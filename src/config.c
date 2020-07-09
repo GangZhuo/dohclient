@@ -10,6 +10,7 @@
 
 #include "log.h"
 #include "utils.h"
+#include "mleak.h"
 
 static int conf_add_channel(config_t* conf, const char *channel)
 {
@@ -404,6 +405,9 @@ void conf_free(config_t* conf)
 
 	free(conf->chnroute);
 	conf->chnroute = NULL;
+
+	free(conf->proxy);
+	conf->proxy = NULL;
 
 	p = conf->channel_args;
 	while (p && *p) {

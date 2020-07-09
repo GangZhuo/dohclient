@@ -1,4 +1,5 @@
 #include "netutils.h"
+#include "mleak.h"
 
 int try_parse_as_ip4(sockaddr_t* addr, const char* host, const char* port)
 {

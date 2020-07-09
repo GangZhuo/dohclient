@@ -21,6 +21,7 @@
 #include "channel.h"
 #include "channel_cache.h"
 #include "http.h"
+#include "mleak.h"
 
 #define PROGRAM_NAME    "dohclient"
 #define PROGRAM_VERSION "0.0.1"
@@ -1249,6 +1250,8 @@ int main(int argc, char** argv)
 	uninit_dohclient();
 
 	conf_free(&conf);
+
+	print_leak();
 
 	return EXIT_SUCCESS;
 }
