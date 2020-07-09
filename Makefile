@@ -17,7 +17,8 @@ OBJS = \
 	src/netutils.o \
 	src/ns_msg.o \
 	src/stream.o \
-	src/utils.o
+	src/utils.o \
+	src/mleak.o
 
 CFLAGS +=
 LIBS += -lssl -lcrypto
