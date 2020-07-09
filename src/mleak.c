@@ -17,6 +17,10 @@ struct mleak_mem_t {
 
 };
 
+#ifndef MIN
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+
 typedef void(*mleak_print_fun)(void *ptr, const char *filename, int line);
 
 static void cb_leak_printf(void *ptr, const char *filename, int line);
@@ -90,7 +94,7 @@ void* mleak_realloc(void* ptr, size_t size, const char* filename, int line)
 	if (ptr) {
 		struct mleak_mem_t* ent;
 		ent = (struct mleak_mem_t*)(((char*)ptr) - sizeof(struct mleak_mem_t));
-		memcpy(newptr, ptr, min(size, ent->size));
+		memcpy(newptr, ptr, MIN(size, ent->size));
 		mleak_free(ptr);
 	}
 	return newptr;
