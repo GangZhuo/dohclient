@@ -44,7 +44,7 @@ typedef struct channel_doh_t {
 	subnet_t foreign_net6;
 } channel_doh_t;
 
-typedef struct myreq_t {
+typedef struct channel_req_t {
 	uint16_t req_id;
 	uint16_t id;
 	ns_flags_t flags;
@@ -57,9 +57,9 @@ typedef struct myreq_t {
 	ns_msg_t** results;
 	int result_num;
 	int wait_num;
-} myreq_t;
+} channel_req_t;
 
-static int doh_query(myreq_t* rq);
+static int doh_query(channel_req_t* rq);
 
 static uint16_t new_req_id(channel_doh_t* ctx)
 {
@@ -72,20 +72,20 @@ static uint16_t new_req_id(channel_doh_t* ctx)
 	return newid;
 }
 
-static myreq_t* myreq_new(
+static channel_req_t* myreq_new(
 	channel_doh_t *ctx,
 	const ns_msg_t* msg,
 	channel_query_cb callback, void* cb_state)
 {
-	myreq_t* req;
+	channel_req_t* req;
 
-	req = (myreq_t*)malloc(sizeof(myreq_t));
+	req = (channel_req_t*)malloc(sizeof(channel_req_t));
 	if (!req) {
 		loge("myreq_new() error: alloc\n");
 		return NULL;
 	}
 
-	memset(req, 0, sizeof(myreq_t));
+	memset(req, 0, sizeof(channel_req_t));
 
 	req->req_id = new_req_id(ctx);
 	req->id = msg->id;
@@ -100,7 +100,7 @@ static myreq_t* myreq_new(
 	return req;
 }
 
-static void myreq_destroy(myreq_t* req)
+static void myreq_destroy(channel_req_t* req)
 {
 	int i;
 	ns_msg_t* msg;
@@ -120,9 +120,9 @@ static void destroy(channel_t* ctx)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;
 	dlitem_t* cur, * nxt;
-	myreq_t* req;
+	channel_req_t* req;
 	dllist_foreach(&c->reqs, cur, nxt,
-		myreq_t, req, entry) {
+		channel_req_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
 			req->callback(ctx, -1, NULL, FALSE, req->cb_state);
@@ -202,7 +202,7 @@ static int http_addr_query_cb(channel_t* ctx,
 
 static void query_http_addr(channel_doh_t* c)
 {
-	myreq_t* req;
+	channel_req_t* req;
 	ns_msg_t msg;
 
 	c->http_addr_expire = time(NULL) + 60;
@@ -263,7 +263,7 @@ static int step(channel_t* ctx,
 	return http_step(c->http, readset, writeset, errorset);
 }
 
-static int build_request_nsmsg(ns_msg_t* msg, myreq_t* req)
+static int build_request_nsmsg(ns_msg_t* msg, channel_req_t* req)
 {
 	init_ns_msg(msg);
 
@@ -346,7 +346,7 @@ static int get_nsmsg_flags(channel_doh_t* ctx, ns_msg_t* msg)
 	return flags;
 }
 
-static ns_msg_t* choose_best_nsmsg(myreq_t* rq)
+static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 {
 	channel_doh_t* c = rq->ctx;
 	ns_msg_t* best = NULL;
@@ -394,7 +394,7 @@ static void http_cb(
 	http_response_t* response,
 	void* state)
 {
-	myreq_t* rq = (myreq_t*)state;
+	channel_req_t* rq = (channel_req_t*)state;
 	channel_doh_t* c = rq->ctx;
 	ns_msg_t* result = NULL;
 	char* data;
@@ -472,7 +472,7 @@ exit:
 	}
 }
 
-static http_request_t* doh_build_http_request(myreq_t* rq, subnet_t* subnet)
+static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subnet)
 {
 	channel_doh_t* c = rq->ctx;
 	http_request_t* req = NULL;
@@ -570,7 +570,7 @@ static http_request_t* doh_build_http_request(myreq_t* rq, subnet_t* subnet)
 	return req;
 }
 
-static int doh_http_query(myreq_t* rq, subnet_t* subnet)
+static int doh_http_query(channel_req_t* rq, subnet_t* subnet)
 {
 	channel_doh_t* c = rq->ctx;
 	http_request_t* req;
@@ -593,7 +593,7 @@ static int doh_http_query(myreq_t* rq, subnet_t* subnet)
 	return r;
 }
 
-static int doh_query(myreq_t* rq)
+static int doh_query(channel_req_t* rq)
 {
 	channel_doh_t* c = rq->ctx;
 	int r = 0;
@@ -656,7 +656,7 @@ static int query(channel_t* ctx,
 	channel_query_cb callback, void* state)
 {
 	channel_doh_t* c = (channel_doh_t*)ctx;
-	myreq_t* req;
+	channel_req_t* req;
 
 	if (c->req_count > MAX_QUEUE_SIZE) {
 		loge("request queue is full\n");
