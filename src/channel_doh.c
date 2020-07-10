@@ -164,7 +164,7 @@ static int http_addr_query_cb(channel_t* ctx,
 	logn("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
-	c->http_addr_expire = time(NULL) + 1 * 60 * 60;
+	c->http_addr_expire = time(NULL) + result->rrs->ttl;
 
 	if (c->http_addr.addr.ss_family == AF_INET) {
 		port = ((struct sockaddr_in*)&c->http_addr.addr)->sin_port;
@@ -626,7 +626,7 @@ static int doh_http_query(channel_req_t* rq, subnet_t* subnet)
 		return -1;
 	}
 
-	r = http_send(c->http, &c->http_addr, req, http_cb, rq);
+	r = http_send(c->http, &c->http_addr, c->use_proxy, req, http_cb, rq);
 	if (r) {
 		loge("doh_http_query() error: http_send() error\n");
 		free(http_request_get_data(req, NULL));
@@ -860,20 +860,20 @@ int channel_doh_create(
 
 	ctx = (channel_doh_t*)malloc(sizeof(channel_doh_t));
 	if (!ctx) {
-		loge("channel_os_create() error: alloc\n");
+		loge("channel_doh_create() error: alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
 	memset(ctx, 0, sizeof(channel_doh_t));
 
 	if (parse_args(ctx, args)) {
-		loge("channel_os_create() error: parse_args() error\n");
+		loge("channel_doh_create() error: parse_args() error\n");
 		return CHANNEL_WRONG_ARG;
 	}
 
 	ctx->http = http_create(
 		proxies,
-		ctx->use_proxy ? proxy_num : 0,
+		proxy_num,
 		DEFAULT_HTTP_TIMEOUT);
 	if (!ctx->http) {
 		free(ctx);

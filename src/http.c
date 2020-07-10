@@ -26,8 +26,13 @@ struct http_ctx_t {
 	int timeout;
 };
 
-typedef struct http_pool_item_t {
+typedef struct pool_key_t {
 	sockaddr_t addr; /* server's address */
+	int use_proxy;
+} pool_key_t;
+
+typedef struct http_pool_item_t {
+	pool_key_t key;
 	dllist_t idle_conns;
 	dllist_t busy_conns;
 	dllist_t fly_conns;
@@ -45,6 +50,7 @@ typedef enum http_field_status {
 
 typedef struct http_conn_t {
 	http_ctx_t* http_ctx;
+	int use_proxy;
 	struct conn_t conn;
 	SSL* ssl;
 	int ssl_status;
@@ -188,22 +194,29 @@ static void http_pool_item_free(http_pool_item_t* item)
 
 static int rbcmp(const void* a, const void* b)
 {
-	sockaddr_t* x = (sockaddr_t*)a;
-	sockaddr_t* y = (sockaddr_t*)b;
-	if (x->addr.ss_family != y->addr.ss_family)
-		return ((int)x->addr.ss_family) - ((int)y->addr.ss_family);
-	if (x->addr.ss_family != AF_INET) {
-		return memcmp(
-			&((struct sockaddr_in*)(&x->addr))->sin_addr,
-			&((struct sockaddr_in*)&y->addr)->sin_addr,
+	pool_key_t* x = (pool_key_t*)a;
+	pool_key_t* y = (pool_key_t*)b;
+	int r;
+	if (x->addr.addr.ss_family != y->addr.addr.ss_family)
+		r = ((int)x->addr.addr.ss_family) - ((int)y->addr.addr.ss_family);
+	else if (x->addr.addr.ss_family != AF_INET) {
+		r = memcmp(
+			&((struct sockaddr_in*)(&x->addr.addr))->sin_addr,
+			&((struct sockaddr_in*)&y->addr.addr)->sin_addr,
 			4);
 	}
 	else {
-		return memcmp(
-			&((struct sockaddr_in6*)(&x->addr))->sin6_addr,
-			&((struct sockaddr_in6*)&y->addr)->sin6_addr,
+		r = memcmp(
+			&((struct sockaddr_in6*)(&x->addr.addr))->sin6_addr,
+			&((struct sockaddr_in6*)&y->addr.addr)->sin6_addr,
 			16);
 	}
+
+	if (r == 0) {
+		r = x->use_proxy - y->use_proxy;
+	}
+
+	return r;
 }
 
 static void rbnfree(rbnode_t* node, void* state)
@@ -886,8 +899,8 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 			s->array[0] = 0x05;
 			s->array[1] = 0x01;
 			s->array[2] = 0x00;
-			if (conn->pool->addr.addr.ss_family == AF_INET) {
-				struct sockaddr_in* addr = (struct sockaddr_in*)&conn->pool->addr.addr;
+			if (conn->pool->key.addr.addr.ss_family == AF_INET) {
+				struct sockaddr_in* addr = (struct sockaddr_in*)&conn->pool->key.addr.addr;
 				int port = htons(addr->sin_port);
 				s->array[3] = 0x01;
 				memcpy(s->array + 4, &addr->sin_addr, 4);
@@ -897,7 +910,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 			}
 			else {
 				s->array[3] = 0x04;
-				struct sockaddr_in6* addr = (struct sockaddr_in6*)&conn->pool->addr.addr;
+				struct sockaddr_in6* addr = (struct sockaddr_in6*)&conn->pool->key.addr.addr;
 				int port = htons(addr->sin6_port);
 				s->array[3] = 0x01;
 				memcpy(s->array + 4, &addr->sin6_addr, 16);
@@ -962,7 +975,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	return 0;
 }
 
-static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr_t* addr)
+static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr_t* addr, int use_proxy)
 {
 	http_conn_t* conn = NULL;
 	sock_t sock = 0;
@@ -984,7 +997,8 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr
 
 	memset(conn, 0, sizeof(http_conn_t));
 
-	if (ctx->proxy_num > 0) {
+	if (use_proxy && ctx->proxy_num > 0) {
+		conn->use_proxy = use_proxy;
 		cs = tcp_connect(&ctx->proxies->addr, &sock);
 	}
 	else {
@@ -1030,7 +1044,7 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr
 	return conn;
 }
 
-static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr)
+static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy)
 {
 	http_pool_item_t* pi = NULL;
 	pi = (http_pool_item_t*)malloc(sizeof(http_pool_item_t));
@@ -1043,8 +1057,9 @@ static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr
 	dllist_init(&pi->busy_conns);
 	dllist_init(&pi->fly_conns);
 	dllist_init(&pi->idle_conns);
-	memcpy(&pi->addr, addr, sizeof(sockaddr_t));
-	pi->rbn.key = &pi->addr;
+	memcpy(&pi->key.addr, addr, sizeof(sockaddr_t));
+	pi->key.use_proxy = use_proxy;
+	pi->rbn.key = &pi->key;
 	rbtree_insert(&ctx->pool, &pi->rbn);
 
 	logv("http_pool_item_create()\n");
@@ -1052,11 +1067,17 @@ static http_pool_item_t* http_pool_item_create(http_ctx_t* ctx, sockaddr_t* addr
 	return pi;
 }
 
-static http_conn_t* http_get_conn(http_ctx_t* ctx, const char *host, sockaddr_t* addr)
+static http_conn_t* http_get_conn(http_ctx_t* ctx, const char *host, sockaddr_t* addr, int use_proxy)
 {
 	http_conn_t* conn = NULL;
 	http_pool_item_t* pi = NULL;
-	struct rbnode_t* rbn = rbtree_lookup(&ctx->pool, addr);
+	pool_key_t pool_key = { 0 };
+	struct rbnode_t* rbn = NULL;
+
+	memcpy(&pool_key.addr, addr, sizeof(sockaddr_t));
+	pool_key.use_proxy = use_proxy;
+
+	rbn = rbtree_lookup(&ctx->pool, &pool_key);
 	if (rbn) {
 		pi = rbtree_container_of(rbn, http_pool_item_t, rbn);
 		if (!dllist_is_empty(&pi->idle_conns)) {
@@ -1068,14 +1089,14 @@ static http_conn_t* http_get_conn(http_ctx_t* ctx, const char *host, sockaddr_t*
 
 	if (!conn) {
 
-		conn = http_conn_create(ctx, host, addr);
+		conn = http_conn_create(ctx, host, addr, use_proxy);
 		if (!conn) {
 			loge("http_get_conn() error: http_conn_create() error\n");
 			return NULL;
 		}
 
 		if (!pi) {
-			pi = http_pool_item_create(ctx, addr);
+			pi = http_pool_item_create(ctx, addr, use_proxy);
 			if (!pi) {
 				loge("http_get_conn() error: http_pool_item_create() error\n");
 				conn_free(&conn->conn);
@@ -1470,7 +1491,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			else if (cs == cs_connecting) {
 				if (FD_ISSET(conn->conn.sock, st->writeset)) {
 					conn->conn.status = cs_connected;
-					if (st->ctx->proxy_num > 0) {
+					if (conn->use_proxy && st->ctx->proxy_num > 0) {
 						r = http_socks5_handshake(st->ctx, conn);
 					}
 					else {
@@ -1586,7 +1607,7 @@ int http_step(http_ctx_t* ctx,
 	return 0;
 }
 
-int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
+int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* request,
 	http_callback_fun_t callback, void* state)
 {
 	http_conn_t* conn;
@@ -1601,7 +1622,11 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		return -1;
 	}
 
-	conn = http_get_conn(ctx, request->host, addr);
+	if (use_proxy && ctx->proxy_num <= 0) {
+		use_proxy = 0;
+	}
+
+	conn = http_get_conn(ctx, request->host, addr, use_proxy);
 	if (!conn) {
 		loge("http_send() error: http_get_conn() error\n");
 		http_response_destroy(response);
@@ -1609,7 +1634,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 	}
 
 	if (conn->conn.status == cs_connected) {
-		if (ctx->proxy_num > 0) {
+		if (use_proxy && ctx->proxy_num > 0) {
 			r = http_socks5_handshake(ctx, conn);
 		}
 		else {
@@ -1617,7 +1642,8 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
 		}
 		if (r) {
 			loge("http_send() error: %s() error\n",
-				ctx->proxy_num > 0 ? "http_socks5_handshake" : "http_ssl_handshake");
+				use_proxy && ctx->proxy_num > 0 ?
+				"http_socks5_handshake" : "http_ssl_handshake");
 			http_conn_close(ctx, conn);
 			http_response_destroy(response);
 			return -1;

@@ -111,7 +111,7 @@ sock_t http_fdset(http_ctx_t* ctx,
 int http_step(http_ctx_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset);
 
-int http_send(http_ctx_t* ctx, sockaddr_t* addr, http_request_t* request,
+int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* request,
 	http_callback_fun_t callback, void* state);
 
 #ifdef __cplusplus
