@@ -351,23 +351,48 @@ static int get_nsmsg_flags(channel_doh_t* ctx, ns_msg_t* msg)
 	return flags;
 }
 
+static void print_all_answers(channel_req_t* rq, ns_msg_t* best)
+{
+	channel_doh_t* c = rq->ctx;
+	int i, flags;
+	ns_msg_t* msg;
+	logd("All answers: - %s\n", qr_key(&rq->qr));
+	for (i = 0; i < rq->result_num; i++) {
+		msg = rq->results[i];
+		flags = get_nsmsg_flags(c, msg);
+		logd("(%d):%s%s%s%s%s%s%s%s%s%s\n",
+			i + 1,
+			msg == best            ? " BEST"         : "",
+			(flags & FLG_A)        ? " FLG_A"        : "",
+			(flags & FLG_A_CHN)    ? " FLG_A_CHN"    : "",
+			(flags & FLG_A_FRN)    ? " FLG_A_FRN"    : "",
+			(flags & FLG_AAAA)     ? " FLG_AAAA"     : "",
+			(flags & FLG_AAAA_CHN) ? " FLG_AAAA_CHN" : "",
+			(flags & FLG_AAAA_FRN) ? " FLG_AAAA_FRN" : "",
+			(flags & FLG_ECS)      ? " FLG_ECS"      : "",
+			(flags & FLG_ECS_CHN)  ? " FLG_ECS_CHN"  : "",
+			(flags & FLG_ECS_FRN)  ? " FLG_ECS_FRN"  : "");
+		ns_print(msg);
+	}
+}
+
 static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 {
 	channel_doh_t* c = rq->ctx;
 	ns_msg_t* best = NULL;
 
 	if (rq->result_num == 0) {
-		return NULL;
+		best = NULL;
 	}
 	else if (rq->result_num == 1) {
-		return rq->results[0];
+		best = rq->results[0];
 	}
 	else if (!c->chnr) {
-		return rq->results[0];
+		best = rq->results[0];
 	}
 	else {
 		int i, flags;
-		ns_msg_t* msg, * best = NULL;
+		ns_msg_t* msg;
 		int have_ip, chn_ecs, chn_ip;
 
 		for (i = 0; i < rq->result_num; i++) {
@@ -379,18 +404,24 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 			chn_ip = flags & (FLG_A_CHN | FLG_AAAA_CHN);  /* Result is China? */
 
 			if (have_ip && chn_ecs && chn_ip) {
-				return msg;
+				best = msg;
+				break;
 			}
 			else if (!chn_ecs) {
 				best = msg;
 			}
 		}
+
 		if (!best) {
 			best = rq->results[0];
 		}
-		return best;
-
 	}
+
+	if (loglevel > LOG_DEBUG) {
+		print_all_answers(rq, best);
+	}
+
+	return best;
 }
 
 static void detach_result(channel_req_t* rq, ns_msg_t* result)

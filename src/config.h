@@ -6,7 +6,7 @@
 #define DEFAULT_PID_FILE "/var/run/dohclient.pid"
 #define DEFAULT_TIMEOUT 5
 #define DEFAULT_CHANNEL "doh"
-#define DEFAULT_CHANNEL_ARGS "addr=8.8.4.4:443&host=dns.google&path=/dns-query&proxy=0"
+#define DEFAULT_CHANNEL_ARGS "addr=223.5.5.5:443&host=dns.alidns.com&path=/dns-query&proxy=0"
 
 #ifdef __cplusplus
 extern "C" {
