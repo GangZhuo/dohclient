@@ -2,6 +2,7 @@
 #include "channel_cache.h"
 #include "channel_os.h"
 #include "channel_doh.h"
+#include "channel_chndoh.h"
 #include "mleak.h"
 
 typedef struct channel_info_t{
@@ -21,6 +22,10 @@ static channel_info_t _infos[] = {
 	{
 		.name = "doh",
 		.create = channel_doh_create,
+	},
+	{
+		.name = "chndoh",
+		.create = channel_chndoh_create,
 	},
 	NULL
 };

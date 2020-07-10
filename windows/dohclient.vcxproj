@@ -90,6 +90,7 @@
     <ClCompile Include="..\http-parser\http_parser.c" />
     <ClCompile Include="..\rbtree\rbtree.c" />
     <ClCompile Include="..\src\channel.c" />
+    <ClCompile Include="..\src\channel_chndoh.c" />
     <ClCompile Include="..\src\channel_doh.c" />
     <ClCompile Include="..\src\channel_cache.c" />
     <ClCompile Include="..\src\channel_os.c" />
@@ -111,6 +112,7 @@
     <ClInclude Include="..\http-parser\http_parser.h" />
     <ClInclude Include="..\rbtree\rbtree.h" />
     <ClInclude Include="..\src\channel.h" />
+    <ClInclude Include="..\src\channel_chndoh.h" />
     <ClInclude Include="..\src\channel_doh.h" />
     <ClInclude Include="..\src\channel_cache.h" />
     <ClInclude Include="..\src\channel_os.h" />

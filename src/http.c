@@ -79,6 +79,7 @@ struct http_request_t {
 	http_conn_t* conn;
 	http_callback_fun_t callback;
 	void* cb_state;
+	void* state;
 };
 
 struct http_response_t {
@@ -351,6 +352,17 @@ void http_request_set_path(http_request_t* request,
 	const char* value)
 {
 	request->path = value;
+}
+
+void* http_request_get_state(http_request_t* request)
+{
+	return request->state;
+}
+
+void http_request_set_state(http_request_t* request,
+	void* state)
+{
+	request->state = state;
 }
 
 const char* http_request_get_host(http_request_t* request)
