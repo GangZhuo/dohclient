@@ -449,8 +449,11 @@ static void http_cb(
 	ns_msg_t* result = NULL;
 	char* data;
 	int datalen;
+	int http_status = 0;
+	const char* status_text = NULL;
 
-	if (status == HTTP_OK && http_response_get_status_code(response, NULL) == 200) {
+	if (status == HTTP_OK &&
+		(http_status = http_response_get_status_code(response, &status_text)) == 200) {
 		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 		if (!result) {
 			loge("http_cb() error: alloc\n");
@@ -487,7 +490,11 @@ static void http_cb(
 		rq->results[rq->result_num++] = result;
 	}
 	else {
-		loge("query %s failed\n", rq->qr.qname);
+		loge("query %s failed: HTTP %d %s - %s\n",
+			rq->qr.qname,
+			http_status,
+			status_text,
+			http_request_get_host(request));
 		rq->untrust = TRUE;
 	}
 
