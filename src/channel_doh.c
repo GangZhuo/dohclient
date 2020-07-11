@@ -58,6 +58,7 @@ typedef struct channel_req_t {
 	ns_msg_t** results;
 	int result_num;
 	int wait_num;
+	int untrust;
 } channel_req_t;
 
 static int doh_query(channel_req_t* rq);
@@ -126,7 +127,7 @@ static void destroy(channel_t* ctx)
 		channel_req_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
-			req->callback(ctx, -1, NULL, FALSE, req->cb_state);
+			req->callback(ctx, -1, NULL, FALSE, FALSE, req->cb_state);
 		myreq_destroy(req);
 	}
 	http_destroy(c->http);
@@ -143,6 +144,7 @@ static int http_addr_query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void* state)
 {
 	channel_doh_t* c = (channel_doh_t*)state;
@@ -486,6 +488,7 @@ static void http_cb(
 	}
 	else {
 		loge("query %s failed\n", rq->qr.qname);
+		rq->untrust = TRUE;
 	}
 
 exit:
@@ -503,7 +506,7 @@ exit:
 
 		if (rq->callback) {
 			result = choose_best_nsmsg(rq);
-			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, rq->cb_state);
+			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, !rq->untrust, rq->cb_state);
 		}
 		else {
 			result = NULL;

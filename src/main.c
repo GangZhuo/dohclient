@@ -401,6 +401,7 @@ static int _query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void* state)
 {
 	const char* key;
@@ -408,6 +409,7 @@ static int _query_cb(channel_t* ctx,
 	dlitem_t* cur, * nxt;
 	req_t* req;
 	int is_last_one;
+	int is_add_cache = 0;
 
 	/* ignore failed result */
 	if (status || !result || result->qdcount < 1)
@@ -422,13 +424,14 @@ static int _query_cb(channel_t* ctx,
 		ns_print(result);
 	}
 
-	if (!fromcache) {
+	if (result && !fromcache && trust) {
+		is_add_cache = TRUE;
 		cache_add(cache, key, result);
 	}
 
 	rbn = reqdic_find(key);
 	if (!rbn) {
-		if (result && !fromcache) {
+		if (result && !fromcache && !is_add_cache) {
 			ns_msg_free(result);
 			free(result);
 		}
@@ -448,7 +451,7 @@ static int _query_cb(channel_t* ctx,
 			break;
 	}
 
-	if (result && !fromcache) {
+	if (result && !fromcache && !is_add_cache) {
 		ns_msg_free(result);
 		free(result);
 	}
@@ -460,15 +463,17 @@ static int query_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void* state)
 {
-	return _query_cb(ctx, status, result, fromcache, state);
+	return _query_cb(ctx, status, result, fromcache, trust, state);
 }
 
 static int cache_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void* state)
 {
 	req_t* req = state;
@@ -478,7 +483,7 @@ static int cache_cb(channel_t* ctx,
 		return channel->query(channel, req->msg, query_cb, req);
 	}
 	else {
-		return _query_cb(ctx, status, result, fromcache, state);
+		return _query_cb(ctx, status, result, fromcache, trust, state);
 	}
 }
 

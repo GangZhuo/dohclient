@@ -56,7 +56,7 @@ static void destroy(channel_t* ctx)
 		myreq_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
-			req->callback(ctx, -1, NULL, FALSE, req->state);
+			req->callback(ctx, -1, NULL, FALSE, FALSE, req->state);
 		myreq_destroy(req);
 	}
 	free(ctx);
@@ -110,7 +110,7 @@ static void reslove(channel_t* ctx, myreq_t* req)
 	}
 
 	if (req->callback)
-		req->callback(ctx, 0, msg, FALSE, req->state);
+		req->callback(ctx, 0, msg, FALSE, TRUE, req->state);
 
 	return;
 
@@ -120,7 +120,7 @@ error:
 		free(msg);
 	}
 	if (req->callback)
-		req->callback(ctx, -1, NULL, FALSE, req->state);
+		req->callback(ctx, -1, NULL, FALSE, FALSE, req->state);
 }
 
 static int step(channel_t* ctx,

@@ -68,6 +68,7 @@ typedef struct channel_req_t {
 	ns_msg_t** results;
 	int result_num;
 	int wait_num;
+	int untrust;
 } channel_req_t;
 
 static int doh_query(channel_req_t* rq);
@@ -136,7 +137,7 @@ static void destroy(channel_t* ctx)
 		channel_req_t, req, entry) {
 		dllist_remove(&req->entry);
 		if (req->callback)
-			req->callback(ctx, -1, NULL, FALSE, req->cb_state);
+			req->callback(ctx, -1, NULL, FALSE, FALSE, req->cb_state);
 		myreq_destroy(req);
 	}
 	http_destroy(c->http);
@@ -153,6 +154,7 @@ static int query_doh_addr_cb(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void* state)
 {
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
@@ -419,6 +421,7 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 
 			if (have_ip && chn_doh && chn_ip) {
 				best = msg;
+				rq->untrust = FALSE;
 				break;
 			}
 			else if (!chn_doh) {
@@ -522,9 +525,10 @@ static void http_cb(
 			/* Detach the result, so can keep the result in memory,
 			after myreq_destroy() called. */
 			rq->results[rq->result_num - 1] = NULL;
-			
+			rq->untrust = FALSE;
+
 			/* callback */
-			rq->callback((channel_t*)c, 0, result, FALSE, rq->cb_state);
+			rq->callback((channel_t*)c, 0, result, FALSE, TRUE, rq->cb_state);
 			rq->callback = NULL;
 		}
 	}
@@ -538,6 +542,7 @@ static void http_cb(
 			logv("%s\r\n", content);
 		}
 
+		rq->untrust = TRUE;
 	}
 
 exit:
@@ -555,7 +560,7 @@ exit:
 
 		if (rq->callback) {
 			result = choose_best_nsmsg(rq);
-			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, rq->cb_state);
+			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, !rq->untrust, rq->cb_state);
 		}
 		else {
 			result = NULL;

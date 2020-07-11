@@ -30,6 +30,7 @@ typedef int (*channel_query_cb)(channel_t* ctx,
 	int status,
 	ns_msg_t* result,
 	int fromcache,
+	int trust,
 	void *state);
 typedef int (*channel_query_func)(channel_t* ctx,
 	const ns_msg_t* request,
