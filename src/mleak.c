@@ -1,6 +1,7 @@
 ﻿#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +15,7 @@ struct mleak_mem_t {
 	size_t              size;
 	const char			*filename;
 	int					line;
+	char                time[32];
 
 };
 
@@ -21,16 +23,16 @@ struct mleak_mem_t {
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #endif
 
-typedef void(*mleak_print_fun)(void *ptr, const char *filename, int line);
+typedef void(*mleak_print_fun)(void *ptr, const char *filename, int line, const char *time);
 
-static void cb_leak_printf(void *ptr, const char *filename, int line);
+static void cb_leak_printf(void *ptr, const char *filename, int line, const char* time);
 
 static struct mleak_mem_t *_mem = 0;
 static mleak_print_fun _print = cb_leak_printf;
 
-static void cb_leak_printf(void *ptr, const char *filename, int line)
+static void cb_leak_printf(void *ptr, const char *filename, int line, const char* time)
 {
-	printf("Memory leak on %p %s, %d\n", ptr, filename, line);
+	printf("Memory leak on %p %s, %d, %s\n", ptr, filename, line, time);
 }
 
 static inline void append_mem_ent(struct mleak_mem_t *mem)
@@ -64,11 +66,14 @@ static inline void remove_mem_ent(struct mleak_mem_t *mem)
 void *mleak_malloc(size_t size, const char *filename, int line)
 {
 	struct mleak_mem_t *ent;
+	time_t now;
 	ent = (struct mleak_mem_t *) malloc(sizeof(struct mleak_mem_t) + size);
 	ent->ptr = (void *)(((char *)ent) + sizeof(struct mleak_mem_t));
 	ent->size = size;
 	ent->filename = filename;
 	ent->line = line;
+	now = time(NULL);
+	strftime(ent->time, sizeof(ent->time), "%Y-%m-%d %H:%M:%S", localtime(&now));
 	append_mem_ent(ent);
 	return ent->ptr;
 }
@@ -120,7 +125,7 @@ void mleak_print_leak()
 	if (!_mem) return;
 	ent = _mem;
 	do {
-		_print(ent->ptr, ent->filename, ent->line);
+		_print(ent->ptr, ent->filename, ent->line, ent->time);
 		ent = ent->next;
 	} while(ent != _mem);
 	ent = _mem;

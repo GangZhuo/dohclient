@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-typedef void(*mleak_print_fun)(void *ptr, const char *filename, int line);
+typedef void(*mleak_print_fun)(void *ptr, const char *filename, int line, const char* time);
 
 /* 原始的 malloc() 函数 */
 void *mleak_malloc_raw(size_t size);
