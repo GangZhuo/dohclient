@@ -150,6 +150,7 @@ static ns_optlist_t* ns_rdata_clone_opts(const ns_rr_t* rr)
 				for (; i >= 0; i--) {
 					free(opts->opts[i].data);
 				}
+				free(opts->opts);
 				free(opts);
 				return NULL;
 			}
@@ -416,7 +417,7 @@ static void ns_rdata_free_opts(ns_rr_t *rr)
 	ns_optlist_t *opts = rr->rdata;
     ns_opt_t *opt;
     
-    if (opts != NULL && opts->opts != NULL) {
+	if (opts != NULL && opts->opts != NULL) {
         int i;
         for (i = 0; i < opts->optcount; i++) {
             opt = opts->opts + i;

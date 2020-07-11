@@ -242,11 +242,11 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 
 	/* no cache */
 	if (msg->rrs->ttl < 1)
-		return 0;
+		return -1;
 
 	/* no IP */
 	if (msg->rrs->type != NS_TYPE_A && msg->rrs->type != NS_TYPE_AAAA)
-		return 0;
+		return -1;
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {

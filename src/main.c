@@ -409,11 +409,16 @@ static int _query_cb(channel_t* ctx,
 	dlitem_t* cur, * nxt;
 	req_t* req;
 	int is_last_one;
-	int is_add_cache = 0;
+	int is_add_cache = FALSE;
 
 	/* ignore failed result */
-	if (status || !result || result->qdcount < 1)
+	if (status || !result || result->qdcount < 1) {
+		if (result) {
+			ns_msg_free(result);
+			free(result);
+		}
 		return 0;
+	}
 
 	key = msg_key(result);
 
@@ -425,13 +430,14 @@ static int _query_cb(channel_t* ctx,
 	}
 
 	if (result && !fromcache && trust) {
-		is_add_cache = TRUE;
-		cache_add(cache, key, result);
+		if (cache_add(cache, key, result) == 0) {
+			is_add_cache = TRUE;
+		}
 	}
 
 	rbn = reqdic_find(key);
 	if (!rbn) {
-		if (result && !fromcache && !is_add_cache) {
+		if (result && !fromcache) {
 			ns_msg_free(result);
 			free(result);
 		}
@@ -451,7 +457,7 @@ static int _query_cb(channel_t* ctx,
 			break;
 	}
 
-	if (result && !fromcache && !is_add_cache) {
+	if (result && !fromcache) {
 		ns_msg_free(result);
 		free(result);
 	}

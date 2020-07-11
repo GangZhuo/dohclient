@@ -1,6 +1,7 @@
 #include "channel_doh.h"
 #include "../rbtree/rbtree.h"
 #include "http.h"
+#include "base64url.h"
 #include "mleak.h"
 
 #define _M
@@ -33,6 +34,7 @@ typedef struct channel_doh_t {
 	struct rbtree_t reqdic;
 	int req_count;
 	http_ctx_t* http;
+	int post;
 	sockaddr_t http_addr;
 	time_t http_addr_expire;
 	char* host;
@@ -123,6 +125,10 @@ static void destroy(channel_t* ctx)
 	channel_doh_t* c = (channel_doh_t*)ctx;
 	dlitem_t* cur, * nxt;
 	channel_req_t* req;
+
+	/* Destroy http first */
+	http_destroy(c->http);
+
 	dllist_foreach(&c->reqs, cur, nxt,
 		channel_req_t, req, entry) {
 		dllist_remove(&req->entry);
@@ -130,7 +136,7 @@ static void destroy(channel_t* ctx)
 			req->callback(ctx, -1, NULL, FALSE, FALSE, req->cb_state);
 		myreq_destroy(req);
 	}
-	http_destroy(c->http);
+	
 	free(c->host);
 	free(c->path);
 	free(c->china_net.name);
@@ -526,7 +532,7 @@ exit:
 	}
 }
 
-static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subnet)
+static http_request_t* doh_build_post_request(channel_req_t* rq, subnet_t* subnet)
 {
 	channel_doh_t* c = rq->ctx;
 	http_request_t* req = NULL;
@@ -538,7 +544,7 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	r = build_request_nsmsg(&msg, rq);
 	if (r) {
-		loge("doh_build_http_request() error: build_request_nsmsg() error\n");
+		loge("doh_build_post_request() error: build_request_nsmsg() error\n");
 		return NULL;
 	}
 
@@ -548,7 +554,7 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 		if (rr == NULL) {
 			rr = ns_add_optrr(&msg);
 			if (rr == NULL) {
-				loge("doh_build_http_request(): Can't add option record to ns_msg_t\n");
+				loge("doh_build_post_request(): Can't add option record to ns_msg_t\n");
 				ns_msg_free(&msg);
 				return NULL;
 			}
@@ -557,14 +563,14 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
 
 		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("doh_build_http_request(): Can't add ecs option\n");
+			loge("doh_build_post_request(): Can't add ecs option\n");
 			ns_msg_free(&msg);
 			return NULL;
 		}
 	}
 
 	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
-		loge("doh_build_http_request() error: ns_serialize() error\n");
+		loge("doh_build_post_request() error: ns_serialize() error\n");
 		stream_free(&s);
 		ns_msg_free(&msg);
 		return NULL;
@@ -574,14 +580,14 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	req = http_request_create("POST", c->path, c->host);
 	if (!req) {
-		loge("doh_build_http_request() error: http_request_create() error\n");
+		loge("doh_build_post_request() error: http_request_create() error\n");
 		stream_free(&s);
 		return NULL;
 	}
 
 	r = http_request_set_header(req, "Content-Type", "application/dns-message");
 	if (r) {
-		loge("doh_build_http_request() error: http_request_set_header() error\n");
+		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -589,7 +595,7 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	r = http_request_set_header(req, "Pragma", "no-cache");
 	if (r) {
-		loge("doh_build_http_request() error: http_request_set_header() error\n");
+		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -597,7 +603,7 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	r = http_request_set_header(req, "Cache-Control", "no-cache");
 	if (r) {
-		loge("doh_build_http_request() error: http_request_set_header() error\n");
+		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -605,7 +611,7 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	r = http_request_set_header(req, "Accept", "*/*");
 	if (r) {
-		loge("doh_build_http_request() error: http_request_set_header() error\n");
+		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -613,7 +619,111 @@ static http_request_t* doh_build_http_request(channel_req_t* rq, subnet_t* subne
 
 	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
-		loge("doh_build_http_request() error: http_request_set_header() error\n");
+		loge("doh_build_post_request() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return NULL;
+	}
+
+	http_request_set_data(req, s.array, s.size);
+
+	return req;
+}
+
+static http_request_t* doh_build_get_request(channel_req_t* rq, subnet_t* subnet)
+{
+	channel_doh_t* c = rq->ctx;
+	http_request_t* req = NULL;
+	ns_msg_t msg;
+	int r, len;
+	stream_t s = STREAM_INIT();
+	char* dns;
+	int dns_len;
+
+	init_ns_msg(&msg);
+
+	r = build_request_nsmsg(&msg, rq);
+	if (r) {
+		loge("doh_build_get_request() error: build_request_nsmsg() error\n");
+		return NULL;
+	}
+
+	if (subnet) {
+		ns_rr_t* rr;
+		rr = ns_find_opt_rr(&msg);
+		if (rr == NULL) {
+			rr = ns_add_optrr(&msg);
+			if (rr == NULL) {
+				loge("doh_build_get_request(): Can't add option record to ns_msg_t\n");
+				ns_msg_free(&msg);
+				return NULL;
+			}
+		}
+
+		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
+
+		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
+			loge("doh_build_get_request(): Can't add ecs option\n");
+			ns_msg_free(&msg);
+			return NULL;
+		}
+	}
+
+	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
+		loge("doh_build_get_request() error: ns_serialize() error\n");
+		stream_free(&s);
+		ns_msg_free(&msg);
+		return NULL;
+	}
+
+	ns_msg_free(&msg);
+
+	dns = base64url_encode(s.array, s.size, &dns_len);
+	if (!dns) {
+		loge("doh_build_get_request() error: base64_encode() error\n");
+		stream_free(&s);
+		return NULL;
+	}
+
+	stream_reset(&s);
+
+	if (stream_appendf(&s,
+		"%s?dns=%s",
+		c->path,
+		dns) == -1) {
+		loge("doh_build_get_request() error: stream_appendf()\n");
+		stream_free(&s);
+		return NULL;
+	}
+
+	free(dns);
+
+	req = http_request_create("GET", s.array, c->host);
+	if (!req) {
+		loge("doh_build_get_request() error: http_request_create() error\n");
+		stream_free(&s);
+		return NULL;
+	}
+
+	r = http_request_set_header(req, "Content-Type", "application/dns-message");
+	if (r) {
+		loge("doh_build_get_request() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return NULL;
+	}
+
+	r = http_request_set_header(req, "Accept", "*/*");
+	if (r) {
+		loge("doh_build_get_request() error: http_request_set_header() error\n");
+		stream_free(&s);
+		http_request_destroy(req);
+		return NULL;
+	}
+
+	r = http_request_set_header(req, "Connection", "keep-alive");
+	if (r) {
+		loge("doh_build_get_request() error: http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -630,9 +740,20 @@ static int doh_http_query(channel_req_t* rq, subnet_t* subnet)
 	http_request_t* req;
 	int r;
 
-	req = doh_build_http_request(rq, subnet);
+	req = doh_build_post_request(rq, subnet);
 	if (!req) {
-		loge("doh_http_query() error: doh_build_http_request() error\n");
+		loge("doh_http_query() error: doh_build_post_request() error\n");
+		return -1;
+	}
+
+	req = c->post
+		? doh_build_post_request(rq, subnet)
+		: doh_build_get_request(rq, subnet);
+	if (!req) {
+		loge("doh_http_query() error: %s error\n",
+			c->post
+			? "doh_build_post_request()"
+			: "doh_build_get_request()");
 		return -1;
 	}
 
@@ -813,7 +934,10 @@ static int parse_args(channel_doh_t *ctx, const char* args)
         else if (strcmp(p, "path") == 0) {
             ctx->path = strdup(v);
         }
-        else if (strcmp(p, "proxy") == 0) {
+		else if (strcmp(p, "post") == 0) {
+			ctx->post = strcmp(v, "0");
+		}
+		else if (strcmp(p, "proxy") == 0) {
             ctx->use_proxy = strcmp(v, "0");
         }
         else if (strcmp(p, "ecs") == 0) {

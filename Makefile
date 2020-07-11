@@ -4,8 +4,10 @@ debug = 0
 OBJS = \
 	rbtree/rbtree.o \
 	http-parser/http_parser.o \
+	src/base64url.o \
 	src/channel.o \
 	src/channel_cache.o \
+	src/channel_chndoh.o \
 	src/channel_doh.o \
 	src/channel_os.o \
 	src/chnroute.o \

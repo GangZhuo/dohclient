@@ -89,6 +89,7 @@
   <ItemGroup>
     <ClCompile Include="..\http-parser\http_parser.c" />
     <ClCompile Include="..\rbtree\rbtree.c" />
+    <ClCompile Include="..\src\base64url.c" />
     <ClCompile Include="..\src\channel.c" />
     <ClCompile Include="..\src\channel_chndoh.c" />
     <ClCompile Include="..\src\channel_doh.c" />
@@ -111,6 +112,7 @@
   <ItemGroup>
     <ClInclude Include="..\http-parser\http_parser.h" />
     <ClInclude Include="..\rbtree\rbtree.h" />
+    <ClInclude Include="..\src\base64url.h" />
     <ClInclude Include="..\src\channel.h" />
     <ClInclude Include="..\src\channel_chndoh.h" />
     <ClInclude Include="..\src\channel_doh.h" />
