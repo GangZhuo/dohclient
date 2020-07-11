@@ -1284,7 +1284,6 @@ static int on_header_value(http_parser* parser, const char* at, size_t length)
 static int on_headers_complete(http_parser* parser)
 {
 	http_conn_t* conn = (http_conn_t*)parser->data;
-	http_response_t* response = conn->response;
 
 	if (conn->field.status != fs_none) {
 		if (on_header_field_complete(parser))
@@ -1292,13 +1291,6 @@ static int on_headers_complete(http_parser* parser)
 	}
 
 	conn->keep_alive = http_should_keep_alive(parser);
-
-	if (loglevel > LOG_DEBUG) {
-		stream_t s = STREAM_INIT();
-		http_response_headers_serialize(&s, response);
-		logv("Response Headers:\r\n%s\r\n", s.array);
-		stream_free(&s);
-	}
 
 	return 0;
 }
@@ -1320,6 +1312,19 @@ static int on_message_complete(http_parser* parser)
 	http_conn_t* conn = (http_conn_t*)parser->data;
 	http_request_t* request = conn->request;
 	http_response_t* response = conn->response;
+
+	if (loglevel > LOG_DEBUG) {
+		stream_t s = STREAM_INIT();
+		http_request_headers_serialize(&s, request);
+		logv("Request Headers:\r\n%s\r\n", s.array);
+		stream_reset(&s);
+		http_response_headers_serialize(&s, response);
+		logv("Response:\r\n%s\r\n%s%s",
+			s.array,
+			response->status_code != 200 ? (const char*)response->data.array : "",
+			response->status_code != 200 ? "\r\n" : "");
+		stream_free(&s);
+	}
 
 	http_call_callback(request, HTTP_OK, response);
 
@@ -1671,8 +1676,6 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 		http_response_destroy(response);
 		return -1;
 	}
-
-	logv("Request Headers:\r\n%s\r\n", conn->conn.ws.array);
 
 	http_parser_init(&conn->parser, HTTP_RESPONSE);
 	stream_reset(&conn->field.name);
