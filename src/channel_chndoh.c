@@ -530,6 +530,14 @@ static void http_cb(
 	}
 	else {
 		loge("query %s failed\n", rq->qr.qname);
+
+		if (loglevel > LOG_DEBUG) {
+			int len;
+			char* content;
+			content = http_response_get_data(response, &len);
+			logv("%s\r\n", content);
+		}
+
 	}
 
 exit:
