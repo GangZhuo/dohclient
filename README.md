@@ -73,7 +73,7 @@ Online help: <https://github.com/GangZhuo/dohclient>
 
 ### Channels
 
-1. os
+#### 1. os
 
 Example:
 ```
@@ -82,7 +82,7 @@ dohclient -b 0.0.0.0 -p 5354 --channel=os
 
 Query by OS function getaddrinfo().
 
-2. doh
+#### 2. doh
 
 Example:
 ```
@@ -94,7 +94,7 @@ dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
 
 ecs=0 时，等同于 DoH 服务的代理。ecs=1 时，使用每一个子网向 DoH 服务查询域名，当查询结果中包含中国 IP 时，选择中国子网的结果返回，否则选择国外子网的结果返回。
 
-#### Channel Arguments
+##### Channel Arguments
 
 * addr=<IP>[:PORT]
 
@@ -141,7 +141,7 @@ DoH 服务的路径。
 国外 IPv6 子网。当 ecs=1 时有效。
 
 
-3. chinadns
+#### 3. chinadns
 
 Example:
 ```
@@ -157,7 +157,7 @@ dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
 两个上游服务器的前缀分别为 chndoh 和 frndoh，chndoh 指定中国服务器，frndoh 指定国外服务器。
 
 
-#### 服务器参数
+##### 服务器参数
 
 * <chndoh|frndoh>.channel=<doh|udp|tcp>
 
