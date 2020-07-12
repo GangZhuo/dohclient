@@ -10,6 +10,8 @@ OBJS = \
 	src/channel_chndoh.o \
 	src/channel_doh.o \
 	src/channel_os.o \
+	src/channel_tcp.o \
+	src/channel_udp.o \
 	src/chnroute.o \
 	src/config.o \
 	src/dns_request.o \
