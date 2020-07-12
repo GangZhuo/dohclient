@@ -31,9 +31,14 @@ typedef struct subnet_t {
 typedef struct doh_server_t {
 	time_t addr_expire;
 	sockaddr_t addr;
+	int post;
 	char* host;
 	char* path;
 	int keep_alive;
+	int use_proxy;
+	int ecs;
+	subnet_t net;
+	subnet_t net6;
 } doh_server_t;
 
 typedef struct channel_chndoh_t {
@@ -42,19 +47,12 @@ typedef struct channel_chndoh_t {
 	struct rbtree_t reqdic;
 	int req_count;
 	http_ctx_t* http;
-	int post;
 
 	/* China DoH server */
 	doh_server_t chndoh;
 
 	/* Foreign DoH server */
 	doh_server_t frndoh;
-
-	/* Only for foreign DoH server */
-	int use_proxy; 
-	int ecs;
-	subnet_t net;
-	subnet_t net6;
 
 } channel_chndoh_t;
 
@@ -150,10 +148,14 @@ static void destroy(channel_t* ctx)
 
 	free(c->chndoh.host);
 	free(c->chndoh.path);
+	free(c->chndoh.net.name);
+	free(c->chndoh.net6.name);
+
 	free(c->frndoh.host);
 	free(c->frndoh.path);
-	free(c->net.name);
-	free(c->net6.name);
+	free(c->frndoh.net.name);
+	free(c->frndoh.net6.name);
+
 	free(c);
 }
 
@@ -756,24 +758,39 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 	return req;
 }
 
-static int doh_http_query(channel_req_t* rq, doh_server_t *doh, int use_proxy, subnet_t* subnet)
+static int doh_http_query(channel_req_t* rq, doh_server_t *doh)
 {
 	channel_chndoh_t* c = rq->ctx;
 	http_request_t* req;
+	subnet_t* subnet = NULL;
 	int r;
 
-	req = c->post
+	if (doh->ecs) {
+		if (rq->qr.qtype == NS_QTYPE_A) {
+			if (doh->net.is_set) {
+				subnet = &doh->net;
+			}
+		}
+		else if (rq->qr.qtype == NS_QTYPE_AAAA) {
+			if (doh->net6.is_set) {
+				subnet = &doh->net6;
+			}
+		}
+	}
+
+	req = doh->post
 		? doh_build_post_request(rq, doh, subnet)
 		: doh_build_get_request(rq, doh, subnet);
+
 	if (!req) {
 		loge("doh_http_query() error: %s error\n",
-			c->post
+			doh->post
 				? "doh_build_post_request()"
 				: "doh_build_get_request()");
 		return -1;
 	}
 
-	r = http_send(c->http, &doh->addr, c->use_proxy, req, http_cb, rq);
+	r = http_send(c->http, &doh->addr, doh->use_proxy, req, http_cb, rq);
 	if (r) {
 		loge("doh_http_query() error: http_send() error\n");
 		free(http_request_get_data(req, NULL));
@@ -790,7 +807,7 @@ static int doh_query(channel_req_t* rq)
 	int r = 0;
 
 	if (c->chndoh.host) {
-		r = doh_http_query(rq, &c->chndoh, FALSE, NULL);
+		r = doh_http_query(rq, &c->chndoh);
 		if (r) {
 			loge("doh_query() error: doh_http_query() error\n");
 			return -1;
@@ -799,20 +816,7 @@ static int doh_query(channel_req_t* rq)
 	}
 
 	if (c->frndoh.host) {
-		subnet_t* subnet = NULL;
-		if (c->ecs) {
-			if (rq->qr.qtype == NS_QTYPE_A) {
-				if (c->net.is_set) {
-					subnet = &c->net;
-				}
-			}
-			else if (rq->qr.qtype == NS_QTYPE_AAAA) {
-				if (c->net6.is_set) {
-					subnet = &c->net6;
-				}
-			}
-		}
-		r = doh_http_query(rq, &c->frndoh, c->use_proxy, subnet);
+		r = doh_http_query(rq, &c->frndoh);
 		if (r) {
 			loge("doh_query() error: doh_http_query() error\n");
 			return -1;
@@ -947,25 +951,30 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			doh = strcmp(p, "chndoh.keep-alive") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->keep_alive = strcmp(v, "0");
 		}
-		else if (strcmp(p, "post") == 0) {
-			ctx->post = strcmp(v, "0");
+		else if (strcmp(p, "chndoh.post") == 0 || strcmp(p, "frndoh.post") == 0) {
+			doh = strcmp(p, "chndoh.post") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->post = strcmp(v, "0");
 		}
-		else if (strcmp(p, "proxy") == 0) {
-            ctx->use_proxy = strcmp(v, "0");
+		else if (strcmp(p, "chndoh.proxy") == 0 || strcmp(p, "frndoh.proxy") == 0) {
+			doh = strcmp(p, "chndoh.proxy") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->use_proxy = strcmp(v, "0");
         }
-        else if (strcmp(p, "ecs") == 0) {
-            ctx->ecs = strcmp(v, "0");
+        else if (strcmp(p, "chndoh.ecs") == 0 || strcmp(p, "frndoh.ecs") == 0) {
+			doh = strcmp(p, "chndoh.ecs") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->ecs = strcmp(v, "0");
         }
-        else if (strcmp(p, "net") == 0) {
-            if (v && *v && parse_subnet(&ctx->net, v)) {
-                loge("parse \"china-ip4\" failed: %s\n", v);
+        else if (strcmp(p, "chndoh.net") == 0 || strcmp(p, "frndoh.net") == 0) {
+			doh = strcmp(p, "chndoh.net") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			if (v && *v && parse_subnet(&doh->net, v)) {
+                loge("parse \"%s\" failed: %s\n", p, v);
                 free(cpy);
                 return -1;
             }
         }
-        else if (strcmp(p, "net6") == 0) {
-            if (v && *v && parse_subnet(&ctx->net6, v)) {
-                loge("parse \"china-ip6\" failed: %s\n", v);
+        else if (strcmp(p, "chndoh.net6") == 0 || strcmp(p, "frndoh.net6") == 0) {
+			doh = strcmp(p, "chndoh.net6") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			if (v && *v && parse_subnet(&doh->net6, v)) {
+                loge("parse \"%s\" failed: %s\n", p, v);
                 free(cpy);
                 return -1;
             }
