@@ -83,7 +83,7 @@ Options:\n\
   -p BIND_PORT             Port that listen on, default: " DEFAULT_LISTEN_PORT ".\n\
                            The port specified in \"-b\" is priority .\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
-  --channel=CHANNEL        Channel name, e.g. os,doh,chndoh.\n\
+  --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\
   --channel-args=ARGS      Channel arguments. e.g. --channel-args=\"addr=8.8.4.4:443\n\
                            &host=dns.google&path=/dns-query&proxy=1&ecs=1\n\
                            &china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32\n\

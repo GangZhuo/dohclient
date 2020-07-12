@@ -24,7 +24,7 @@ static channel_info_t _infos[] = {
 		.create = channel_doh_create,
 	},
 	{
-		.name = "chndoh",
+		.name = "chinadns",
 		.create = channel_chndoh_create,
 	},
 	NULL
