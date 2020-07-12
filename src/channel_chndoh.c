@@ -78,6 +78,7 @@ typedef struct channel_req_t {
 	int result_num;
 	int wait_num;
 	int untrust;
+	unsigned long start_time;
 } channel_req_t;
 
 static int doh_query(channel_req_t* rq);
@@ -117,6 +118,7 @@ static channel_req_t* myreq_new(
 	req->cb_state = cb_state;
 	req->rbn.key = &req->req_id;
 	req->ctx = ctx;
+	req->start_time = OS_GetTickCount();
 
 	return req;
 }
@@ -540,7 +542,16 @@ static int query_cb(channel_t* ctx,
 	if (status == 0 && result) {
 
 		if (ctx != NULL) {
+			doh_server_t* doh = (doh_server_t*)ctx->data;
+
 			result->id = ctx == c->chndoh.chctx ? 0 : 1;
+
+			logd("%d. query %s success: %s - %s (%lu ms)\n",
+				2 - rq->wait_num,
+				rq->qr.qname,
+				msg_answers(result),
+				get_sockaddrname(&doh->addr),
+				OS_GetTickCount() - rq->start_time);
 		}
 
 		if (!rq->results) {
@@ -570,6 +581,15 @@ static int query_cb(channel_t* ctx,
 	}
 	else {
 		rq->untrust = TRUE;
+		if (ctx != NULL) {
+			doh_server_t* doh = (doh_server_t*)ctx->data;
+
+			loge("%d. query %s failed: %s (%lu ms)\n",
+				2 - rq->wait_num,
+				rq->qr.qname,
+				get_sockaddrname(&doh->addr),
+				OS_GetTickCount() - rq->start_time);
+		}
 	}
 
 exit:
@@ -643,13 +663,22 @@ static void http_cb(
 		}
 
 		result->id = doh == &c->chndoh ? 0 : 1;
+
+		logd("%d. query %s success: %s - %s (%lu ms)\n",
+			2 - rq->wait_num,
+			rq->qr.qname,
+			msg_answers(result),
+			doh->host,
+			OS_GetTickCount() - rq->start_time);
 	}
 	else {
-		loge("query %s failed: HTTP %d %s - %s\n",
+		loge("%d. query %s failed: HTTP %d %s - %s (%lu ms)\n",
+			2 - rq->wait_num,
 			rq->qr.qname,
 			http_status,
 			status_text,
-			http_request_get_host(request));
+			http_request_get_host(request),
+			OS_GetTickCount() - rq->start_time);
 	}
 
 exit:
@@ -1071,7 +1100,7 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 			c->conf,
 			c->proxies,
 			c->proxy_num,
-			c->chnr, NULL);
+			c->chnr, doh);
 	}
 	else if (doh->channel == CH_TCP) {
 		char args[2048];
@@ -1088,7 +1117,7 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 			c->conf,
 			c->proxies,
 			c->proxy_num,
-			c->chnr, NULL);
+			c->chnr, doh);
 	}
 	return 0;
 }
