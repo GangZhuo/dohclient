@@ -43,7 +43,7 @@ void http_uninit();
 
 http_request_t* http_request_create(
 	const char* method, const char* path,
-	const char* host);
+	const char* host, int keep_alive);
 
 void http_request_destroy(http_request_t* request);
 
@@ -62,6 +62,11 @@ const char* http_request_get_path(http_request_t* request);
 
 void http_request_set_path(http_request_t* request,
 	const char* value);
+
+int http_request_get_keep_alive(http_request_t* request);
+
+void http_request_set_keep_alive(http_request_t* request,
+	int value);
 
 const char* http_request_get_host(http_request_t* request);
 

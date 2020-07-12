@@ -76,6 +76,7 @@ struct http_request_t {
 	dllist_t    headers;
 	char*       data;
 	int         data_len;
+	int keep_alive;
 	http_conn_t* conn;
 	http_callback_fun_t callback;
 	void* cb_state;
@@ -241,7 +242,7 @@ static char* http_strdup(const char* s, int len)
 
 http_request_t* http_request_create(
 	const char *method, const char *path,
-	const char *host)
+	const char *host, int keep_alive)
 {
 	http_request_t* req = (http_request_t*)malloc(sizeof(http_request_t));
 	if (!req) {
@@ -256,6 +257,7 @@ http_request_t* http_request_create(
 	req->method = method;
 	req->path = path;
 	req->host = host;
+	req->keep_alive = keep_alive;
 
 	return req;
 }
@@ -329,6 +331,10 @@ int http_request_set_header(http_request_t* request,
 		request->host = value;
 	}
 
+	if (strcmp(name, "Connection") == 0) {
+		request->keep_alive = strcmp(value, "keep-alive") == 0;
+	}
+
 	return 0;
 }
 
@@ -352,6 +358,17 @@ void http_request_set_path(http_request_t* request,
 	const char* value)
 {
 	request->path = value;
+}
+
+int http_request_get_keep_alive(http_request_t* request)
+{
+	return request->keep_alive;
+}
+
+void http_request_set_keep_alive(http_request_t* request,
+	int value)
+{
+	request->keep_alive = value;
 }
 
 void* http_request_get_state(http_request_t* request)
@@ -430,10 +447,12 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
-		if (strcmp(name, "Connection") == 0)
+		if (strcmp(name, "Connection") == 0) {
 			have_connection = TRUE;
-		else if (strcmp(name, "Host") == 0)
+		}
+		else if (strcmp(name, "Host") == 0) {
 			have_host = TRUE;
+		}
 	}
 
 	if (!have_host) {
@@ -444,7 +463,8 @@ int http_request_headers_serialize(/*write stream*/stream_t* s, http_request_t* 
 	}
 
 	if (!have_connection) {
-		if (stream_appendf(s, "Connection: %s\r\n", "keep-alive") == -1) {
+		if (stream_appendf(s, "Connection: %s\r\n",
+			req->keep_alive ? "keep-alive" : "close") == -1) {
 			loge("http_request_serialize() error: stream_appendf()\n");
 			return -1;
 		}
@@ -821,7 +841,7 @@ static void http_move_to_fly(http_conn_t* conn)
 	http_add_to_fly(conn);
 }
 
-static void http_conn_close(http_ctx_t* ctx, http_conn_t* conn)
+static void http_conn_close(http_conn_t* conn)
 {
 	conn->conn.status = cs_closing;
 	http_move_to_fly(conn);
@@ -1332,8 +1352,7 @@ static int on_message_complete(http_parser* parser)
 		http_move_to_idle(conn);
 	}
 	else {
-		http_remove_conn(conn);
-		http_conn_free(conn);
+		http_conn_close(conn);
 	}
 	return 0;
 }
@@ -1518,7 +1537,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			}
 		}
 
-		if (!r && http_is_expired(conn, now)) {
+		if (r == 0 && http_is_expired(conn, now)) {
 			loge("http timeout - %s\n", get_sockname(conn->conn.sock));
 			r = -1;
 			req = conn->request;
@@ -1526,10 +1545,9 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			if (req) {
 				http_call_callback(req, HTTP_TIMEOUT, res);
 			}
-			http_remove_conn(conn);
-			http_conn_free(conn);
+			http_conn_close(conn);
 		}
-		else if (r) {
+		else if (r != 0) {
 			req = conn->request;
 			res = conn->response;
 			if (req) {
@@ -1661,7 +1679,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 			loge("http_send() error: %s() error\n",
 				use_proxy && ctx->proxy_num > 0 ?
 				"http_socks5_handshake" : "http_ssl_handshake");
-			http_conn_close(ctx, conn);
+			http_conn_close(conn);
 			http_response_destroy(response);
 			return -1;
 		}
@@ -1672,7 +1690,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 	r = http_request_serialize(&conn->conn.ws, request);
 	if (r <= 0) {
 		loge("http_send() error: http_request_serialize() error\n");
-		http_conn_close(ctx, conn);
+		http_conn_close(conn);
 		http_response_destroy(response);
 		return -1;
 	}
@@ -1687,7 +1705,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 		r = http_conn_send(conn);
 		if (r < 0) {
 			loge("http_send() error: http_conn_send() error\n");
-			http_conn_close(ctx, conn);
+			http_conn_close(conn);
 			http_response_destroy(response);
 			return -1;
 		}

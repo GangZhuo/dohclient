@@ -33,6 +33,7 @@ typedef struct doh_server_t {
 	sockaddr_t addr;
 	char* host;
 	char* path;
+	int keep_alive;
 } doh_server_t;
 
 typedef struct channel_chndoh_t {
@@ -627,7 +628,7 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* d
 
 	ns_msg_free(&msg);
 
-	req = http_request_create("POST", doh->path, doh->host);
+	req = http_request_create("POST", doh->path, doh->host, doh->keep_alive);
 	if (!req) {
 		loge("doh_build_post_request() error: http_request_create() error\n");
 		stream_free(&s);
@@ -643,14 +644,6 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* d
 	}
 
 	r = http_request_set_header(req, "Accept", "*/*");
-	if (r) {
-		loge("doh_build_post_request() error: http_request_set_header() error\n");
-		stream_free(&s);
-		http_request_destroy(req);
-		return NULL;
-	}
-
-	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
 		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
@@ -733,7 +726,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 
 	free(dns);
 
-	req = http_request_create("GET", s.array, doh->host);
+	req = http_request_create("GET", s.array, doh->host, doh->keep_alive);
 	if (!req) {
 		loge("doh_build_get_request() error: http_request_create() error\n");
 		stream_free(&s);
@@ -749,14 +742,6 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 	}
 
 	r = http_request_set_header(req, "Accept", "*/*");
-	if (r) {
-		loge("doh_build_get_request() error: http_request_set_header() error\n");
-		stream_free(&s);
-		http_request_destroy(req);
-		return NULL;
-	}
-
-	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
 		loge("doh_build_get_request() error: http_request_set_header() error\n");
 		stream_free(&s);
@@ -958,6 +943,10 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			doh = strcmp(p, "chndoh.path") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->path = strdup(v);
         }
+		else if (strcmp(p, "chndoh.keep-alive") == 0 || strcmp(p, "frndoh.keep-alive") == 0) {
+			doh = strcmp(p, "chndoh.keep-alive") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->keep_alive = strcmp(v, "0");
+		}
 		else if (strcmp(p, "post") == 0) {
 			ctx->post = strcmp(v, "0");
 		}
@@ -1009,6 +998,9 @@ int channel_chndoh_create(
 	}
 
 	memset(ctx, 0, sizeof(channel_chndoh_t));
+
+	ctx->chndoh.keep_alive = TRUE;
+	ctx->frndoh.keep_alive = TRUE;
 
 	if (parse_args(ctx, args)) {
 		loge("channel_chndoh_create() error: parse_args() error\n");

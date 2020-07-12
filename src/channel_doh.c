@@ -39,6 +39,7 @@ typedef struct channel_doh_t {
 	time_t http_addr_expire;
 	char* host;
 	char* path;
+	int keep_alive;
 	int use_proxy;
 	int ecs;
 	subnet_t china_net;
@@ -578,7 +579,7 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, subnet_t* subne
 
 	ns_msg_free(&msg);
 
-	req = http_request_create("POST", c->path, c->host);
+	req = http_request_create("POST", c->path, c->host, c->keep_alive);
 	if (!req) {
 		loge("doh_build_post_request() error: http_request_create() error\n");
 		stream_free(&s);
@@ -610,14 +611,6 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, subnet_t* subne
 	}
 
 	r = http_request_set_header(req, "Accept", "*/*");
-	if (r) {
-		loge("doh_build_post_request() error: http_request_set_header() error\n");
-		stream_free(&s);
-		http_request_destroy(req);
-		return NULL;
-	}
-
-	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
 		loge("doh_build_post_request() error: http_request_set_header() error\n");
 		stream_free(&s);
@@ -698,7 +691,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, subnet_t* subnet
 
 	free(dns);
 
-	req = http_request_create("GET", s.array, c->host);
+	req = http_request_create("GET", s.array, c->host, c->keep_alive);
 	if (!req) {
 		loge("doh_build_get_request() error: http_request_create() error\n");
 		stream_free(&s);
@@ -714,14 +707,6 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, subnet_t* subnet
 	}
 
 	r = http_request_set_header(req, "Accept", "*/*");
-	if (r) {
-		loge("doh_build_get_request() error: http_request_set_header() error\n");
-		stream_free(&s);
-		http_request_destroy(req);
-		return NULL;
-	}
-
-	r = http_request_set_header(req, "Connection", "keep-alive");
 	if (r) {
 		loge("doh_build_get_request() error: http_request_set_header() error\n");
 		stream_free(&s);
@@ -937,6 +922,9 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 		else if (strcmp(p, "post") == 0) {
 			ctx->post = strcmp(v, "0");
 		}
+		else if (strcmp(p, "keep-alive") == 0) {
+            ctx->keep_alive = strcmp(v, "0");
+        }
 		else if (strcmp(p, "proxy") == 0) {
             ctx->use_proxy = strcmp(v, "0");
         }
