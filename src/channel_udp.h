@@ -18,6 +18,11 @@ int channel_udp_create(
 	const chnroute_ctx chnr,
 	void* data);
 
+int channel_udp_query(channel_t* ctx,
+	const ns_msg_t* msg,
+	int use_proxy, subnet_t* subnet,
+	channel_query_cb callback, void* state);
+
 #ifdef __cplusplus
 }
 #endif

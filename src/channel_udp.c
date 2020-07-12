@@ -287,6 +287,16 @@ static int query(channel_t* ctx,
 	channel_query_cb callback, void* state)
 {
 	channel_udp_t* c = (channel_udp_t*)ctx;
+
+	return channel_udp_query(ctx, msg, c->use_proxy, NULL, callback, state);
+}
+
+int channel_udp_query(channel_t* ctx,
+	const ns_msg_t* msg,
+	int use_proxy, subnet_t* subnet,
+	channel_query_cb callback, void* state)
+{
+	channel_udp_t* c = (channel_udp_t*)ctx;
 	udpreq_t* req;
 
 	req = req_new(c, msg, callback, state);
@@ -297,8 +307,8 @@ static int query(channel_t* ctx,
 	rbtree_insert(&c->reqdic, &req->rbn);
 	c->req_count++;
 
-	if (udp_query(req, NULL)) {
-		loge("udp_query() failed\n");
+	if (udp_query(req, subnet)) {
+		loge("channel_udp_query() failed\n");
 		dllist_remove(&req->entry);
 		rbtree_remove(&c->reqdic, &req->rbn);
 		c->req_count--;

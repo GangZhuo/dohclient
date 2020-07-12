@@ -581,17 +581,29 @@ static int query(channel_t* ctx,
 	channel_query_cb callback, void* state)
 {
 	channel_tcp_t* c = (channel_tcp_t*)ctx;
+
+	return channel_tcp_query(ctx, msg, c->use_proxy, NULL, callback, state);
+}
+
+int channel_tcp_query(channel_t* ctx,
+	const ns_msg_t* msg,
+	int use_proxy, subnet_t* subnet,
+	channel_query_cb callback, void* state)
+{
+	channel_tcp_t* c = (channel_tcp_t*)ctx;
 	tcpreq_t* req;
 
-	req = req_new(c, msg, c->use_proxy, callback, state);
+	if (use_proxy == -1) use_proxy = c->use_proxy;
+
+	req = req_new(c, msg, use_proxy, callback, state);
 	if (!req)
 		return -1;
 
 	dllist_add(&c->reqs, &req->entry);
 	c->req_count++;
 
-	if (tcp_query(req, c->use_proxy, NULL)) {
-		loge("tcp_query() failed\n");
+	if (tcp_query(req, use_proxy, subnet)) {
+		loge("channel_tcp_query() failed\n");
 		dllist_remove(&req->entry);
 		c->req_count--;
 		req_destroy(req);
