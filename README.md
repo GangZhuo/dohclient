@@ -199,3 +199,24 @@ DoH 服务的路径。仅当 <chndoh|frndoh>.channel=doh 时有效。
 
 国内 IPv6 子网。当 ecs=1 时有效。
 
+### dohclient.config
+
+Example:
+```
+dohclient --config=dohclient.config
+```
+
+```
+# dohclient.config (https://github.com/GangZhuo/dohclient/blob/master/asset/dohclient.config)
+
+config cfg
+	option bind_addr '127.0.0.1'
+	option bind_port '53'
+	option chnroute '/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt'
+	option timeout '30'
+	option log_file '/var/log/dohclient.log'
+	option log_level '5'
+	option proxy '127.0.0.1:1080'
+	option channel 'chinadns'
+	option channel_args 'chndoh.channel=udp&chndoh.addr=223.5.5.5:53&frndoh.addr=8.8.8.8:443&frndoh.host=dns.google&frndoh.path=/dns-query&frndoh.proxy=1&frndoh.ecs=1&frndoh.net=8.8.0.0/24&frndoh.net6=2001:19f0:6401::/48'
+```
