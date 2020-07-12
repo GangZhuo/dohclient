@@ -90,7 +90,7 @@ Online help: <https://github.com/GangZhuo/dohclient>
 
 Example:
 ```
-dohclient -b 0.0.0.0 -p 5354 --channel=os
+dohclient -b 0.0.0.0 -p 5354 --channel=os -vv
 ```
 
 Query by OS function getaddrinfo().
