@@ -157,7 +157,7 @@ dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
 两个上游服务器的前缀分别为 chndoh 和 frndoh，chndoh 指定中国服务器，frndoh 指定国外服务器。
 
 
-##### 服务器参数
+##### Server Arguments
 
 * <chndoh|frndoh>.channel=<doh|udp|tcp>
 
