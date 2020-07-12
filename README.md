@@ -75,13 +75,69 @@ Online help: <https://github.com/GangZhuo/dohclient>
 
 1. os
 
+Example:
 ```
 dohclient -b 0.0.0.0 -p 5354 --channel=os
 ```
 
 Query by OS function getaddrinfo().
 
+2. doh
 
+Example:
+```
+dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
+          --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
+          --channel=doh \
+          --channel-args="addr=172.67.153.110:443&host=doh.beike.workers.dev&path=/dns-query&post=0&keep-alive=1&proxy=0&ecs=1&china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32&foreign-ip4=8.8.8.8/24&foreign-ip6=2001:df2:8300::/48"
+```
 
+ecs=0 时，等同于 DoH 服务的代理。ecs=1 时，使用每一个子网向 DoH 服务查询域名，当查询结果中包含中国 IP 时，选择中国子网的结果返回，否则选择国外子网的结果返回。
+
+#### Channel Arguments
+
+* addr=<IP>[:PORT]
+
+DoH 服务器的地址，第 1 次启动时，通过此地址解析一次域名。
+
+* host=<Domain>
+
+DoH 服务的主机名。
+
+* path=/dns-query
+
+DoH 服务的路径。
+
+* post=<0|1>
+
+是否使用 POST 请求来查询域名。0 - 使用 GET 请求，1 - 使用 POST 请求。默认为 0。
+
+* keep-alive=<0|1>
+
+是否重用 HTTPS 连接 (参考 HTTP 协议)。默认为 1。
+
+* proxy=<0|1>
+
+是否使用代理。仅支持无认证的 Socks5 代理。默认为 0。
+
+* ecs=<0|1>
+
+是否启用 EDNS，如果启用，应至少设置一个子网。默认为 0。
+
+* china-ip4=<子网>
+
+国内 IPv4 子网。当 ecs=1 时有效。
+
+* china-ip6=<子网>
+
+国内 IPv6 子网。当 ecs=1 时有效。
+
+* foreign-ip4=<子网>
+
+国外 IPv4 子网。当 ecs=1 时有效。
+
+* foreign-ip6=<子网>
+
+国外 IPv6 子网。当 ecs=1 时有效。
 
 
