@@ -199,7 +199,7 @@ static int query_doh_addr_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logn("new DoH server's IP: %s - %s\n",
+	logd("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
 	doh->addr_expire = time(NULL) + ns_get_ttl(result);
