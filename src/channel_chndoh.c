@@ -183,7 +183,7 @@ static int query_doh_addr_cb(channel_t* ctx,
 	logn("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
-	doh->addr_expire = time(NULL) + result->rrs->ttl;
+	doh->addr_expire = time(NULL) + ns_get_ttl(result);
 
 	if (doh->addr.addr.ss_family == AF_INET) {
 		port = ((struct sockaddr_in*)&doh->addr.addr)->sin_port;

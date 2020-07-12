@@ -84,7 +84,6 @@ static cache_item_t* cache_item_new(const ns_msg_t* msg, const char *key)
 	}
 
 	item->node.key = strdup(key);
-	item->expire = time(NULL) + msg->rrs->ttl;
 
 	return item;
 }
@@ -233,6 +232,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	cache_t* c = (cache_t*)ctx;
 	cache_item_t* item;
 	struct rbnode_t* rbn;
+	int ttl;
 
 	if (!key || !msg || !msg->qrs || !msg->rrs ||
 		msg->qdcount < 1 || msg->ancount < 1) {
@@ -240,12 +240,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		return -1;
 	}
 
-	/* no cache */
-	if (msg->rrs->ttl < 1)
-		return -1;
+	ttl = (int)ns_get_ttl(msg);
 
-	/* no IP */
-	if (msg->rrs->type != NS_TYPE_A && msg->rrs->type != NS_TYPE_AAAA)
+	/* no ttl */
+	if (ttl < 1)
 		return -1;
 
 	rbn = rbtree_lookup(&c->dic, key);
@@ -256,6 +254,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 			return -1;
 		}
 
+		item->expire = time(NULL) + ttl;
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
 		if (loglevel > LOG_DEBUG) {
@@ -275,7 +274,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		ns_msg_free(item->msg);
 		free(item->msg);
 		item->msg = newmsg;
-		item->expire = time(NULL) + msg->rrs->ttl;
+		item->expire = time(NULL) + ttl;
 		dllist_remove(&item->entry);
 		cache_item_add(c, item);
 		if (loglevel > LOG_DEBUG) {

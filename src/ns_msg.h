@@ -186,6 +186,8 @@ void ns_msg_free(ns_msg_t *msg);
 
 int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes);
 
+uint32_t ns_get_ttl(const ns_msg_t* msg);
+
 ns_rr_t *ns_find_rr(ns_msg_t *msg, int type);
 
 int ns_remove_rr(ns_msg_t* msg, ns_rr_t* rr);

@@ -48,6 +48,26 @@ int init_ns_msg(ns_msg_t *msg)
 	return 0;
 }
 
+uint32_t ns_get_ttl(const ns_msg_t* msg)
+{
+	int i, rrcount;
+	uint32_t ttl = 0;
+	ns_rr_t* rr;
+
+	rrcount = msg->ancount;
+	for (i = 0; i < rrcount; i++) {
+		rr = msg->rrs + i;
+		if (rr->type == NS_QTYPE_A) {
+			if (ttl == 0 || ttl > rr->ttl) ttl = rr->ttl;
+		}
+		else if (rr->type == NS_QTYPE_AAAA) {
+			if (ttl == 0 || ttl > rr->ttl) ttl = rr->ttl;
+		}
+	}
+
+	return ttl;
+}
+
 ns_qr_t* ns_qr_clone(const ns_qr_t* array, int num)
 {
 	ns_qr_t* copy, * dst;

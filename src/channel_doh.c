@@ -166,7 +166,7 @@ static int http_addr_query_cb(channel_t* ctx,
 	logn("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
-	c->http_addr_expire = time(NULL) + result->rrs->ttl;
+	c->http_addr_expire = time(NULL) + ns_get_ttl(result);
 
 	if (c->http_addr.addr.ss_family == AF_INET) {
 		port = ((struct sockaddr_in*)&c->http_addr.addr)->sin_port;
