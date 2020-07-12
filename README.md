@@ -14,7 +14,7 @@
       - [3. chinadns](#3-chinadns)
         * [Server Arguments](#server-arguments)
     + [dohclient.config](#dohclientconfig)
-    + [自建 DoH （By Cloudflare Workers）](#---doh--by-cloudflare-workers-)
+    + [Proxy DoH By Cloudflare Workers](#proxy-doh-by-cloudflare-workers)
 
 ### Build on Linux
 
@@ -235,7 +235,7 @@ config cfg
 	option channel_args 'chndoh.channel=udp&chndoh.addr=223.5.5.5:53&frndoh.addr=8.8.8.8:443&frndoh.host=dns.google&frndoh.path=/dns-query&frndoh.proxy=1&frndoh.ecs=1&frndoh.net=8.8.0.0/24&frndoh.net6=2001:19f0:6401::/48'
 ```
 
-### 自建 DoH （By Cloudflare Workers）
+### Proxy DoH By Cloudflare Workers
 
 参考 https://github.com/GangZhuo/cf-doh
 
