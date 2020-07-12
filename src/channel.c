@@ -3,6 +3,7 @@
 #include "channel_os.h"
 #include "channel_doh.h"
 #include "channel_chndoh.h"
+#include "channel_udp.h"
 #include "mleak.h"
 
 typedef struct channel_info_t{
@@ -12,12 +13,16 @@ typedef struct channel_info_t{
 
 static channel_info_t _infos[] = {
 	{
+		.name = "cache",
+		.create = cache_create,
+	},
+	{
 		.name = "os",
 		.create = channel_os_create,
 	},
 	{
-		.name = "cache",
-		.create = cache_create,
+		.name = "udp",
+		.create = channel_udp_create,
 	},
 	{
 		.name = "doh",

@@ -21,12 +21,9 @@
 #define FLG_ECS_CHN		(1 << 10)
 #define FLG_ECS_FRN		(1 << 11)
 
-typedef struct subnet_t {
-	int is_set;
-	char* name;
-	struct sockaddr_storage addr;
-	int mask;
-} subnet_t;
+#define PROTOCOL_DOH	0
+#define PROTOCOL_UDP	1
+#define PROTOCOL_TCP	2
 
 typedef struct doh_server_t {
 	time_t addr_expire;

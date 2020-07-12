@@ -78,6 +78,9 @@
     <ClCompile Include="..\src\base64url.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\channel_udp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\log.h">
@@ -141,6 +144,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\base64url.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\channel_udp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

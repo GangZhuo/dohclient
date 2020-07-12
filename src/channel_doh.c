@@ -21,13 +21,6 @@
 #define FLG_ECS_CHN		(1 << 10)
 #define FLG_ECS_FRN		(1 << 11)
 
-typedef struct subnet_t {
-	int is_set;
-	char* name;
-	struct sockaddr_storage addr;
-	int mask;
-} subnet_t;
-
 typedef struct channel_doh_t {
 	CHANNEL_BASE(_M)
 	dllist_t reqs;

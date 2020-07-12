@@ -448,6 +448,14 @@ conn_status tcp_connect(const sockaddr_t* addr, sock_t* psock)
 			close(sock);
 			return cs_err_set_nonblock;
 		}
+
+		if (setnodelay(sock) != 0) {
+			loge("tcp_connect() error: set sock nodelay failed - %s\n",
+				get_sockaddrname(addr));
+			close(sock);
+			return cs_err_set_nodelay;
+		}
+
 	}
 
 	if (connect(sock, (const struct sockaddr*)(&addr->addr), addr->addrlen) != 0) {

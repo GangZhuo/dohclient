@@ -112,6 +112,13 @@ struct sockaddr_t {
 	socklen_t addrlen;
 };
 
+typedef struct subnet_t {
+	int is_set;
+	char* name;
+	struct sockaddr_storage addr;
+	int mask;
+} subnet_t;
+
 typedef struct proxy_t {
 	sockaddr_t addr;
 	int proxy_index;
@@ -144,6 +151,7 @@ typedef enum conn_status {
 	cs_error,
 	cs_err_create_sock = cs_error, /* error when create sock */
 	cs_err_set_nonblock, /* error when set non-block */
+	cs_err_set_nodelay, /* error when set no delay */
 	cs_err_connect, /* error when connect the address */
 } conn_status;
 
