@@ -2,6 +2,8 @@
 #include "../rbtree/rbtree.h"
 #include "http.h"
 #include "base64url.h"
+#include "channel_udp.h"
+#include "channel_tcp.h"
 #include "mleak.h"
 
 #define _M
@@ -21,9 +23,15 @@
 #define FLG_ECS_CHN		(1 << 10)
 #define FLG_ECS_FRN		(1 << 11)
 
-#define PROTOCOL_DOH	0
-#define PROTOCOL_UDP	1
-#define PROTOCOL_TCP	2
+#define CH_DOH	0
+#define CH_UDP	1
+#define CH_TCP	2
+
+typedef int (*doh_query_func)(
+	channel_t* ctx,
+	const ns_msg_t* request,
+	int use_proxy, subnet_t* subnet,
+	channel_query_cb callback, void* state);
 
 typedef struct doh_server_t {
 	time_t addr_expire;
@@ -36,6 +44,9 @@ typedef struct doh_server_t {
 	int ecs;
 	subnet_t net;
 	subnet_t net6;
+	int channel; /* CH_[DOH|UDP|TCP] */
+	channel_t* chctx;
+	doh_query_func query;
 } doh_server_t;
 
 typedef struct channel_chndoh_t {
@@ -147,11 +158,19 @@ static void destroy(channel_t* ctx)
 	free(c->chndoh.path);
 	free(c->chndoh.net.name);
 	free(c->chndoh.net6.name);
+	if (c->chndoh.chctx) {
+		c->chndoh.chctx->destroy(c->chndoh.chctx);
+		c->chndoh.chctx = NULL;
+	}
 
 	free(c->frndoh.host);
 	free(c->frndoh.path);
 	free(c->frndoh.net.name);
 	free(c->frndoh.net6.name);
+	if (c->frndoh.chctx) {
+		c->frndoh.chctx->destroy(c->frndoh.chctx);
+		c->frndoh.chctx = NULL;
+	}
 
 	free(c);
 }
@@ -274,19 +293,51 @@ static sock_t fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
-	return http_fdset(c->http, readset, writeset, errorset);
+	sock_t maxfd = 0, fd;
+
+	if (c->chndoh.chctx) {
+		fd = c->chndoh.chctx->fdset(c->chndoh.chctx, readset, writeset, errorset);
+		if (fd < 0) return -1;
+		maxfd = MAX(maxfd, fd);
+	}
+
+	if (c->frndoh.chctx) {
+		fd = c->frndoh.chctx->fdset(c->frndoh.chctx, readset, writeset, errorset);
+		if (fd < 0) return -1;
+		maxfd = MAX(maxfd, fd);
+	}
+
+	fd = http_fdset(c->http, readset, writeset, errorset);
+	if (fd < 0) return -1;
+	maxfd = MAX(maxfd, fd);
+
+	return maxfd;
 }
 
 static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
-	if (c->chndoh.host && c->chndoh.addr_expire < time(NULL)) {
+	int r;
+
+	if (c->chndoh.host && !c->chndoh.chctx && c->chndoh.addr_expire < time(NULL)) {
 		query_doh_addr(c, &c->chndoh);
 	}
-	if (c->frndoh.host && c->frndoh.addr_expire < time(NULL)) {
+
+	if (c->frndoh.host && !c->frndoh.chctx && c->frndoh.addr_expire < time(NULL)) {
 		query_doh_addr(c, &c->frndoh);
 	}
+
+	if (c->chndoh.chctx) {
+		r = c->chndoh.chctx->step(c->chndoh.chctx, readset, writeset, errorset);
+		if (r) return -1;
+	}
+
+	if (c->frndoh.chctx) {
+		r = c->frndoh.chctx->step(c->frndoh.chctx, readset, writeset, errorset);
+		if (r) return -1;
+	}
+
 	return http_step(c->http, readset, writeset, errorset);
 }
 
@@ -476,6 +527,80 @@ static void detach_result(channel_req_t* rq, ns_msg_t* result)
 	}
 }
 
+static int query_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	int fromcache,
+	int trust,
+	void* state)
+{
+	channel_req_t* rq = (channel_req_t*)state;
+	channel_chndoh_t* c = rq->ctx;
+
+	if (status == 0 && result) {
+
+		if (ctx != NULL) {
+			result->id = ctx == c->chndoh.chctx ? 0 : 1;
+		}
+
+		if (!rq->results) {
+			rq->results = (ns_msg_t**)malloc(sizeof(ns_msg_t*) * rq->wait_num);
+			if (!rq->results) {
+				loge("query_cb() error: alloc\n");
+				ns_msg_free(result);
+				free(result);
+				result = NULL;
+				goto exit;
+			}
+			memset(rq->results, 0, sizeof(ns_msg_t*) * rq->wait_num);
+		}
+
+		rq->results[rq->result_num++] = result;
+
+		if (rq->callback && is_best(c, result)) {
+			/* Detach the result, so can keep the result in memory,
+			after myreq_destroy() called. */
+			rq->results[rq->result_num - 1] = NULL;
+			rq->untrust = FALSE;
+
+			/* callback */
+			rq->callback((channel_t*)c, 0, result, FALSE, TRUE, rq->cb_state);
+			rq->callback = NULL;
+		}
+	}
+	else {
+		rq->untrust = TRUE;
+	}
+
+exit:
+	rq->wait_num--;
+
+	if (rq->wait_num == 0) {
+
+		dllist_remove(&rq->entry);
+		rbtree_remove(&c->reqdic, &rq->rbn);
+		c->req_count--;
+
+		if (rq->callback) {
+			result = choose_best_nsmsg(rq);
+			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, !rq->untrust, rq->cb_state);
+		}
+		else {
+			result = NULL;
+		}
+
+		if (result) {
+			/* Detach the result, so can keep the result in memory,
+			after myreq_destroy() called. */
+			detach_result(rq, result);
+		}
+
+		myreq_destroy(rq);
+	}
+
+	return 0;
+}
+
 static void http_cb(
 	int status,
 	http_request_t* request,
@@ -517,29 +642,7 @@ static void http_cb(
 			goto exit;
 		}
 
-		if (!rq->results) {
-			rq->results = (ns_msg_t**)malloc(sizeof(ns_msg_t*) * rq->wait_num);
-			if (!rq->results) {
-				loge("http_cb() error: alloc\n");
-				ns_msg_free(result);
-				free(result);
-				result = NULL;
-				goto exit;
-			}
-			memset(rq->results, 0, sizeof(ns_msg_t*) * rq->wait_num);
-		}
-		rq->results[rq->result_num++] = result;
 		result->id = doh == &c->chndoh ? 0 : 1;
-		if (rq->callback && is_best(c, result)) {
-			/* Detach the result, so can keep the result in memory,
-			after myreq_destroy() called. */
-			rq->results[rq->result_num - 1] = NULL;
-			rq->untrust = FALSE;
-
-			/* callback */
-			rq->callback((channel_t*)c, 0, result, FALSE, TRUE, rq->cb_state);
-			rq->callback = NULL;
-		}
 	}
 	else {
 		loge("query %s failed: HTTP %d %s - %s\n",
@@ -547,7 +650,6 @@ static void http_cb(
 			http_status,
 			status_text,
 			http_request_get_host(request));
-		rq->untrust = TRUE;
 	}
 
 exit:
@@ -555,77 +657,21 @@ exit:
 	http_request_destroy(request);
 	http_response_destroy(response);
 
-	rq->wait_num--;
-
-	if (rq->wait_num == 0) {
-
-		dllist_remove(&rq->entry);
-		rbtree_remove(&c->reqdic, &rq->rbn);
-		c->req_count--;
-
-		if (rq->callback) {
-			result = choose_best_nsmsg(rq);
-			rq->callback((channel_t*)c, result ? 0 : -1, result, FALSE, !rq->untrust, rq->cb_state);
-		}
-		else {
-			result = NULL;
-		}
-
-		if (result) {
-			/* Detach the result, so can keep the result in memory,
-			after myreq_destroy() called. */
-			detach_result(rq, result);
-		}
-
-		myreq_destroy(rq);
-	}
+	query_cb(NULL, result ? 0 : -1, result, FALSE, !!result, rq);
 }
 
-static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* doh, subnet_t* subnet)
+static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* doh, ns_msg_t* msg)
 {
 	channel_chndoh_t* c = rq->ctx;
 	http_request_t* req = NULL;
-	ns_msg_t msg;
 	int r, len;
 	stream_t s = STREAM_INIT();
 
-	init_ns_msg(&msg);
-
-	r = build_request_nsmsg(&msg, rq);
-	if (r) {
-		loge("doh_build_post_request() error: build_request_nsmsg() error\n");
-		return NULL;
-	}
-
-	if (subnet) {
-		ns_rr_t* rr;
-		rr = ns_find_opt_rr(&msg);
-		if (rr == NULL) {
-			rr = ns_add_optrr(&msg);
-			if (rr == NULL) {
-				loge("doh_build_post_request(): Can't add option record to ns_msg_t\n");
-				ns_msg_free(&msg);
-				return NULL;
-			}
-		}
-
-		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
-
-		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("doh_build_post_request(): Can't add ecs option\n");
-			ns_msg_free(&msg);
-			return NULL;
-		}
-	}
-
-	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
+	if ((len = ns_serialize(&s, msg, 0)) <= 0) {
 		loge("doh_build_post_request() error: ns_serialize() error\n");
 		stream_free(&s);
-		ns_msg_free(&msg);
 		return NULL;
 	}
-
-	ns_msg_free(&msg);
 
 	req = http_request_create("POST", doh->path, doh->host, doh->keep_alive);
 	if (!req) {
@@ -657,53 +703,20 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* d
 	return req;
 }
 
-static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* doh, subnet_t* subnet)
+static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* doh, ns_msg_t* msg)
 {
 	channel_chndoh_t* c = rq->ctx;
 	http_request_t* req = NULL;
-	ns_msg_t msg;
 	int r, len;
 	stream_t s = STREAM_INIT();
 	char* dns;
 	int dns_len;
 
-	init_ns_msg(&msg);
-
-	r = build_request_nsmsg(&msg, rq);
-	if (r) {
-		loge("doh_build_get_request() error: build_request_nsmsg() error\n");
-		return NULL;
-	}
-
-	if (subnet) {
-		ns_rr_t* rr;
-		rr = ns_find_opt_rr(&msg);
-		if (rr == NULL) {
-			rr = ns_add_optrr(&msg);
-			if (rr == NULL) {
-				loge("doh_build_get_request(): Can't add option record to ns_msg_t\n");
-				ns_msg_free(&msg);
-				return NULL;
-			}
-		}
-
-		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
-
-		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("doh_build_get_request(): Can't add ecs option\n");
-			ns_msg_free(&msg);
-			return NULL;
-		}
-	}
-
-	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
+	if ((len = ns_serialize(&s, msg, 0)) <= 0) {
 		loge("doh_build_get_request() error: ns_serialize() error\n");
 		stream_free(&s);
-		ns_msg_free(&msg);
 		return NULL;
 	}
-
-	ns_msg_free(&msg);
 
 	dns = base64url_encode(s.array, s.size, &dns_len);
 	if (!dns) {
@@ -755,12 +768,61 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 	return req;
 }
 
-static int doh_http_query(channel_req_t* rq, doh_server_t *doh)
+static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
+	ns_msg_t *msg, int use_proxy, subnet_t* subnet)
 {
 	channel_chndoh_t* c = rq->ctx;
 	http_request_t* req;
+	int r;
+
+	if (subnet) {
+		ns_rr_t* rr;
+		rr = ns_find_opt_rr(msg);
+		if (rr == NULL) {
+			rr = ns_add_optrr(msg);
+			if (rr == NULL) {
+				loge("doh_channel_query(): Can't add option record to ns_msg_t\n");
+				return -1;
+			}
+		}
+
+		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
+
+		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
+			loge("doh_channel_query(): Can't add ecs option\n");
+			return -1;
+		}
+	}
+
+	req = doh->post
+		? doh_build_post_request(rq, doh, msg)
+		: doh_build_get_request(rq, doh, msg);
+
+	if (!req) {
+		loge("doh_channel_query() error: %s error\n",
+			doh->post
+			? "doh_build_post_request()"
+			: "doh_build_get_request()");
+		return -1;
+	}
+
+	r = http_send(c->http, &doh->addr, use_proxy, req, http_cb, rq);
+	if (r) {
+		loge("doh_channel_query() error: http_send() error\n");
+		free(http_request_get_data(req, NULL));
+		http_request_destroy(req);
+		return -1;
+	}
+
+	return r;
+}
+
+static int doh_emit_query(channel_req_t* rq, doh_server_t *doh)
+{
+	channel_chndoh_t* c = rq->ctx;
 	subnet_t* subnet = NULL;
 	int r;
+	ns_msg_t msg;
 
 	if (doh->ecs) {
 		if (rq->qr.qtype == NS_QTYPE_A) {
@@ -775,25 +837,22 @@ static int doh_http_query(channel_req_t* rq, doh_server_t *doh)
 		}
 	}
 
-	req = doh->post
-		? doh_build_post_request(rq, doh, subnet)
-		: doh_build_get_request(rq, doh, subnet);
+	init_ns_msg(&msg);
 
-	if (!req) {
-		loge("doh_http_query() error: %s error\n",
-			doh->post
-				? "doh_build_post_request()"
-				: "doh_build_get_request()");
-		return -1;
-	}
-
-	r = http_send(c->http, &doh->addr, doh->use_proxy, req, http_cb, rq);
+	r = build_request_nsmsg(&msg, rq);
 	if (r) {
-		loge("doh_http_query() error: http_send() error\n");
-		free(http_request_get_data(req, NULL));
-		http_request_destroy(req);
+		loge("doh_emit_query() error: build_request_nsmsg() error\n");
 		return -1;
 	}
+
+	if (doh->query) {
+		r = doh->query(doh->chctx, &msg, doh->use_proxy, subnet, query_cb, rq);
+	}
+	else {
+		r = doh_channel_query(rq, doh, &msg, doh->use_proxy, subnet);
+	}
+
+	ns_msg_free(&msg);
 
 	return r;
 }
@@ -803,19 +862,19 @@ static int doh_query(channel_req_t* rq)
 	channel_chndoh_t* c = rq->ctx;
 	int r = 0;
 
-	if (c->chndoh.host) {
-		r = doh_http_query(rq, &c->chndoh);
+	if (c->chndoh.host || c->chndoh.query) {
+		r = doh_emit_query(rq, &c->chndoh);
 		if (r) {
-			loge("doh_query() error: doh_http_query() error\n");
+			loge("doh_query() error: doh_emit_query() error\n");
 			return -1;
 		}
 		rq->wait_num++;
 	}
 
-	if (c->frndoh.host) {
-		r = doh_http_query(rq, &c->frndoh);
+	if (c->frndoh.host || c->frndoh.query) {
+		r = doh_emit_query(rq, &c->frndoh);
 		if (r) {
-			loge("doh_query() error: doh_http_query() error\n");
+			loge("doh_query() error: doh_emit_query() error\n");
 			return -1;
 		}
 		rq->wait_num++;
@@ -925,10 +984,15 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
                 }
             }
 
-            if (!try_parse_as_ip( &doh->addr, p, (v && (*v)) ? v : "443") ) {
+            if (!try_parse_as_ip( &doh->addr, p,
+				(v && (*v)) 
+					? v 
+					: (doh->channel ? "53" : "443")) ) {
                 loge("parse address failed: %s:%s\n",
                         p,
-                        (v && (*v)) ? v : "443"
+                        (v && (*v)) 
+							? v 
+							: (doh->channel ? "53" : "443")
                     );
                 free(cpy);
                 return -1;
@@ -976,12 +1040,56 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
                 return -1;
             }
         }
-        else {
+		else if (strcmp(p, "chndoh.channel") == 0 || strcmp(p, "frndoh.channel") == 0) {
+			doh = strcmp(p, "chndoh.channel") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			if (strcmp(v, "udp") == 0) doh->channel = CH_UDP;
+			else if (strcmp(v, "tcp") == 0) doh->channel = CH_TCP;
+		}
+		else {
             logw("unknown argument: %s=%s\n", p, v);
         }
     }
 
 	free(cpy);
+	return 0;
+}
+
+static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
+{
+	if (doh->channel == CH_UDP) {
+		char args[2048];
+		int n;
+		n = snprintf(args, sizeof(args),
+			"upstream=%s&proxy=%d&timeout=10",
+			get_sockaddrname(&doh->addr),
+			doh->use_proxy);
+		if (n <= 0 || n >= sizeof(args))
+			return -1;
+		doh->query = channel_udp_query;
+		return channel_udp_create(&doh->chctx,
+			"udp", args,
+			c->conf,
+			c->proxies,
+			c->proxy_num,
+			c->chnr, NULL);
+	}
+	else if (doh->channel == CH_TCP) {
+		char args[2048];
+		int n;
+		n = snprintf(args, sizeof(args),
+			"upstream=%s&proxy=%d&timeout=10",
+			get_sockaddrname(&doh->addr),
+			doh->use_proxy);
+		if (n <= 0 || n >= sizeof(args))
+			return -1;
+		doh->query = channel_tcp_query;
+		return channel_tcp_create(&doh->chctx,
+			"tcp", args,
+			c->conf,
+			c->proxies,
+			c->proxy_num,
+			c->chnr, NULL);
+	}
 	return 0;
 }
 
@@ -1036,6 +1144,11 @@ int channel_chndoh_create(
 	ctx->step = step;
 	ctx->query = query;
 	ctx->destroy = destroy;
+
+	if (create_upstream_chctx(&ctx->chndoh, ctx) || create_upstream_chctx(&ctx->frndoh, ctx)) {
+		destroy((channel_t*)ctx);
+		return CHANNEL_ERROR;
+	}
 
 	*pctx = (channel_t*)ctx;
 

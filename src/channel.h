@@ -59,6 +59,7 @@ struct channel_t {
 #define CHANNEL_WRONG_ARG		2
 #define CHANNEL_ALLOC			3
 #define CHANNEL_CREATE_SOCKET	4
+#define CHANNEL_ERROR			5
 
 int channel_create(
 	channel_t** pctx,
