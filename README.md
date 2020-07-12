@@ -99,7 +99,7 @@ Query by OS function getaddrinfo().
 
 Example:
 ```
-dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
+dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=doh \
           --channel-args="addr=172.67.153.110:443&host=doh.beike.workers.dev&path=/dns-query&post=0&keep-alive=1&proxy=0&ecs=1&china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32&foreign-ip4=8.8.8.8/24&foreign-ip6=2001:df2:8300::/48"
@@ -158,7 +158,7 @@ DoH 服务的路径。
 
 Example:
 ```
-dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 \
+dohclient -b 0.0.0.0 -p 555 --proxy=127.0.0.1:1080 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=chinadns \
           --channel-args="chndoh.channel=udp&chndoh.addr=223.5.5.5:53&chndoh.host=dns.alidns.com&chndoh.path=/dns-query&frndoh.addr=172.67.153.110:443&frndoh.host=doh.beike.workers.dev&frndoh.path=/dns-query&frndoh.post=0&frndoh.keep-alive=1&frndoh.proxy=0&frndoh.ecs=1&frndoh.net=199.19.0.0/24&frndoh.net6=2001:19f0:6401::/48"
