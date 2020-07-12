@@ -95,8 +95,10 @@ static void destroy(channel_t* ctx)
 	dllist_foreach(&c->reqs, cur, nxt,
 		udpreq_t, req, entry) {
 		dllist_remove(&req->entry);
-		if (req->callback)
+		if (req->callback) {
 			req->callback(ctx, -1, NULL, FALSE, FALSE, req->cb_state);
+			req->callback = NULL;
+		}
 		req_destroy(req);
 	}
 	if (c->sock) {
@@ -205,6 +207,7 @@ static int parse_recv(channel_udp_t* c, char* buf, int buf_len, struct sockaddr*
 
 	if (req->callback) {
 		req->callback((channel_t*)c, 0, result, FALSE, TRUE, req->cb_state);
+		req->callback = NULL;
 	}
 
 	req_destroy(req);
@@ -230,6 +233,7 @@ static int check_expire(channel_udp_t* c)
 
 			if (req->callback) {
 				req->callback((channel_t*)c, -1, NULL, FALSE, FALSE, req->cb_state);
+				req->callback = NULL;
 			}
 
 			req_destroy(req);

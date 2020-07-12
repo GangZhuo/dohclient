@@ -4,6 +4,7 @@
 #include "channel_doh.h"
 #include "channel_chndoh.h"
 #include "channel_udp.h"
+#include "channel_tcp.h"
 #include "mleak.h"
 
 typedef struct channel_info_t{
@@ -23,6 +24,10 @@ static channel_info_t _infos[] = {
 	{
 		.name = "udp",
 		.create = channel_udp_create,
+	},
+	{
+		.name = "tcp",
+		.create = channel_tcp_create,
 	},
 	{
 		.name = "doh",

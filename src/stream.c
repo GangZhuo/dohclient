@@ -203,7 +203,7 @@ int stream_geti(stream_t* stream, int position, int nb)
 	int i, v = 0;
 	for (i = 0; i < nb; i++, position++) {
 		v <<= 8;
-		v |= stream->array[position];
+		v |= (stream->array[position] & 0xFF);
 	}
 	return v;
 }

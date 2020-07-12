@@ -95,6 +95,7 @@
     <ClCompile Include="..\src\channel_doh.c" />
     <ClCompile Include="..\src\channel_cache.c" />
     <ClCompile Include="..\src\channel_os.c" />
+    <ClCompile Include="..\src\channel_tcp.c" />
     <ClCompile Include="..\src\channel_udp.c" />
     <ClCompile Include="..\src\chnroute.c" />
     <ClCompile Include="..\src\config.c" />
@@ -119,6 +120,7 @@
     <ClInclude Include="..\src\channel_doh.h" />
     <ClInclude Include="..\src\channel_cache.h" />
     <ClInclude Include="..\src\channel_os.h" />
+    <ClInclude Include="..\src\channel_tcp.h" />
     <ClInclude Include="..\src\channel_udp.h" />
     <ClInclude Include="..\src\chnroute.h" />
     <ClInclude Include="..\src\config.h" />
