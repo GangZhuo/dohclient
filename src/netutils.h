@@ -279,6 +279,7 @@ void peer_free(peer_t* peer);
 
 void peer_destroy(peer_t* peer);
 
+unsigned long OS_GetTickCount();
 
 #ifdef __cplusplus
 }

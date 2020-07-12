@@ -1,4 +1,5 @@
 #include "netutils.h"
+#include <time.h>
 #include "mleak.h"
 
 int try_parse_as_ip4(sockaddr_t* addr, const char* host, const char* port)
@@ -662,4 +663,15 @@ void peer_destroy(peer_t* peer)
 {
 	peer_free(peer);
 	free(peer);
+}
+
+unsigned long OS_GetTickCount()
+{
+#ifdef WINDOWS
+	return GetTickCount();
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+#endif
 }
