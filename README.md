@@ -2,6 +2,19 @@
 
 DoH Client.
 
+- [dohclient](#dohclient)
+    + [Build on Linux](#build-on-linux)
+    + [Build on Windows](#build-on-windows)
+    + [Build on Termux](#build-on-termux)
+    + [Usage](#usage)
+    + [Channels](#channels)
+      - [1. os](#1-os)
+      - [2. doh](#2-doh)
+        * [Channel Arguments](#channel-arguments)
+      - [3. chinadns](#3-chinadns)
+        * [Server Arguments](#server-arguments)
+    + [dohclient.config](#dohclientconfig)
+
 ### Build on Linux
 
 ```
