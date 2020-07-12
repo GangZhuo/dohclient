@@ -14,7 +14,7 @@
       - [3. chinadns](#3-chinadns)
         * [Server Arguments](#server-arguments)
     + [dohclient.config](#dohclientconfig)
-    + + [自建 DoH （By Cloudflare Workers）](#---doh--by-cloudflare-workers-)
+    + [自建 DoH （By Cloudflare Workers）](#---doh--by-cloudflare-workers-)
 
 ### Build on Linux
 
