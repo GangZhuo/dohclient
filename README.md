@@ -1,6 +1,6 @@
 # dohclient
 
-DoH Client.
+类似于 ChinaDNS，不过使用 DoH 作为上游服务器。
 
 - [dohclient](#dohclient)
     + [Build on Linux](#build-on-linux)
