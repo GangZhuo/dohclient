@@ -319,7 +319,7 @@ int tcp_listen(listen_t* ctx)
 
 	sock = socket(sockaddr->sa_family, SOCK_STREAM, IPPROTO_TCP);
 
-	if (!sock) {
+	if (sock == -1) {
 		loge("tcp_listen() error: create socket error. errno=%d, %s\n", errno, strerror(errno));
 		return -1;
 	}
@@ -366,7 +366,7 @@ int udp_listen(listen_t* ctx)
 
 	sock = socket(sockaddr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (!sock) {
+	if (sock == -1) {
 		loge("udp_listen() error: create socket error. errno=%d, %s\n", errno, strerror(errno));
 		return -1;
 	}
@@ -434,10 +434,10 @@ conn_status tcp_connect(const sockaddr_t* addr, sock_t* psock)
 {
 	sock_t sock = *psock;
 
-	if (sock == 0) {
+	if (sock == -1) {
 		sock = socket(addr->addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
 
-		if (!sock) {
+		if (sock == -1) {
 			loge("tcp_connect() error: create socket error. errno=%d, %s - %s\n",
 				errno, strerror(errno), get_sockaddrname(addr));
 			return cs_err_create_sock;

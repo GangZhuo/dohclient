@@ -55,7 +55,7 @@ static tcpreq_t* req_new(
 {
 	tcpreq_t* req;
 	conn_status cs;
-	sock_t sock = 0;
+	sock_t sock = -1;
 
 	req = (tcpreq_t*)malloc(sizeof(tcpreq_t));
 	if (!req) {

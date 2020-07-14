@@ -1010,7 +1010,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr_t* addr, int use_proxy)
 {
 	http_conn_t* conn = NULL;
-	sock_t sock = 0;
+	sock_t sock = -1;
 	conn_status cs;
 	SSL* ssl;
 

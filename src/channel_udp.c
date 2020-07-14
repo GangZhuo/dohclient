@@ -424,7 +424,7 @@ int channel_udp_create(
 
 	sock = socket(ctx->upstream_addr.addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (!sock) {
+	if (sock == -1) {
 		loge("channel_udp_create() error: create socket error. errno=%d, %s - %s\n",
 			errno, strerror(errno), get_sockaddrname(&ctx->upstream_addr));
 		free(ctx);
