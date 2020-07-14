@@ -47,6 +47,7 @@ typedef struct doh_server_t {
 	int channel; /* CH_[DOH|UDP|TCP] */
 	channel_t* chctx;
 	doh_query_func query;
+	int auto_resolve_host;
 } doh_server_t;
 
 typedef struct channel_chndoh_t {
@@ -322,11 +323,11 @@ static int step(channel_t* ctx,
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
 	int r;
 
-	if (c->chndoh.host && !c->chndoh.chctx && c->chndoh.addr_expire < time(NULL)) {
+	if (c->chndoh.host && !c->chndoh.chctx && c->chndoh.auto_resolve_host && c->chndoh.addr_expire < time(NULL)) {
 		query_doh_addr(c, &c->chndoh);
 	}
 
-	if (c->frndoh.host && !c->frndoh.chctx && c->frndoh.addr_expire < time(NULL)) {
+	if (c->frndoh.host && !c->frndoh.chctx && c->frndoh.auto_resolve_host && c->frndoh.addr_expire < time(NULL)) {
 		query_doh_addr(c, &c->frndoh);
 	}
 
@@ -1073,6 +1074,10 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			doh = strcmp(p, "chndoh.channel") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			if (strcmp(v, "udp") == 0) doh->channel = CH_UDP;
 			else if (strcmp(v, "tcp") == 0) doh->channel = CH_TCP;
+		}
+		else if (strcmp(p, "chndoh.resolve") == 0 || strcmp(p, "frndoh.resolve") == 0) {
+			doh = strcmp(p, "chndoh.resolve") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->auto_resolve_host = strcmp(v, "0");
 		}
 		else {
             logw("unknown argument: %s=%s\n", p, v);

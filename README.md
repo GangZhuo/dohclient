@@ -189,6 +189,10 @@ DoH 服务的主机名，用于 HTTP 请求头中的 Host，也用于验证证�
 
 DoH 服务的路径。仅当 <chndoh|frndoh>.channel=doh 时有效。
 
+* <chndoh|frndoh>.resolve=<0|1>
+
+是否自动解析 <chndoh|frndoh>.host 指定的域名。默认为 0。仅当 <chndoh|frndoh>.channel=doh 时有效。
+
 * <chndoh|frndoh>.post=<0|1>
 
 是否使用 POST 请求来查询域名。0 - 使用 GET 请求，1 - 使用 POST 请求。默认为 0。仅当 <chndoh|frndoh>.channel=doh 时有效。
