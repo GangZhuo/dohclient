@@ -41,6 +41,14 @@ dohclient: $(OBJS)
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)
 
+.PHONY : install
+install:
+	cp ./dohclient /usr/local/bin
+
+.PHONY : uninstall
+uninstall:
+	rm /usr/local/bin/dohclient
+
 .PHONY: clean
 clean:
 	-rm -f rbtree/*.o
