@@ -1149,6 +1149,8 @@ int channel_chndoh_create(
 
 	ctx->chndoh.keep_alive = TRUE;
 	ctx->frndoh.keep_alive = TRUE;
+	ctx->chndoh.auto_resolve_host = TRUE;
+	ctx->frndoh.auto_resolve_host = TRUE;
 
 	if (parse_args(ctx, args)) {
 		loge("channel_chndoh_create() error: parse_args() error\n");

@@ -191,7 +191,7 @@ DoH 服务的路径。仅当 <chndoh|frndoh>.channel=doh 时有效。
 
 * <chndoh|frndoh>.resolve=<0|1>
 
-是否自动解析 <chndoh|frndoh>.host 指定的域名。默认为 0。仅当 <chndoh|frndoh>.channel=doh 时有效。
+是否自动解析 <chndoh|frndoh>.host 指定的域名。默认为 1。仅当 <chndoh|frndoh>.channel=doh 时有效。
 
 * <chndoh|frndoh>.post=<0|1>
 
