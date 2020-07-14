@@ -19,10 +19,12 @@
 ### Build on Linux
 
 ```
+sudo apt-get install libssl-dev
 git clone https://github.com/GangZhuo/dohclient.git
 cd dohclient
 git submodule update --init
 make
+sudo make install
 ```
 
 ### Build on Windows
