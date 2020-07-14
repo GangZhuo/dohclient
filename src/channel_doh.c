@@ -267,7 +267,8 @@ static int step(channel_t* ctx,
 	if (c->http_addr_expire < time(NULL)) {
 		query_http_addr(c);
 	}
-	return http_step(c->http, readset, writeset, errorset);
+	http_step(c->http, readset, writeset, errorset);
+	return 0;
 }
 
 static int build_request_nsmsg(ns_msg_t* msg, channel_req_t* req)

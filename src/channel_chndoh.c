@@ -341,7 +341,9 @@ static int step(channel_t* ctx,
 		if (r) return -1;
 	}
 
-	return http_step(c->http, readset, writeset, errorset);
+	http_step(c->http, readset, writeset, errorset);
+	
+	return 0;
 }
 
 static int build_request_nsmsg(ns_msg_t* msg, channel_req_t* req)

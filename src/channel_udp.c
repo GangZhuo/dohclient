@@ -279,7 +279,10 @@ static int step(channel_t* ctx,
 			return -1;
 		}
 	}
-	return check_expire(c);
+
+	check_expire(c);
+
+	return 0;
 }
 
 static int query(channel_t* ctx,
