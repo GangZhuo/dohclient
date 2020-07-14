@@ -436,6 +436,10 @@ int channel_udp_create(
 		return CHANNEL_CREATE_SOCKET;
 	}
 
+#ifdef WINDOWS
+	disable_udp_connreset(sock);
+#endif
+
 	rbtree_init(&ctx->reqdic, rbcmp);
 	dllist_init(&ctx->reqs);
 
