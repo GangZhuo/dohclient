@@ -1452,7 +1452,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 		}
 		else if (FD_ISSET(conn->conn.sock, st->errorset)) {
 			int err = getsockerr(conn->conn.sock);
-			loge("dl_step_func(): peer.conn.sock error: errno=%d, %s \n",
+			loge("dl_step_func(): sock error: errno=%d, %s \n",
 				err, strerror(err));
 			r = -1;
 		}
