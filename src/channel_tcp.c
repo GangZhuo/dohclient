@@ -433,7 +433,13 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req)
 			req->conn.status = cs_socks5_handshaked;
 			stream_free(s);
 			logv("socks5_handshake(): socks5 handshaked\n");
-			return 0;
+			r = 0;
+			if (stream_rsize(&req->conn.ws) > 0) {
+				r = tcp_send(req->conn.sock, &req->conn.ws);
+				if (r >= 0)
+					r = 0;
+			}
+			return r;
 		}
 		else {
 			loge("socks5_handshake() error: connect error\n");
@@ -546,7 +552,11 @@ static int step(channel_t* ctx,
 					}
 					else {
 						req->use_proxy = FALSE;
-						/* do nothing, send request at next loop step */
+						if (stream_rsize(&req->conn.ws) > 0) {
+							r = tcp_send(req->conn.sock, &req->conn.ws);
+							if (r >= 0)
+								r = 0;
+						}
 					}
 				}
 			}
