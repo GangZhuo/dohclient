@@ -5,60 +5,11 @@
 
 typedef struct channel_os_t {
 	CHANNEL_BASE(_M)
-	dllist_t reqs;
 } channel_os_t;
-
-typedef struct myreq_t {
-	uint16_t id;
-	ns_flags_t flags;
-	ns_qr_t qr;
-	channel_query_cb callback;
-	void* state;
-	dlitem_t entry;
-} myreq_t;
-
-static myreq_t* myreq_new(
-	const ns_msg_t* msg,
-	channel_query_cb callback, void* state)
-{
-	myreq_t* req;
-
-	req = (myreq_t*)malloc(sizeof(myreq_t));
-	if (!req) {
-		loge("myreq_new() error: alloc\n");
-		return NULL;
-	}
-
-	memset(req, 0, sizeof(myreq_t));
-
-	req->id = msg->id;
-	req->flags = msg->flags;
-	req->qr = msg->qrs[0];
-	req->qr.qname = strdup(msg->qrs[0].qname);
-	req->callback = callback;
-	req->state = state;
-
-	return req;
-}
-
-static void myreq_destroy(myreq_t* req)
-{
-	free(req->qr.qname);
-	free(req);
-}
 
 static void destroy(channel_t* ctx)
 {
 	channel_os_t* c = (channel_os_t*)ctx;
-	dlitem_t* cur, * nxt;
-	myreq_t* req;
-	dllist_foreach(&c->reqs, cur, nxt,
-		myreq_t, req, entry) {
-		dllist_remove(&req->entry);
-		if (req->callback)
-			req->callback(ctx, -1, NULL, FALSE, FALSE, req->state);
-		myreq_destroy(req);
-	}
 	free(ctx);
 }
 
@@ -68,73 +19,9 @@ static sock_t fdset(channel_t* ctx,
 	return 0;
 }
 
-static void reslove(channel_t* ctx, myreq_t* req)
-{
-	sockaddr_t addr = { 0 };
-	void* ip = (struct sockaddr_in*) & addr.addr;
-	int family, r;
-	ns_msg_t *msg = NULL;
-	ns_flags_t flg = { 0 };
-
-	if (req->qr.qtype == NS_QTYPE_A) {
-		family = AF_INET;
-		ip = &((struct sockaddr_in*)(&addr.addr))->sin_addr;
-	}
-	else if (req->qr.qtype == NS_QTYPE_AAAA) {
-		family = AF_INET6;
-		ip = &((struct sockaddr_in6*)(&addr.addr))->sin6_addr;
-	}
-	else {
-		loge("channel_os_reslove() error: invalid qtype %s - %s\n",
-			ns_typename(req->qr.qtype),
-			req->qr.qname);
-		goto error;
-	}
-
-	r = host2addr(&addr, req->qr.qname, "55555", family);
-	if (r) {
-		goto error;
-	}
-
-	flg.bits.qr = 1;
-
-	msg = (ns_msg_t*)malloc(sizeof(ns_msg_t));
-	if (!msg) {
-		loge("channel_os_reslove() error: alloc\n");
-		goto error;
-	}
-
-	if (channel_build_msg(msg, req->id, &flg, &req->qr, ip, family)) {
-		loge("channel_os_reslove() error: channel_build_msg() error\n");
-		goto error;
-	}
-
-	if (req->callback)
-		req->callback(ctx, 0, msg, FALSE, TRUE, req->state);
-
-	return;
-
-error:
-	if (msg) {
-		ns_msg_free(msg);
-		free(msg);
-	}
-	if (req->callback)
-		req->callback(ctx, -1, NULL, FALSE, FALSE, req->state);
-}
-
 static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
-	channel_os_t* c = (channel_os_t*)ctx;
-	dlitem_t* cur, * nxt;
-	myreq_t* req;
-	dllist_foreach(&c->reqs, cur, nxt,
-		myreq_t, req, entry) {
-		dllist_remove(&req->entry);
-		reslove(ctx, req);
-		myreq_destroy(req);
-	}
 	return 0;
 }
 
@@ -142,13 +29,61 @@ static int query(channel_t* ctx,
 	const ns_msg_t* msg,
 	channel_query_cb callback, void* state)
 {
-	channel_os_t* c = (channel_os_t*)ctx;
-	myreq_t* req;
+	sockaddr_t addr = { 0 };
+	void* ip = (struct sockaddr_in*)&addr.addr;
+	int family, r;
+	ns_msg_t* result = NULL;
+	ns_flags_t flg = { 0 };
 
-	req = myreq_new(msg, callback, state);
-	if (!req)
-		return -1;
-	dllist_add(&c->reqs, &req->entry);
+	if (msg->qdcount <= 0) {
+		loge("channel_os_reslove() error: no question\n");
+		goto error;
+	}
+	else if (msg->qrs->qtype == NS_QTYPE_A) {
+		family = AF_INET;
+		ip = &((struct sockaddr_in*)(&addr.addr))->sin_addr;
+	}
+	else if (msg->qrs->qtype == NS_QTYPE_AAAA) {
+		family = AF_INET6;
+		ip = &((struct sockaddr_in6*)(&addr.addr))->sin6_addr;
+	}
+	else {
+		loge("channel_os_reslove() error: invalid qtype %s - %s\n",
+			ns_typename(msg->qrs->qtype),
+			msg->qrs->qname);
+		goto error;
+	}
+
+	r = host2addr(&addr, msg->qrs->qname, "55555", family);
+	if (r) {
+		goto error;
+	}
+
+	flg.bits.qr = 1;
+
+	result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
+	if (!result) {
+		loge("channel_os_reslove() error: alloc\n");
+		goto error;
+	}
+
+	if (channel_build_msg(result, msg->id, &flg, msg->qrs, ip, family)) {
+		loge("channel_os_reslove() error: channel_build_msg() error\n");
+		goto error;
+	}
+
+	if (callback)
+		callback(ctx, 0, result, FALSE, TRUE, state);
+
+	return 0;
+
+error:
+	if (result) {
+		ns_msg_free(result);
+		free(result);
+	}
+	if (callback)
+		callback(ctx, -1, NULL, FALSE, FALSE, state);
 	return 0;
 }
 
@@ -171,8 +106,6 @@ int channel_os_create(
 	}
 
 	memset(ctx, 0, sizeof(channel_os_t));
-
-	dllist_init(&ctx->reqs);
 
 	ctx->name = name;
 	ctx->conf = conf;
