@@ -7,19 +7,9 @@
 
 typedef struct cache_t {
 	CHANNEL_BASE(_M)
-	dllist_t reqs;
 	dllist_t items;
 	struct rbtree_t dic;
 } cache_t;
-
-typedef struct cache_req_t {
-	uint16_t id;
-	ns_flags_t flags;
-	ns_qr_t qr;
-	channel_query_cb callback;
-	void* state;
-	dlitem_t entry;
-} cache_req_t;
 
 typedef struct cache_item_t {
 	struct rbnode_t node;
@@ -33,36 +23,6 @@ static int rbkeycmp(const void* a, const void* b)
 	const char* x = a;
 	const char* y = b;
 	return strcmp(x, y);
-}
-
-static cache_req_t* cache_req_new(
-	const ns_msg_t* msg,
-	channel_query_cb callback, void* state)
-{
-	cache_req_t* req;
-
-	req = (cache_req_t*)malloc(sizeof(cache_req_t));
-	if (!req) {
-		loge("cache_req_new() error: alloc\n");
-		return NULL;
-	}
-
-	memset(req, 0, sizeof(cache_req_t));
-
-	req->id = msg->id;
-	req->flags = msg->flags;
-	req->qr = msg->qrs[0];
-	req->qr.qname = strdup(msg->qrs[0].qname);
-	req->callback = callback;
-	req->state = state;
-
-	return req;
-}
-
-static void cache_req_destroy(cache_req_t* req)
-{
-	free(req->qr.qname);
-	free(req);
 }
 
 static cache_item_t* cache_item_new(const ns_msg_t* msg, const char *key)
@@ -140,15 +100,7 @@ static void destroy(channel_t* ctx)
 {
 	cache_t* c = (cache_t*)ctx;
 	dlitem_t* cur, * nxt;
-	cache_req_t* req;
 	cache_item_t* item;
-	dllist_foreach(&c->reqs, cur, nxt,
-		cache_req_t, req, entry) {
-		dllist_remove(&req->entry);
-		if (req->callback)
-			req->callback(ctx, -1, NULL, TRUE, FALSE, req->state);
-		cache_req_destroy(req);
-	}
 	dllist_foreach(&c->items, cur, nxt,
 		cache_item_t, item, entry) {
 		dllist_remove(&item->entry);
@@ -164,14 +116,24 @@ static sock_t fdset(channel_t* ctx,
 	return 0;
 }
 
-static void reslove(channel_t* ctx, cache_req_t* req)
+static int step(channel_t* ctx,
+	fd_set* readset, fd_set* writeset, fd_set* errorset)
+{
+	cache_t* c = (cache_t*)ctx;
+	cache_check_expire(c);
+	return 0;
+}
+
+static int query(channel_t* ctx,
+	const ns_msg_t* msg,
+	channel_query_cb callback, void* state)
 {
 	cache_t* c = (cache_t*)ctx;
 	const char* key;
 	struct rbnode_t* rbn;
 	cache_item_t* item;
 
-	key = qr_key(&req->qr);
+	key = msg_key(msg);
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
@@ -188,42 +150,15 @@ static void reslove(channel_t* ctx, cache_req_t* req)
 		logv("hit cache: %s\n", key);
 	}
 
-	if (req->callback)
-		req->callback(ctx, 0, item->msg, TRUE, TRUE, req->state);
+	if (callback)
+		callback(ctx, 0, item->msg, TRUE, TRUE, state);
 
-	return;
-error:
-	if (req->callback)
-		req->callback(ctx, -1, NULL, TRUE, FALSE, req->state);
-}
-
-static int step(channel_t* ctx,
-	fd_set* readset, fd_set* writeset, fd_set* errorset)
-{
-	cache_t* c = (cache_t*)ctx;
-	dlitem_t* cur, * nxt;
-	cache_req_t* req;
-	dllist_foreach(&c->reqs, cur, nxt,
-		cache_req_t, req, entry) {
-		dllist_remove(&req->entry);
-		reslove(ctx, req);
-		cache_req_destroy(req);
-	}
-	cache_check_expire(c);
 	return 0;
-}
 
-static int query(channel_t* ctx,
-	const ns_msg_t* msg,
-	channel_query_cb callback, void* state)
-{
-	cache_t* c = (cache_t*)ctx;
-	cache_req_t* req;
+error:
+	if (callback)
+		callback(ctx, -1, NULL, TRUE, FALSE, state);
 
-	req = cache_req_new(msg, callback, state);
-	if (!req)
-		return -1;
-	dllist_add(&c->reqs, &req->entry);
 	return 0;
 }
 
@@ -308,7 +243,6 @@ int cache_create(
 
 	memset(ctx, 0, sizeof(cache_t));
 
-	dllist_init(&ctx->reqs);
 	dllist_init(&ctx->items);
 	rbtree_init(&ctx->dic, rbkeycmp);
 
