@@ -54,13 +54,10 @@ uint32_t ns_get_ttl(const ns_msg_t* msg)
 	uint32_t ttl = 0;
 	ns_rr_t* rr;
 
-	rrcount = msg->ancount;
+	rrcount = ns_rrcount(msg);
 	for (i = 0; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		if (rr->type == NS_QTYPE_A) {
-			if (ttl == 0 || ttl > rr->ttl) ttl = rr->ttl;
-		}
-		else if (rr->type == NS_QTYPE_AAAA) {
+		if (rr->type != NS_TYPE_OPT) {
 			if (ttl == 0 || ttl > rr->ttl) ttl = rr->ttl;
 		}
 	}

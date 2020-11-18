@@ -175,7 +175,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	}
 
 	if (!msg->qrs || !msg->rrs ||
-		msg->qdcount < 1 || msg->ancount < 1) {
+		msg->qdcount < 1 || ns_rrcount(msg) < 1) {
 		loge("cache_add() error: invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
 			(int)msg->qdcount,
 			(int)msg->ancount,
