@@ -86,12 +86,16 @@ static int cmp_net_mask6(const void* a, const void* b)
 int chnroute_test4(chnroute_ctx ctx, struct in_addr* ip)
 {
 	net_list_t* netlist = ctx;
-	int l = 0, r = netlist->entries - 1;
+	int l = 0, r;
 	int m, cmp;
 	net_mask_t ip_net;
 	net_mask_t* find;
-	if (netlist->entries == 0)
+
+	if (netlist == NULL || ip == NULL || netlist->entries == 0)
 		return FALSE;
+
+	r = netlist->entries - 1;
+
 	ip_net.net = ntohl(ip->s_addr);
 	while (l != r) {
 		m = (l + r) / 2;
@@ -119,13 +123,17 @@ int chnroute_test4(chnroute_ctx ctx, struct in_addr* ip)
 int chnroute_test6(chnroute_ctx ctx, struct in6_addr* ip)
 {
 	net_list_t* netlist = ctx;
-	int l = 0, r = netlist->entries6 - 1;
+	int l = 0, r;
 	int m, cmp;
 	int i;
 	net_mask6_t ip_net;
 	net_mask6_t* find;
-	if (netlist->entries6 == 0)
+
+	if (netlist == NULL || ip == NULL || netlist->entries6 == 0)
 		return FALSE;
+
+	r = netlist->entries6 - 1;
+
 	memcpy(ip_net.net, ip->s6_addr, 16);
 	for (i = 0; i < 4; i++) {
 		ip_net.net[i] = ntohl(ip_net.net[i]);
@@ -157,6 +165,9 @@ int chnroute_test6(chnroute_ctx ctx, struct in6_addr* ip)
 
 int chnroute_test(chnroute_ctx ctx, struct sockaddr* addr)
 {
+	if (ctx == NULL || addr == NULL) {
+		return FALSE;
+	}
 	if (addr->sa_family == AF_INET) {
 		return chnroute_test4(ctx, &((struct sockaddr_in*)addr)->sin_addr);
 	}

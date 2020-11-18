@@ -23,6 +23,7 @@ typedef struct config_t {
 	int timeout;
 	char* proxy;
 	char* chnroute;
+	char* blacklist;
 	char** channels;
 	char** channel_args;
 	int log_level;

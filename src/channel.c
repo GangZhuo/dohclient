@@ -48,6 +48,7 @@ int channel_create(
 	const proxy_t* proxies,
 	const int proxy_num,
 	const chnroute_ctx chnr,
+	const chnroute_ctx blacklist,
 	void* data)
 {
 	channel_info_t* info;
@@ -59,7 +60,8 @@ int channel_create(
 			return info->create(pctx,
 				name, args, conf,
 				proxies, proxy_num,
-				chnr, data);
+				chnr, blacklist,
+				data);
 		}
 
 		info++;

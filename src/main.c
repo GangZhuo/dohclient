@@ -45,6 +45,7 @@ static dllist_t peers = DLLIST_INIT(peers);
 static proxy_t proxy_list[MAX_PROXY] = { 0 };
 static int proxy_num = 0;
 static chnroute_ctx chnr = NULL;
+static chnroute_ctx blacklist = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
 static channel_t* cache = NULL;
@@ -98,6 +99,9 @@ Options:\n\
                            https://github.com/GangZhuo/dohclient.\n\
   --chnroute=CHNROUTE_FILE Path to china route file, \n\
                            e.g.: --chnroute=lan.txt,chnroute.txt,chnroute6.txt.\n\
+  --blacklist=BLACKLIST_FILE \n\
+                           Path to black list file, e.g.: --blacklist=blacklist.txt.\n\
+                           The format of the file is same as chnroute file.\n\
   --proxy=SOCKS5_PROXY     Socks5 proxy, e.g. --proxy=127.0.0.1:1080\n\
                            or --proxy=[::1]:1080.\n\
                            Only socks5 with no authentication is supported.\n\
@@ -926,13 +930,24 @@ static int init_dohclient()
 		}
 	}
 
+	if (conf.blacklist && *conf.blacklist) {
+		if ((blacklist = chnroute_create()) == NULL) {
+			loge("init_dohclient() error: chnroute_create()\n");
+			return -1;
+		}
+		if (chnroute_parse(blacklist, conf.blacklist)) {
+			loge("init_dohclient() error: invalid blacklist \"%s\"\n", conf.blacklist);
+			return -1;
+		}
+	}
+
 	if (http_init(&conf) != 0) {
 		loge("init_dohclient() error: http_init() error\n");
 		return -1;
 	}
 
 	if (channel_create(&cache, "cache", NULL,
-		&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
+		&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
 		loge("init_dohclient() error: create cache error\n");
 		return -1;
 	}
@@ -955,7 +970,7 @@ static int init_dohclient()
 	while (ch && *ch) {
 		if (channel_create(
 			&channels[i], *ch, *args,
-			&conf, proxy_list, proxy_num, chnr, NULL) != CHANNEL_OK) {
+			&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
 			loge("init_dohclient() error: no channel\n");
 			return -1;
 		}
@@ -1034,6 +1049,9 @@ static void uninit_dohclient()
 
 	chnroute_free(chnr);
 	chnr = NULL;
+
+	chnroute_free(blacklist);
+	blacklist = NULL;
 
 	proxy_num = 0;
 

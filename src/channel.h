@@ -20,6 +20,7 @@ typedef int (*channel_create_func)(
 	const proxy_t* proxies,
 	const int proxy_num,
 	const chnroute_ctx chnr,
+	const chnroute_ctx blacklist,
 	void *data);
 typedef void (*channel_destroy_func)(channel_t* ctx);
 typedef sock_t(*channel_fdset_func)(channel_t* ctx,
@@ -42,6 +43,7 @@ typedef int (*channel_query_func)(channel_t* ctx,
 	const proxy_t* proxies;				\
 	M int proxy_num;					\
 	M chnroute_ctx chnr;			    \
+	M chnroute_ctx blacklist;			\
 										\
 	M channel_fdset_func fdset;			\
 	M channel_step_func step;			\
@@ -69,6 +71,7 @@ int channel_create(
 	const proxy_t* proxies,
 	const int proxy_num,
 	const chnroute_ctx chnr,
+	const chnroute_ctx blacklist,
 	void* data);
 
 void channel_destroy(channel_t* ctx);

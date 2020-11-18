@@ -80,6 +80,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"chnroute",     required_argument, NULL, 8},
 		{"channel",      required_argument, NULL, 9},
 		{"channel-args", required_argument, NULL, 10},
+		{"blacklist",    required_argument, NULL, 11},
 		{0, 0, 0, 0}
 	};
 
@@ -118,6 +119,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			if (conf_add_channel_args(conf, optarg)) {
 				return -1;
 			}
+			break;
+		case 11:
+			conf->blacklist = strdup(optarg);
 			break;
 		case 'h':
 			conf->is_print_help = 1;
@@ -199,6 +203,9 @@ void conf_print(const config_t* conf)
 
 	if (conf->chnroute && *conf->chnroute)
 		logn("chnroute: %s\n", conf->chnroute);
+
+	if (conf->blacklist && *conf->blacklist)
+		logn("blacklist: %s\n", conf->blacklist);
 
 	if (conf->proxy && *conf->proxy)
 		logn("proxy: %s\n", conf->proxy);
@@ -349,6 +356,12 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				conf->chnroute = strdup(value);
 			}
 		}
+		else if (strcmp(name, "blacklist") == 0 && strlen(value)) {
+			if (force || !conf->blacklist) {
+				free(conf->blacklist);
+				conf->blacklist = strdup(value);
+			}
+		}
 		else if (strcmp(name, "proxy") == 0 && strlen(value)) {
 			if (force || !conf->proxy) {
 				free(conf->proxy);
@@ -405,6 +418,9 @@ void conf_free(config_t* conf)
 
 	free(conf->chnroute);
 	conf->chnroute = NULL;
+
+	free(conf->blacklist);
+	conf->blacklist = NULL;
 
 	free(conf->proxy);
 	conf->proxy = NULL;

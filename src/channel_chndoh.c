@@ -22,6 +22,7 @@
 #define FLG_ECS			(1 << 9)
 #define FLG_ECS_CHN		(1 << 10)
 #define FLG_ECS_FRN		(1 << 11)
+#define FLG_BLACKLIST	(1 << 12)
 
 #define CH_DOH	0
 #define CH_UDP	1
@@ -358,25 +359,37 @@ static int build_request_nsmsg(ns_msg_t* msg, channel_req_t* req)
 	return 0;
 }
 
-static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr)
+static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int index)
 {
 	if (rr->type == NS_QTYPE_A) {
 		struct in_addr* addr = (struct in_addr*)rr->rdata;
+		int flags = 0;
+		/* Only the first IP needs to detect the blacklist */
+		if (index == 0 && chnroute_test4(ctx->blacklist, addr)) {
+			flags |= FLG_BLACKLIST;
+		}
 		if (chnroute_test4(ctx->chnr, addr)) {
-			return (FLG_A | FLG_A_CHN);
+			flags |= (FLG_A | FLG_A_CHN);
 		}
 		else {
-			return (FLG_A | FLG_A_FRN);
+			flags |= (FLG_A | FLG_A_FRN);
 		}
+		return flags;
 	}
 	else if (rr->type == NS_QTYPE_AAAA) {
 		struct in6_addr* addr = (struct in6_addr*)rr->rdata;
+		int flags = 0;
+		/* Only the first IP needs to detect the blacklist */
+		if (index == 0 && chnroute_test6(ctx->blacklist, addr)) {
+			flags |= FLG_BLACKLIST;
+		}
 		if (chnroute_test6(ctx->chnr, addr)) {
-			return (FLG_AAAA | FLG_AAAA_CHN);
+			flags |= (FLG_AAAA | FLG_AAAA_CHN);
 		}
 		else {
-			return (FLG_AAAA | FLG_AAAA_FRN);
+			flags |= (FLG_AAAA | FLG_AAAA_FRN);
 		}
+		return flags;
 	}
 	else if (rr->type == NS_QTYPE_PTR) {
 		return FLG_PTR;
@@ -417,13 +430,13 @@ static int get_nsmsg_flags(channel_chndoh_t* ctx, ns_msg_t* msg)
 	rrcount = msg->ancount + msg->nscount;
 	for (i = 0; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		flags |= get_rr_flags(ctx, rr);
+		flags |= get_rr_flags(ctx, rr, i);
 	}
 
 	rrcount = ns_rrcount(msg);
 	for (; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		flags |= get_rr_flags(ctx, rr);
+		flags |= get_rr_flags(ctx, rr, i);
 	}
 
 	return flags;
@@ -438,18 +451,19 @@ static void print_all_answers(channel_req_t* rq, ns_msg_t* best)
 	for (i = 0; i < rq->result_num; i++) {
 		msg = rq->results[i];
 		flags = get_nsmsg_flags(c, msg);
-		logd("(%d):%s%s%s%s%s%s%s%s%s%s\n",
+		logd("(%d):%s%s%s%s%s%s%s%s%s%s%s\n",
 			i + 1,
-			msg == best            ? " BEST"         : "",
-			(flags & FLG_A)        ? " FLG_A"        : "",
-			(flags & FLG_A_CHN)    ? " FLG_A_CHN"    : "",
-			(flags & FLG_A_FRN)    ? " FLG_A_FRN"    : "",
-			(flags & FLG_AAAA)     ? " FLG_AAAA"     : "",
-			(flags & FLG_AAAA_CHN) ? " FLG_AAAA_CHN" : "",
-			(flags & FLG_AAAA_FRN) ? " FLG_AAAA_FRN" : "",
-			(flags & FLG_ECS)      ? " FLG_ECS"      : "",
-			(flags & FLG_ECS_CHN)  ? " FLG_ECS_CHN"  : "",
-			(flags & FLG_ECS_FRN)  ? " FLG_ECS_FRN"  : "");
+			msg == best             ? " BEST"         : "",
+			(flags & FLG_A)         ? " FLG_A"        : "",
+			(flags & FLG_A_CHN)     ? " FLG_A_CHN"    : "",
+			(flags & FLG_A_FRN)     ? " FLG_A_FRN"    : "",
+			(flags & FLG_AAAA)      ? " FLG_AAAA"     : "",
+			(flags & FLG_AAAA_CHN)  ? " FLG_AAAA_CHN" : "",
+			(flags & FLG_AAAA_FRN)  ? " FLG_AAAA_FRN" : "",
+			(flags & FLG_ECS)       ? " FLG_ECS"      : "",
+			(flags & FLG_ECS_CHN)   ? " FLG_ECS_CHN"  : "",
+			(flags & FLG_ECS_FRN)   ? " FLG_ECS_FRN"  : "",
+			(flags & FLG_BLACKLIST) ? " FLG_BLACKLIST" : "");
 		ns_print(msg);
 	}
 }
@@ -470,16 +484,25 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 	}
 	else {
 		int i;
-		ns_msg_t* msg;
-		int flags, have_ip, chn_doh, chn_ip;
+		ns_msg_t* msg, *frn_result = NULL;
+		int flags, have_ip, chn_doh, chn_ip, black;
 
 		for (i = 0; i < rq->result_num; i++) {
 			msg = rq->results[i];
 			flags = get_nsmsg_flags(c, msg);
 
+			black = flags & FLG_BLACKLIST;                /* In blacklist? */
 			have_ip = flags & (FLG_A | FLG_AAAA);         /* Have IP? */
 			chn_doh = msg->id == 0;                       /* From China DoH? */
 			chn_ip = flags & (FLG_A_CHN | FLG_AAAA_CHN);  /* Result is China? */
+
+			if (!chn_doh) {
+				frn_result = msg;
+			}
+
+			if (black) {
+				continue;
+			}
 
 			if (have_ip && chn_doh && chn_ip) {
 				best = msg;
@@ -492,7 +515,14 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 		}
 
 		if (!best) {
-			best = rq->results[0];
+			if (frn_result) {
+				/* The result which from foreign server is preferred */
+				best = frn_result;
+			}
+			else {
+				/* The last one result is preferred */
+				best = rq->results[rq->result_num - 1];
+			}
 		}
 	}
 
@@ -505,13 +535,18 @@ static ns_msg_t* choose_best_nsmsg(channel_req_t* rq)
 
 static int is_best(channel_chndoh_t* c, ns_msg_t* msg)
 {
-	int flags, have_ip, chn_doh, chn_ip;
+	int flags, have_ip, chn_doh, chn_ip, black;
 
 	flags = get_nsmsg_flags(c, msg);
 
+	black = flags & FLG_BLACKLIST;                /* In blacklist? */
 	have_ip = flags & (FLG_A | FLG_AAAA);         /* Have IP? */
 	chn_doh = msg->id == 0;                       /* From China DoH? */
 	chn_ip = flags & (FLG_A_CHN | FLG_AAAA_CHN);  /* Result is China? */
+
+	if (black) {
+		return FALSE;
+	}
 
 	if (have_ip && chn_doh && chn_ip) {
 		return TRUE;
@@ -1107,7 +1142,9 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 			c->conf,
 			c->proxies,
 			c->proxy_num,
-			c->chnr, doh);
+			c->chnr,
+			c->blacklist,
+			doh);
 	}
 	else if (doh->channel == CH_TCP) {
 		char args[2048];
@@ -1124,7 +1161,9 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 			c->conf,
 			c->proxies,
 			c->proxy_num,
-			c->chnr, doh);
+			c->chnr,
+			c->blacklist,
+			doh);
 	}
 	return 0;
 }
@@ -1137,6 +1176,7 @@ int channel_chndoh_create(
 	const proxy_t* proxies,
 	const int proxy_num,
 	const chnroute_ctx chnr,
+	const chnroute_ctx blacklist,
 	void* data)
 {
 	channel_chndoh_t* ctx;
@@ -1176,6 +1216,7 @@ int channel_chndoh_create(
 	ctx->proxies = proxies;
 	ctx->proxy_num = proxy_num;
 	ctx->chnr = chnr;
+	ctx->blacklist = blacklist;
 	ctx->data = data;
 
 	ctx->fdset = fdset;

@@ -404,6 +404,7 @@ int channel_udp_create(
 	const proxy_t* proxies,
 	const int proxy_num,
 	const chnroute_ctx chnr,
+	const chnroute_ctx blacklist,
 	void* data)
 {
 	channel_udp_t* ctx;
@@ -451,6 +452,7 @@ int channel_udp_create(
 	ctx->proxies = proxies;
 	ctx->proxy_num = proxy_num;
 	ctx->chnr = chnr;
+	ctx->blacklist = blacklist;
 	ctx->data = data;
 	ctx->sock = sock;
 
