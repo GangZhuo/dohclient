@@ -169,9 +169,19 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 	struct rbnode_t* rbn;
 	int ttl;
 
-	if (!key || !msg || !msg->qrs || !msg->rrs ||
+	if (!key || !msg) {
+		loge("cache_add() error: invalid arguments\n");
+		return -1;
+	}
+
+	if (!msg->qrs || !msg->rrs ||
 		msg->qdcount < 1 || msg->ancount < 1) {
-		loge("cache_add() error: invalid msg (no ip)\n");
+		loge("cache_add() error: invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
+			(int)msg->qdcount,
+			(int)msg->ancount,
+			(int)msg->nscount,
+			(int)msg->arcount,
+			key);
 		return -1;
 	}
 

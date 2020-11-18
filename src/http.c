@@ -850,6 +850,38 @@ static void http_conn_close(http_conn_t* conn)
 	}
 }
 
+static const char *http_ssl_errstr(int err)
+{
+	switch (err) {
+	case SSL_ERROR_NONE:
+		return "SSL_ERROR_NONE";
+	case SSL_ERROR_SSL:
+		return "SSL_ERROR_SSL";
+	case SSL_ERROR_WANT_READ:
+		return "SSL_ERROR_WANT_READ";
+	case SSL_ERROR_WANT_WRITE:
+		return "SSL_ERROR_WANT_WRITE";
+	case SSL_ERROR_WANT_X509_LOOKUP:
+		return "SSL_ERROR_WANT_X509_LOOKUP";
+	case SSL_ERROR_SYSCALL:
+		return "SSL_ERROR_SYSCALL";
+	case SSL_ERROR_ZERO_RETURN:
+		return "SSL_ERROR_ZERO_RETURN";
+	case SSL_ERROR_WANT_CONNECT:
+		return "SSL_ERROR_WANT_CONNECT";
+	case SSL_ERROR_WANT_ACCEPT:
+		return "SSL_ERROR_WANT_ACCEPT";
+	case SSL_ERROR_WANT_ASYNC:
+		return "SSL_ERROR_WANT_ASYNC";
+	case SSL_ERROR_WANT_ASYNC_JOB:
+		return "SSL_ERROR_WANT_ASYNC_JOB";
+	case SSL_ERROR_WANT_CLIENT_HELLO_CB:
+		return "SSL_ERROR_WANT_CLIENT_HELLO_CB";
+	default:
+		return "";
+	}
+}
+
 static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 {
 	int r;
@@ -876,7 +908,13 @@ static int http_ssl_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		}
 		else {
 			loge("http_ssl_handshake() error: errno=%d, %s\n",
-				err, ERR_error_string(err, NULL));
+				err, http_ssl_errstr(err));
+			if (err == SSL_ERROR_SYSCALL) {
+				while ((err = ERR_get_error()) != 0) {
+					loge("http_ssl_handshake() error: errno=%d, %s\n",
+						err, ERR_error_string(err, NULL));
+				}
+			}
 		}
 	}
 
@@ -1167,7 +1205,13 @@ static int http_conn_send(http_conn_t* conn)
 		}
 		else {
 			loge("http_conn_send() error: errno=%d, %s\n",
-				err, ERR_error_string(err, NULL));
+				err, http_ssl_errstr(err));
+			if (err == SSL_ERROR_SYSCALL) {
+				while ((err = ERR_get_error()) != 0) {
+					loge("http_conn_send() error: errno=%d, %s\n",
+						err, ERR_error_string(err, NULL));
+				}
+			}
 			return -1;
 		}
 	}
@@ -1213,7 +1257,13 @@ static int http_conn_recv(http_conn_t* conn)
 		}
 		else {
 			loge("http_conn_recv() error: errno=%d, %s\n",
-				err, ERR_error_string(err, NULL));
+				err, http_ssl_errstr(err));
+			if (err == SSL_ERROR_SYSCALL) {
+				while ((err = ERR_get_error()) != 0) {
+					loge("http_conn_recv() error: errno=%d, %s\n",
+						err, ERR_error_string(err, NULL));
+				}
+			}
 			return -1;
 		}
 	}
