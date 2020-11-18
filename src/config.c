@@ -339,8 +339,8 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 			}
 		}
 		else if (strcmp(name, "log_level") == 0 && strlen(value)) {
-			if (force || loglevel == LOG_DEFAULT_LEVEL) {
-				loglevel = atoi(value);
+			if (force || conf->log_level == LOG_DEFAULT_LEVEL) {
+				conf->log_level = atoi(value);
 			}
 		}
 		else if (strcmp(name, "chnroute") == 0 && strlen(value)) {
