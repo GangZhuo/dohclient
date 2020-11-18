@@ -16,6 +16,8 @@
     + [dohclient.config](#dohclientconfig)
     + [Proxy Google DoH By Cloudflare Workers](#proxy-google-doh-by-cloudflare-workers)
 
+You can find a example config at https://github.com/GangZhuo/http-proxy/wiki/%E9%85%8D%E7%BD%AE%E7%A4%BA%E4%BE%8B
+
 ### Build on Linux
 
 ```
