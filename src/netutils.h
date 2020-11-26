@@ -101,6 +101,10 @@ typedef int sock_t;
 #define SHUT_RDWR SD_BOTH
 #endif
 
+/* Proxy type */
+#define SOCKS5_PROXY 0
+#define HTTP_PROXY   1
+
 #define is_eagain(err) ((err) == EAGAIN || (err) == EINPROGRESS || (err) == EWOULDBLOCK || (err) == WSAEWOULDBLOCK)
 
 typedef struct sockaddr_t sockaddr_t;
@@ -120,6 +124,7 @@ typedef struct subnet_t {
 } subnet_t;
 
 typedef struct proxy_t {
+    int proxy_type;
 	sockaddr_t addr;
 	int proxy_index;
 } proxy_t;
@@ -226,6 +231,13 @@ int str2addrs(
 	int max_num,
 	int element_size,
 	const char* default_port);
+
+int str2proxy(const char *s, proxy_t *proxy);
+
+int str2proxies(
+	const char* str,
+	proxy_t* proxies,
+	int max_num);
 
 /* convert string (like IP:PORT,IP:PORT... or [IPv]:PORT,...) to listen_t array. return number of listen_t.  */
 int str2listens(

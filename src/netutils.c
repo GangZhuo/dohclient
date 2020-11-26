@@ -281,6 +281,93 @@ int str2addrs(
 	return i;
 }
 
+int str2proxy(const char *s, proxy_t *proxy)
+{
+	char *copy = strdup(s), *p;
+	char *scheme, *host, *port;
+	int ai_family;
+	int r;
+
+    p = strstr(copy, "://");
+
+    if (p) {
+        *p = '\0';
+        p += 3;
+        if (strcmp(copy, "socks5") == 0) {
+            proxy->proxy_type = SOCKS5_PROXY;
+        }
+        else if (strcmp(copy, "http") == 0) {
+            proxy->proxy_type = HTTP_PROXY;
+        }
+        else {
+            loge("str2proxy() error: unsupport proxy(%s), "
+                    "only \"socks5\" and \"http\" supported\n", copy);
+            free(copy);
+            return -1;
+        }
+    }
+    else {
+        p = copy;
+        proxy->proxy_type = SOCKS5_PROXY;
+    }
+
+	if (parse_host_port(p, &host, &port, &ai_family)) {
+		free(copy);
+		return -1;
+	}
+
+	if (!port || strlen(port) == 0) {
+        switch (proxy->proxy_type) {
+        case SOCKS5_PROXY:
+		    port = (char*)"1080";
+            break;
+        case HTTP_PROXY:
+		    port = (char*)"80";
+            break;
+        default:
+            /* unreachable */
+            break;
+        }
+    }
+
+	r = host2addr(&proxy->addr, host, port, ai_family);
+
+	free(copy);
+
+	return r;
+}
+
+int str2proxies(
+	const char* str,
+	proxy_t* proxies,
+	int max_num)
+{
+	char* s, * p;
+	int i;
+	proxy_t* proxy;
+
+	s = strdup(str);
+
+	for (i = 0, p = strtok(s, ",");
+		p && *p && i < max_num;
+		p = strtok(NULL, ",")) {
+
+		proxy = proxies + i;
+
+		if (str2proxy(p, proxy)) {
+			free(s);
+			loge("str2proxies() error: resolve \"%s\" failed\n", str);
+			return -1;
+		}
+
+		i++;
+	}
+
+	free(s);
+
+	return i;
+}
+
 int str2listens(
 	const char* str,
 	listen_t * listens,

@@ -903,12 +903,10 @@ static int init_dohclient()
 	loglevel = conf.log_level;
 
 	if (conf.proxy && *conf.proxy) {
-		proxy_num = str2addrs(
+		proxy_num = str2proxies(
 			conf.proxy,
-			&proxy_list[0].addr,
-			MAX_PROXY,
-			sizeof(proxy_t),
-			"1080");
+			proxy_list,
+			MAX_PROXY);
 		if (proxy_num == -1) {
 			loge("init_dohclient() error: parse \"%s\" failed\n",
 				conf.proxy);
