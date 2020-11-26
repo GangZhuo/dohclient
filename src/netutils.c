@@ -284,7 +284,7 @@ int str2addrs(
 int str2proxy(const char *s, proxy_t *proxy)
 {
 	char *copy = strdup(s), *p;
-	char *scheme, *host, *port;
+	char *host, *port;
 	int ai_family;
 	int r;
 
