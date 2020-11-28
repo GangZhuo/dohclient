@@ -127,11 +127,11 @@ typedef struct subnet_t {
 } subnet_t;
 
 typedef struct proxy_t {
-    int proxy_type;
+	int proxy_type;
 	sockaddr_t addr;
 	int proxy_index;
-    char username[PROXY_USERNAME_LEN];
-    char password[PROXY_PASSWORD_LEN];
+	char username[PROXY_USERNAME_LEN];
+	char password[PROXY_PASSWORD_LEN];
 } proxy_t;
 
 typedef struct listen_t {
@@ -142,22 +142,32 @@ typedef struct listen_t {
 
 typedef enum conn_status {
 	cs_none = 0,
+
+	/* connection status */
 	cs_connecting,
 	cs_connected,
 	cs_closing, /* close immediately */
 	cs_rsp_closing, /* close after send */
 
+	/* socks5 status */
 	cs_socks5_sending_method,
 	cs_socks5_waiting_method,
 	cs_socks5_sending_connect,
 	cs_socks5_waiting_connect,
 	cs_socks5_handshaked,
 
+	/* http proxy status */
+	cs_hp_sending_connect,
+	cs_hp_waiting_connect,
+	cs_hp_handshaked,
+
+	/* ssl status */
 	cs_ssl_handshaking,
 	cs_ssl_handshaking_want_read,
 	cs_ssl_handshaking_want_write,
 	cs_ssl_handshaked,
 
+	/* error status */
 	cs_error,
 	cs_err_create_sock = cs_error, /* error when create sock */
 	cs_err_set_nonblock, /* error when set non-block */

@@ -96,7 +96,7 @@ int setnodelay(sock_t sock)
 int getsockerr(sock_t sock)
 {
 	int err = 0;
-    int len = sizeof(int);
+	int len = sizeof(int);
 	if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)& err, &len) < 0)
 		return errno;
 	return err;
@@ -286,84 +286,84 @@ static char *get_proxy_type(char *s, int *proxy_type)
 {
 	char *p;
 
-    p = strstr(s, "://");
+	p = strstr(s, "://");
 
-    if (!p) {
-        /* socks5 default */
-        *proxy_type = SOCKS5_PROXY;
-        return s;
-    }
+	if (!p) {
+		/* socks5 default */
+		*proxy_type = SOCKS5_PROXY;
+		return s;
+	}
 
-    *p = '\0';
-    if (strcmp(s, "socks5") == 0) {
-        *proxy_type = SOCKS5_PROXY;
-    }
-    else if (strcmp(s, "http") == 0) {
-        *proxy_type = HTTP_PROXY;
-    }
-    else {
-        loge("get_proxy_type() error: unsupport proxy(%s), "
-            "only \"socks5\" and \"http\" supported\n", s);
-        *p = ':'; /* restore */
-        return NULL;
-    }
+	*p = '\0';
+	if (strcmp(s, "socks5") == 0) {
+		*proxy_type = SOCKS5_PROXY;
+	}
+	else if (strcmp(s, "http") == 0) {
+		*proxy_type = HTTP_PROXY;
+	}
+	else {
+		loge("get_proxy_type() error: unsupport proxy(%s), "
+			"only \"socks5\" and \"http\" supported\n", s);
+		*p = ':'; /* restore */
+		return NULL;
+	}
 
-    *p = ':'; /* restore */
-    p += strlen("://");
+	*p = ':'; /* restore */
+	p += strlen("://");
 
-    return p;
+	return p;
 }
 
 static char *get_proxy_username_and_password(char *s, char *username, char *password)
 {
 	char *p, *colon;
 
-    p = strchr(s, '@');
+	p = strchr(s, '@');
 
-    if (!p) {
-        *username = '\0';
-        *password = '\0';
-        return s;
-    }
+	if (!p) {
+		*username = '\0';
+		*password = '\0';
+		return s;
+	}
 
-    *p = '\0';
-    colon = strchr(s, ':');
+	*p = '\0';
+	colon = strchr(s, ':');
 
-    if (colon) {
-        *colon = '\0';
-        strncpy(username, s, PROXY_USERNAME_LEN - 1);
-        strncpy(password, colon + 1, PROXY_PASSWORD_LEN - 1);
-        *colon = ':';
-    }
-    else {
-        strncpy(username, s, PROXY_USERNAME_LEN - 1);
-        *password = '\0';
-    }
+	if (colon) {
+		*colon = '\0';
+		strncpy(username, s, PROXY_USERNAME_LEN - 1);
+		strncpy(password, colon + 1, PROXY_PASSWORD_LEN - 1);
+		*colon = ':';
+	}
+	else {
+		strncpy(username, s, PROXY_USERNAME_LEN - 1);
+		*password = '\0';
+	}
 
-    /* restore */
-    *p = '@';
+	/* restore */
+	*p = '@';
 
-    if (strlen(username) == 0) {
-        loge("get_proxy_username_and_password() error: no username\n");
-        return NULL;
-    }
-    if (strlen(password) == 0) {
-        loge("get_proxy_username_and_password() error: no password\n");
-        return NULL;
-    }
+	if (strlen(username) == 0) {
+		loge("get_proxy_username_and_password() error: no username\n");
+		return NULL;
+	}
+	if (strlen(password) == 0) {
+		loge("get_proxy_username_and_password() error: no password\n");
+		return NULL;
+	}
 
-    ++p;
+	++p;
 
-    return p;
+	return p;
 }
 
 static const char *get_proxy_default_port(int proxy_type)
 {
-    switch (proxy_type) {
-        case SOCKS5_PROXY: return "1080";
-        case HTTP_PROXY:   return "80";
-        default:           return NULL;
-    }
+	switch (proxy_type) {
+		case SOCKS5_PROXY: return "1080";
+		case HTTP_PROXY: return "80";
+		default: return NULL;
+	}
 }
 
 int str2proxy(const char *s, proxy_t *proxy)
@@ -373,17 +373,17 @@ int str2proxy(const char *s, proxy_t *proxy)
 	int ai_family;
 	int r;
 
-    p = get_proxy_type(copy, &proxy->proxy_type);
-    if (!p) {
+	p = get_proxy_type(copy, &proxy->proxy_type);
+	if (!p) {
 		free(copy);
-        return -1;
-    }
+		return -1;
+	}
 
-    p = get_proxy_username_and_password(p, proxy->username, proxy->password);
-    if (!p) {
+	p = get_proxy_username_and_password(p, proxy->username, proxy->password);
+	if (!p) {
 		free(copy);
-        return -1;
-    }
+		return -1;
+	}
 
 	if (parse_host_port(p, &host, &port, &ai_family)) {
 		free(copy);
@@ -392,8 +392,8 @@ int str2proxy(const char *s, proxy_t *proxy)
 
 	if (!port || strlen(port) == 0) {
 		port = (char*)get_proxy_default_port(proxy->proxy_type);
-        assert(port);
-    }
+		assert(port);
+	}
 
 	r = host2addr(&proxy->addr, host, port, ai_family);
 
