@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <signal.h>
 
+#include "version.h"
 #include "utils.h"
 #include "log.h"
 #include "dllist.h"
@@ -23,9 +24,6 @@
 #include "channel_cache.h"
 #include "http.h"
 #include "mleak.h"
-
-#define PROGRAM_NAME    "dohclient"
-#define PROGRAM_VERSION "0.0.1"
 
 /* rb-tree node */
 typedef struct rbn_t {
@@ -65,7 +63,7 @@ static void ControlHandler(DWORD request);
 static void usage()
 {
 	printf("%s\n", "\n"
-		PROGRAM_NAME " " PROGRAM_VERSION "\n\
+		DOHCLIENT_NAME " " DOHCLIENT_VERSION "\n\
 \n\
 Usage:\n\
 \n\
@@ -1096,7 +1094,7 @@ static void ServiceMain(int argc, char** argv)
 	ServiceStatus.dwCheckPoint = 0;
 	ServiceStatus.dwWaitHint = 0;
 
-	hStatus = RegisterServiceCtrlHandler(PROGRAM_NAME, (LPHANDLER_FUNCTION)ControlHandler);
+	hStatus = RegisterServiceCtrlHandler(DOHCLIENT_NAME, (LPHANDLER_FUNCTION)ControlHandler);
 	if (hStatus == (SERVICE_STATUS_HANDLE)0)
 	{
 		loge("ServiceMain(): cannot register service ctrl handler\n");
@@ -1150,7 +1148,7 @@ static void run_as_daemonize()
 #ifdef WINDOWS
 	SERVICE_TABLE_ENTRY ServiceTable[2];
 
-	ServiceTable[0].lpServiceName = PROGRAM_NAME;
+	ServiceTable[0].lpServiceName = DOHCLIENT_NAME;
 	ServiceTable[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)ServiceMain;
 
 	ServiceTable[1].lpServiceName = NULL;
@@ -1192,7 +1190,7 @@ static void run_as_daemonize()
 	umask(0);
 
 	if (!conf.log_file || !(*conf.log_file)) {
-		open_syslog(PROGRAM_NAME);
+		open_syslog(DOHCLIENT_NAME);
 	}
 
 	sid = setsid();
@@ -1247,7 +1245,7 @@ int main(int argc, char** argv)
 	}
 
 	if (conf.is_print_version) {
-		printf(PROGRAM_NAME " %s\n", PROGRAM_VERSION);
+		printf(DOHCLIENT_NAME " %s\n", DOHCLIENT_VERSION);
 		exit(0);
 		return EXIT_SUCCESS;
 	}

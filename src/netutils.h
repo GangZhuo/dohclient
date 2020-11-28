@@ -53,10 +53,6 @@ typedef int sock_t;
 #define BUF_SIZE 4096
 #endif
 
-#ifndef MAX_HEADER_SIZE
-#define MAX_HEADER_SIZE (1024 * 1024) /* 1MB */
-#endif
-
 #ifndef MAX_PROXY
 #define MAX_PROXY 8
 #endif
@@ -159,6 +155,7 @@ typedef enum conn_status {
 	/* http proxy status */
 	cs_hp_sending_connect,
 	cs_hp_waiting_connect,
+	cs_hp_waiting_data,
 	cs_hp_handshaked,
 
 	/* ssl status */

@@ -1,3 +1,4 @@
+#include "version.h"
 #include "http.h"
 #include "dllist.h"
 #include "../rbtree/rbtree.h"
@@ -5,6 +6,7 @@
 #include "log.h"
 #include "stream.h"
 #include "../http-parser/http_parser.h"
+#include "base64url.h"
 
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -51,6 +53,7 @@ typedef enum http_field_status {
 typedef struct http_conn_t {
 	http_ctx_t* http_ctx;
 	int use_proxy;
+	int proxy_index;
 	struct conn_t conn;
 	SSL* ssl;
 	int ssl_status;
@@ -940,6 +943,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 
 	switch (cs) {
 	case cs_connected:
+		logv("http_socks5_handshake(): sending authentication methods\n");
 		if (rsize == 0) {
 			s->array[0] = 0x05;
 			s->array[1] = 0x01;
@@ -960,6 +964,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		}
 		break;
 	case cs_socks5_waiting_method:
+		logv("http_socks5_handshake(): receiving authentication methods\n");
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r != 2) {
 			loge("http_socks5_handshake() error: tcp_recv() error\n");
@@ -1008,6 +1013,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		}
 		break;
 	case cs_socks5_sending_connect:
+		logv("http_socks5_handshake(): connecting target server\n");
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
 			loge("http_socks5_handshake() error: tcp_send() error\n");
@@ -1021,6 +1027,7 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 		}
 		break;
 	case cs_socks5_waiting_connect:
+		logv("http_socks5_handshake(): receiving connection status\n");
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r <= 0) {
 			loge("http_socks5_handshake() error: tcp_recv() error\n");
@@ -1043,6 +1050,171 @@ static int http_socks5_handshake(http_ctx_t* ctx, http_conn_t* conn)
 	}
 
 	return 0;
+}
+
+/* http proxy handshake */
+static int http_hp_handshake(http_ctx_t* ctx, http_conn_t* conn)
+{
+	int r;
+	const proxy_t *proxy = ctx->proxies + conn->proxy_index;
+	conn_status cs = conn->conn.status;
+	stream_t* s = &conn->proxy_stream;
+	int rsize = stream_rsize(s);
+
+	if (stream_rcap(s) < 1024) {
+		int new_cap = MAX(s->cap * 2, 1024);
+		if (stream_set_cap(s, new_cap)) {
+			return -1;
+		}
+	}
+
+	switch (cs) {
+	case cs_connected:
+		logv("http_hp_handshake(): CONNECT\n");
+		if (rsize == 0) {
+			const char *target_host = get_sockaddrname(&conn->pool->key.addr);
+			const int authorization = strlen(proxy->username) > 0;
+			char *auth_code = NULL;
+			int auth_code_len = 0;
+			if (authorization) {
+				char auth_str[PROXY_USERNAME_LEN + PROXY_PASSWORD_LEN];
+				sprintf(auth_str, "%s:%s", proxy->username, proxy->password);
+				auth_code = base64url_encode((const unsigned char*)auth_str,
+						strlen(auth_str), &auth_code_len);
+			}
+			r = stream_writef(s,
+				"CONNECT %s HTTP/1.1\r\n"
+				"Host: %s\r\n"
+				"User-Agent: "DOHCLIENT_NAME"/"DOHCLIENT_VERSION"\r\n"
+				"Proxy-Connection: keep-alive\r\n"
+				"Connection: keep-alive\r\n"
+				"%s%s%s"
+				"\r\n",
+				target_host,
+				target_host,
+				authorization ? "Authorization: Basic " : "",
+				authorization ? auth_code : "",
+				authorization ? "\r\n" : "");
+			if (r == -1) {
+				loge("http_hp_handshake() error: stream_writef()\n");
+				free(auth_code);
+				return -1;
+			}
+			logv("http_hp_handshake(): send\r\n%s\n", s->array);
+			s->pos = 0;
+			free(auth_code);
+		}
+		r = tcp_send(conn->conn.sock, s);
+		if (r < 0) {
+			loge("http_hp_handshake() error: tcp_send() error\n");
+			return -1;
+		}
+		conn->keep_alive = TRUE;
+		if (stream_rsize(s) > 0) {
+			conn->conn.status = cs_hp_sending_connect;
+		}
+		else {
+			conn->conn.status = cs_hp_waiting_connect;
+			s->pos = s->size = 0;
+		}
+		break;
+	case cs_hp_waiting_connect:
+		logv("http_hp_handshake(): receiving connection status\n");
+		r = tcp_recv(conn->conn.sock, s->array + s->pos, s->cap - s->pos - 1);
+		if (r <= 0) {
+			loge("http_hp_handshake() error: tcp_recv() error\n");
+			return -1;
+		}
+		s->pos += r;
+		s->size += r;
+		s->array[s->pos] = '\0';
+		logv("http_hp_handshake(): recv\r\n%s\n", s->array);
+		if (s->size >= sizeof("HTTP/1.1 XXX")) {
+			char *space;
+			if (strncmp(s->array, "HTTP/", 5) == 0 &&
+				(space = strchr(s->array, ' ')) != NULL) {
+				char http_code_str[4];
+				int http_code;
+				strncpy(http_code_str, space + 1, sizeof(http_code_str));
+				http_code_str[3] = '\0';
+				http_code = atoi(http_code_str);
+				if (http_code == 200) {
+					if (strstr(s->array, "\r\n\r\n")) {
+						if (strstr(s->array, "Connection: close"))
+							conn->keep_alive = FALSE;
+						conn->conn.status = cs_hp_handshaked;
+						stream_free(s);
+						logv("http_hp_handshake(): http proxy handshaked\n");
+						return http_ssl_handshake(ctx, conn);
+					}
+					else {
+						conn->conn.status = cs_hp_waiting_data;
+					}
+				}
+				else {
+					loge("http_hp_handshake() error: http_code=%d\n%s\n", http_code, s->array);
+					return -1;
+				}
+			}
+			else {
+				loge("http_hp_handshake() error: wrong response \"%s\"\n", s->array);
+				return -1;
+			}
+		}
+		else {
+			loge("http_hp_handshake() error: connect error\n");
+			return -1;
+		}
+		break;
+	case cs_hp_waiting_data:
+		logv("http_hp_handshake(): receiving left headers\n");
+		r = tcp_recv(conn->conn.sock, s->array + s->pos, s->cap - s->pos - 1);
+		if (r <= 0) {
+			loge("http_hp_handshake() error: tcp_recv() error\n");
+			return -1;
+		}
+		s->size += r;
+		s->pos += r;
+		s->array[s->pos] = '\0';
+		if (strstr(s->array, "\r\n\r\n")) {
+			if (strstr(s->array, "Connection: close"))
+				conn->keep_alive = FALSE;
+			conn->conn.status = cs_hp_handshaked;
+			stream_free(s);
+			logv("http_hp_handshake(): http proxy handshaked\n");
+			return http_ssl_handshake(ctx, conn);
+		}
+		else if (s->size >= HTTP_MAX_HEADER_SIZE) {
+			loge("http_hp_handshake() error: received too large (>= %s bytes)"
+				" header data from http proxy.\n", s->pos);
+			stream_free(s);
+			return -1;
+		}
+		else {
+			conn->conn.status = cs_hp_waiting_data;
+		}
+		break;
+	default:
+		loge("http_hp_handshake() error: unknown status\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int http_proxy_handshake(http_ctx_t *ctx, http_conn_t *conn)
+{
+	const proxy_t *proxy = ctx->proxies + conn->proxy_index;
+
+	switch (proxy->proxy_type) {
+		case SOCKS5_PROXY:
+			return http_socks5_handshake(ctx, conn);
+		case HTTP_PROXY:
+			return http_hp_handshake(ctx, conn);
+		default:
+			loge("http_proxy_handshake() error: unsupport proxy type");
+			return -1;
+	}
 }
 
 static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr_t* addr, int use_proxy)
@@ -1069,6 +1241,7 @@ static http_conn_t* http_conn_create(http_ctx_t* ctx, const char* host, sockaddr
 
 	if (use_proxy && ctx->proxy_num > 0) {
 		conn->use_proxy = use_proxy;
+		conn->proxy_index = 0;
 		cs = tcp_connect(&ctx->proxies->addr, &sock);
 	}
 	else {
@@ -1462,14 +1635,17 @@ static void dl_fdset_func(dllist_t* conns, http_fdset_state* st)
 		}
 		else if (cs == cs_ssl_handshaking_want_read ||
 			cs == cs_socks5_waiting_method ||
-			cs == cs_socks5_waiting_connect) {
+			cs == cs_socks5_waiting_connect ||
+			cs == cs_hp_waiting_connect ||
+			cs == cs_hp_waiting_data) {
 			st->maxfd = MAX(st->maxfd, conn->conn.sock);
 			FD_SET(conn->conn.sock, st->readset);
 			FD_SET(conn->conn.sock, st->errorset);
 		}
 		else if (cs == cs_ssl_handshaking_want_write ||
 			cs == cs_socks5_sending_method ||
-			cs == cs_socks5_sending_connect) {
+			cs == cs_socks5_sending_connect ||
+			cs == cs_hp_sending_connect) {
 			st->maxfd = MAX(st->maxfd, conn->conn.sock);
 			FD_SET(conn->conn.sock, st->writeset);
 			FD_SET(conn->conn.sock, st->errorset);
@@ -1564,21 +1740,23 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 					r = http_ssl_handshake(st->ctx, conn);
 				}
 			}
-			else if (cs == cs_socks5_waiting_method || cs == cs_socks5_waiting_connect) {
+			else if (cs == cs_socks5_waiting_method || cs == cs_socks5_waiting_connect ||
+					cs == cs_hp_waiting_connect || cs == cs_hp_waiting_data) {
 				if (FD_ISSET(conn->conn.sock, st->readset)) {
-					r = http_socks5_handshake(st->ctx, conn);
+					r = http_proxy_handshake(st->ctx, conn);
 				}
 			}
-			else if (cs == cs_socks5_sending_method || cs == cs_socks5_sending_connect) {
+			else if (cs == cs_socks5_sending_method || cs == cs_socks5_sending_connect ||
+					cs == cs_hp_sending_connect) {
 				if (FD_ISSET(conn->conn.sock, st->writeset)) {
-					r = http_socks5_handshake(st->ctx, conn);
+					r = http_proxy_handshake(st->ctx, conn);
 				}
 			}
 			else if (cs == cs_connecting) {
 				if (FD_ISSET(conn->conn.sock, st->writeset)) {
 					conn->conn.status = cs_connected;
 					if (conn->use_proxy && st->ctx->proxy_num > 0) {
-						r = http_socks5_handshake(st->ctx, conn);
+						r = http_proxy_handshake(st->ctx, conn);
 					}
 					else {
 						r = http_ssl_handshake(st->ctx, conn);
@@ -1720,7 +1898,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 
 	if (conn->conn.status == cs_connected) {
 		if (use_proxy && ctx->proxy_num > 0) {
-			r = http_socks5_handshake(ctx, conn);
+			r = http_proxy_handshake(ctx, conn);
 		}
 		else {
 			r = http_ssl_handshake(ctx, conn);
@@ -1728,7 +1906,7 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 		if (r) {
 			loge("http_send() error: %s() error\n",
 				use_proxy && ctx->proxy_num > 0 ?
-				"http_socks5_handshake" : "http_ssl_handshake");
+				"http_proxy_handshake" : "http_ssl_handshake");
 			http_conn_close(conn);
 			http_response_destroy(response);
 			return -1;
