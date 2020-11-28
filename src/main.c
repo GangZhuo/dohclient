@@ -100,9 +100,9 @@ Options:\n\
   --blacklist=BLACKLIST_FILE \n\
                            Path to black list file, e.g.: --blacklist=blacklist.txt.\n\
                            The format of the file is same as chnroute file.\n\
-  --proxy=SOCKS5_PROXY     Socks5 proxy, e.g. --proxy=127.0.0.1:1080\n\
-                           or --proxy=[::1]:1080.\n\
-                           Only socks5 with no authentication is supported.\n\
+  --proxy=PROXY_URL        Proxy url, e.g. --proxy=socks5://127.0.0.1:1080\n\
+                           or --proxy=http://username:password@[::1]:80.\n\
+                           Socks5 with no authentication and http proxy are supported.\n\
   -v                       Verbose logging.\n\
   -h                       Show this help message and exit.\n\
   -V                       Print version and then exit.\n\
