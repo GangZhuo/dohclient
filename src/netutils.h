@@ -105,6 +105,9 @@ typedef int sock_t;
 #define SOCKS5_PROXY 0
 #define HTTP_PROXY   1
 
+#define PROXY_USERNAME_LEN 50
+#define PROXY_PASSWORD_LEN 50
+
 #define is_eagain(err) ((err) == EAGAIN || (err) == EINPROGRESS || (err) == EWOULDBLOCK || (err) == WSAEWOULDBLOCK)
 
 typedef struct sockaddr_t sockaddr_t;
@@ -127,6 +130,8 @@ typedef struct proxy_t {
     int proxy_type;
 	sockaddr_t addr;
 	int proxy_index;
+    char username[PROXY_USERNAME_LEN];
+    char password[PROXY_PASSWORD_LEN];
 } proxy_t;
 
 typedef struct listen_t {
