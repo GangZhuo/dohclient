@@ -202,6 +202,7 @@
     <ClInclude Include="..\src\ns_msg.h" />
     <ClInclude Include="..\src\stream.h" />
     <ClInclude Include="..\src\utils.h" />
+    <ClInclude Include="..\src\version.h" />
     <ClInclude Include="argp\getopt.h" />
     <ClInclude Include="win.h" />
   </ItemGroup>
