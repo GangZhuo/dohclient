@@ -33,9 +33,14 @@
 
 # ctags
 tags
+.tags
 
 # vim
 *.swp
+
+# coc
+.clangd
+compile_commands.json
 
 *.user
 dohclient
