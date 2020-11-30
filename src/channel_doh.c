@@ -685,7 +685,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, subnet_t* subnet
 
 	ns_msg_free(&msg);
 
-	dns = base64url_encode(s.array, s.size, &dns_len);
+	dns = base64url_encode(s.array, s.size, &dns_len, FALSE);
 	if (!dns) {
 		loge("doh_build_get_request() error: base64_encode() error\n");
 		stream_free(&s);

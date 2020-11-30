@@ -16,14 +16,19 @@ static int mod_table[] = {0, 2, 1};
 
 char *base64url_encode(const unsigned char *data,
                     int input_length,
-                    int *output_length)
+                    int *output_length,
+                    int tail_padding)
 {
+    char *encoded_data;
+    int padding, i, j;
+
     *output_length = 4 * ((input_length + 2) / 3);
 
-    char *encoded_data = malloc(*output_length + 1);
+    encoded_data = malloc(*output_length + 1);
+
     if (encoded_data == NULL) return NULL;
 
-    for (int i = 0, j = 0; i < input_length;) {
+    for (i = 0, j = 0; i < input_length;) {
 
         uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
         uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;
@@ -37,7 +42,17 @@ char *base64url_encode(const unsigned char *data,
         encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
     }
 
-    *output_length -= mod_table[input_length % 3];
+    padding = mod_table[input_length % 3];
+
+    if (tail_padding) {
+        for (i = 0; i < padding; i++) {
+            encoded_data[*output_length - i - 1] = '=';
+        }
+    }
+    else {
+        *output_length -= padding;
+    }
+
 
     encoded_data[*output_length] = '\0';
 
