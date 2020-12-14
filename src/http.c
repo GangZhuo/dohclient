@@ -83,7 +83,7 @@ struct http_request_t {
 	http_conn_t* conn;
 	http_callback_fun_t callback;
 	void* cb_state;
-	const char *tag; /* give a tag, e.g. domain name */
+	char *tag; /* give a tag, e.g. domain name */
 	void* state;
 };
 
@@ -279,6 +279,7 @@ void http_request_destroy(http_request_t *request)
 			dllist_remove(&header->entry);
 			free(header);
 		}
+		free(request->tag);
 		free(request);
 	}
 }
@@ -394,7 +395,7 @@ const char *http_request_get_tag(http_request_t *request)
 void http_request_set_tag(http_request_t *request,
 	const char *tag)
 {
-	request->tag = tag;
+	request->tag = tag ? strdup(tag) : NULL;
 }
 
 const char* http_request_get_host(http_request_t* request)
