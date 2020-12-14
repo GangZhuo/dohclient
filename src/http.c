@@ -70,6 +70,7 @@ typedef struct http_conn_t {
 	} field;
 	int keep_alive;
 	stream_t proxy_stream;
+	char *tag; /* give a tag, e.g. domain name */
 } http_conn_t;
 
 struct http_request_t {
@@ -172,6 +173,7 @@ static void http_conn_free(http_conn_t *conn)
 	stream_free(&conn->field.name);
 	stream_free(&conn->field.value);
 	stream_free(&conn->proxy_stream);
+	free(conn->tag);
 	free(conn);
 
 	logv("http_conn_free()\n");
@@ -395,6 +397,7 @@ const char *http_request_get_tag(http_request_t *request)
 void http_request_set_tag(http_request_t *request,
 	const char *tag)
 {
+	free(request->tag);
 	request->tag = tag ? strdup(tag) : NULL;
 }
 
@@ -1392,12 +1395,12 @@ static int http_conn_send(http_conn_t* conn)
 		else {
 			loge("http_conn_send() error: errno=%d, %s - %s\n",
 				err, http_ssl_errstr(err),
-				conn->request ? conn->request->tag : "");
+				conn->tag ? conn->tag : "");
 			if (err == SSL_ERROR_SYSCALL) {
 				while ((err = ERR_get_error()) != 0) {
 					loge("http_conn_send() error: errno=%d, %s - %s\n",
 						err, ERR_error_string(err, NULL),
-						conn->request ? conn->request->tag : "");
+						conn->tag ? conn->tag : "");
 				}
 			}
 			return -1;
@@ -1409,7 +1412,7 @@ static int http_conn_send(http_conn_t* conn)
 		logv("http_conn_send(): send %d bytes\n", nsend);
 		if (stream_quake(s)) {
 			loge("http_conn_send() error: stream_quake() - %s\n",
-				conn->request ? conn->request->tag : "");
+				conn->tag ? conn->tag : "");
 			return -1;
 		}
 		return nsend;
@@ -1447,12 +1450,12 @@ static int http_conn_recv(http_conn_t* conn)
 		else {
 			loge("http_conn_recv() error: errno=%d, %s - %s\n",
 				err, http_ssl_errstr(err),
-				conn->request ? conn->request->tag : "");
+				conn->tag ? conn->tag : "");
 			if (err == SSL_ERROR_SYSCALL) {
 				while ((err = ERR_get_error()) != 0) {
 					loge("http_conn_recv() error: errno=%d, %s - %s\n",
 						err, ERR_error_string(err, NULL),
-						conn->request ? conn->request->tag : "");
+						conn->tag ? conn->tag : "");
 				}
 			}
 			return -1;
@@ -1470,7 +1473,7 @@ static int http_conn_recv(http_conn_t* conn)
 		if (nparsed <= 0) {
 			loge("http_conn_recv() error: %s - %s\n",
 					http_errno_name(conn->parser.http_errno),
-					conn->request ? conn->request->tag : "");
+					conn->tag ? conn->tag : "");
 			return -1;
 		}
 
@@ -1914,6 +1917,15 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 		loge("http_send() error: http_get_conn() error\n");
 		http_response_destroy(response);
 		return -1;
+	}
+
+	if (conn->tag) {
+		free(conn->tag);
+		conn->tag = NULL;
+	}
+
+	if (request->tag) {
+		conn->tag = strdup(request->tag);
 	}
 
 	if (conn->conn.status == cs_connected) {
