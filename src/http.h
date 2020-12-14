@@ -83,6 +83,11 @@ void* http_request_get_state(http_request_t* request);
 void http_request_set_state(http_request_t* request,
 	void* state);
 
+const char *http_request_get_tag(http_request_t *request);
+
+void http_request_set_tag(http_request_t* request,
+	const char *tag);
+
 int http_request_header_next(http_request_t* request, struct dliterator_t* iterator,
 	const char** name, const char** value);
 

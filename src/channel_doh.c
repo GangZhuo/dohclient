@@ -634,6 +634,8 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, subnet_t* subne
 
 	http_request_set_data(req, s.array, s.size);
 
+	http_request_set_tag(req, rq->qr.qname);
+
 	return req;
 }
 
@@ -729,6 +731,8 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, subnet_t* subnet
 	}
 
 	http_request_set_data(req, s.array, s.size);
+
+	http_request_set_tag(req, rq->qr.qname);
 
 	return req;
 }

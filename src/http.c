@@ -83,6 +83,7 @@ struct http_request_t {
 	http_conn_t* conn;
 	http_callback_fun_t callback;
 	void* cb_state;
+	const char *tag; /* give a tag, e.g. domain name */
 	void* state;
 };
 
@@ -383,6 +384,17 @@ void http_request_set_state(http_request_t* request,
 	void* state)
 {
 	request->state = state;
+}
+
+const char *http_request_get_tag(http_request_t *request)
+{
+	return request->tag;
+}
+
+void http_request_set_tag(http_request_t *request,
+	const char *tag)
+{
+	request->tag = tag;
 }
 
 const char* http_request_get_host(http_request_t* request)
@@ -1377,12 +1389,14 @@ static int http_conn_send(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_send() error: errno=%d, %s\n",
-				err, http_ssl_errstr(err));
+			loge("http_conn_send() error: errno=%d, %s - %s\n",
+				err, http_ssl_errstr(err),
+				conn->request ? conn->request->tag : "");
 			if (err == SSL_ERROR_SYSCALL) {
 				while ((err = ERR_get_error()) != 0) {
-					loge("http_conn_send() error: errno=%d, %s\n",
-						err, ERR_error_string(err, NULL));
+					loge("http_conn_send() error: errno=%d, %s - %s\n",
+						err, ERR_error_string(err, NULL),
+						conn->request ? conn->request->tag : "");
 				}
 			}
 			return -1;
@@ -1393,7 +1407,8 @@ static int http_conn_send(http_conn_t* conn)
 		s->pos += nsend;
 		logv("http_conn_send(): send %d bytes\n", nsend);
 		if (stream_quake(s)) {
-			loge("http_conn_send() error: stream_quake()\n");
+			loge("http_conn_send() error: stream_quake() - %s\n",
+				conn->request ? conn->request->tag : "");
 			return -1;
 		}
 		return nsend;
@@ -1429,12 +1444,14 @@ static int http_conn_recv(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_recv() error: errno=%d, %s\n",
-				err, http_ssl_errstr(err));
+			loge("http_conn_recv() error: errno=%d, %s - %s\n",
+				err, http_ssl_errstr(err),
+				conn->request ? conn->request->tag : "");
 			if (err == SSL_ERROR_SYSCALL) {
 				while ((err = ERR_get_error()) != 0) {
-					loge("http_conn_recv() error: errno=%d, %s\n",
-						err, ERR_error_string(err, NULL));
+					loge("http_conn_recv() error: errno=%d, %s - %s\n",
+						err, ERR_error_string(err, NULL),
+						conn->request ? conn->request->tag : "");
 				}
 			}
 			return -1;
@@ -1450,7 +1467,9 @@ static int http_conn_recv(http_conn_t* conn)
 		nparsed = http_parser_execute(&conn->parser, &parser_settings, s->array, nread);
 
 		if (nparsed <= 0) {
-			loge("http_conn_recv() error: %s\n", http_errno_name(conn->parser.http_errno));
+			loge("http_conn_recv() error: %s - %s\n",
+					http_errno_name(conn->parser.http_errno),
+					conn->request ? conn->request->tag : "");
 			return -1;
 		}
 
