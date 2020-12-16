@@ -1033,52 +1033,52 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 		*v = '\0';
 		v++;
 
-        if (strcmp(p, "chndoh.addr") == 0 || strcmp(p, "frndoh.addr") == 0) {
+		if (strcmp(p, "chndoh.addr") == 0 || strcmp(p, "frndoh.addr") == 0) {
 			doh = strcmp(p, "chndoh.addr") == 0 ? &ctx->chndoh : &ctx->frndoh;
-            p = v;
-            if (*p == '[') {
-                p++;
-                v = strchr(p, ']');
-                if (v) {
-                    *v = '\0';
-                    v++;
-                    if (*v == ':') {
-                        v++;
-                    }
-                }
-            }
-            else {
-                v = strchr(p, ':');
-                if (v) {
-                    *v = '\0';
-                    v++;
-                }
-            }
+			p = v;
+			if (*p == '[') {
+				p++;
+				v = strchr(p, ']');
+				if (v) {
+					*v = '\0';
+					v++;
+					if (*v == ':') {
+						v++;
+					}
+				}
+			}
+			else {
+				v = strchr(p, ':');
+				if (v) {
+					*v = '\0';
+					v++;
+				}
+			}
 
-            if (!try_parse_as_ip( &doh->addr, p,
+			if (!try_parse_as_ip( &doh->addr, p,
 				(v && (*v)) 
 					? v 
 					: (doh->channel ? "53" : "443")) ) {
-                loge("parse address failed: %s:%s\n",
-                        p,
-                        (v && (*v)) 
+				loge("parse address failed: %s:%s\n",
+						p,
+						(v && (*v)) 
 							? v 
 							: (doh->channel ? "53" : "443")
-                    );
-                free(cpy);
-                return -1;
-            }
-        }
-        else if (strcmp(p, "chndoh.host") == 0 || strcmp(p, "frndoh.host") == 0) {
+					);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "chndoh.host") == 0 || strcmp(p, "frndoh.host") == 0) {
 			if (*v) {
 				doh = strcmp(p, "chndoh.host") == 0 ? &ctx->chndoh : &ctx->frndoh;
 				doh->host = strdup(v);
 			}
-        }
-        else if (strcmp(p, "chndoh.path") == 0 || strcmp(p, "frndoh.path") == 0) {
+		}
+		else if (strcmp(p, "chndoh.path") == 0 || strcmp(p, "frndoh.path") == 0) {
 			doh = strcmp(p, "chndoh.path") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->path = strdup(v);
-        }
+		}
 		else if (strcmp(p, "chndoh.keep-alive") == 0 || strcmp(p, "frndoh.keep-alive") == 0) {
 			doh = strcmp(p, "chndoh.keep-alive") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->keep_alive = strcmp(v, "0");
@@ -1090,27 +1090,27 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 		else if (strcmp(p, "chndoh.proxy") == 0 || strcmp(p, "frndoh.proxy") == 0) {
 			doh = strcmp(p, "chndoh.proxy") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->use_proxy = strcmp(v, "0");
-        }
-        else if (strcmp(p, "chndoh.ecs") == 0 || strcmp(p, "frndoh.ecs") == 0) {
+		}
+		else if (strcmp(p, "chndoh.ecs") == 0 || strcmp(p, "frndoh.ecs") == 0) {
 			doh = strcmp(p, "chndoh.ecs") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->ecs = strcmp(v, "0");
-        }
-        else if (strcmp(p, "chndoh.net") == 0 || strcmp(p, "frndoh.net") == 0) {
+		}
+		else if (strcmp(p, "chndoh.net") == 0 || strcmp(p, "frndoh.net") == 0) {
 			doh = strcmp(p, "chndoh.net") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			if (v && *v && parse_subnet(&doh->net, v)) {
-                loge("parse \"%s\" failed: %s\n", p, v);
-                free(cpy);
-                return -1;
-            }
-        }
-        else if (strcmp(p, "chndoh.net6") == 0 || strcmp(p, "frndoh.net6") == 0) {
+				loge("parse \"%s\" failed: %s\n", p, v);
+				free(cpy);
+				return -1;
+			}
+		}
+		else if (strcmp(p, "chndoh.net6") == 0 || strcmp(p, "frndoh.net6") == 0) {
 			doh = strcmp(p, "chndoh.net6") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			if (v && *v && parse_subnet(&doh->net6, v)) {
-                loge("parse \"%s\" failed: %s\n", p, v);
-                free(cpy);
-                return -1;
-            }
-        }
+				loge("parse \"%s\" failed: %s\n", p, v);
+				free(cpy);
+				return -1;
+			}
+		}
 		else if (strcmp(p, "chndoh.channel") == 0 || strcmp(p, "frndoh.channel") == 0) {
 			doh = strcmp(p, "chndoh.channel") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			if (strcmp(v, "udp") == 0) doh->channel = CH_UDP;
@@ -1121,9 +1121,9 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			doh->auto_resolve_host = strcmp(v, "0");
 		}
 		else {
-            logw("unknown argument: %s=%s\n", p, v);
-        }
-    }
+			logw("unknown argument: %s=%s\n", p, v);
+		}
+	}
 
 	free(cpy);
 	return 0;
