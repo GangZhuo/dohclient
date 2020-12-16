@@ -33,8 +33,6 @@ int try_parse_as_ip6(sockaddr_t* addr, const char* host, const char* port)
 
 int try_parse_as_ip(sockaddr_t* addr, const char* host, const char* port)
 {
-	int need_query = 0;
-
 	if (try_parse_as_ip4(addr, host, port))
 		return TRUE;
 
