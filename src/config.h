@@ -24,6 +24,7 @@ typedef struct config_t {
 	char* proxy;
 	char* chnroute;
 	char* blacklist;
+	char* hosts;
 	char** channels;
 	char** channel_args;
 	int log_level;

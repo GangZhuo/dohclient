@@ -5,6 +5,7 @@
 #include "channel_chndoh.h"
 #include "channel_udp.h"
 #include "channel_tcp.h"
+#include "channel_hosts.h"
 #include "mleak.h"
 
 typedef struct channel_info_t{
@@ -16,6 +17,10 @@ static channel_info_t _infos[] = {
 	{
 		.name = "cache",
 		.create = cache_create,
+	},
+	{
+		.name = "hosts",
+		.create = hosts_create,
 	},
 	{
 		.name = "os",
@@ -125,3 +130,4 @@ int channel_build_msg(
 
 	return 0;
 }
+

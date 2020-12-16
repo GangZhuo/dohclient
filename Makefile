@@ -12,6 +12,7 @@ OBJS = \
 	src/channel_os.o \
 	src/channel_tcp.o \
 	src/channel_udp.o \
+	src/channel_hosts.o \
 	src/chnroute.o \
 	src/config.o \
 	src/dns_request.o \
@@ -29,8 +30,8 @@ LIBS += -lssl -lcrypto
 MYLIBS =
 
 ifneq ($(debug), 0)
-    CFLAGS += -g -DDEBUG -D_DEBUG
-    LDFLAGS += -g
+    CFLAGS += -g -ggdb -DDEBUG -D_DEBUG
+    LDFLAGS += -g -ggdb
 endif
 
 all: dohclient

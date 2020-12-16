@@ -63,6 +63,9 @@
     <ClCompile Include="..\src\channel_doh.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\channel_hosts.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\src\http.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -132,6 +135,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\channel_doh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\channel_hosts.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\http.h">

@@ -81,6 +81,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"channel",      required_argument, NULL, 9},
 		{"channel-args", required_argument, NULL, 10},
 		{"blacklist",    required_argument, NULL, 11},
+		{"hosts",        required_argument, NULL, 12},
 		{0, 0, 0, 0}
 	};
 
@@ -122,6 +123,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			break;
 		case 11:
 			conf->blacklist = strdup(optarg);
+			break;
+		case 12:
+			conf->hosts = strdup(optarg);
 			break;
 		case 'h':
 			conf->is_print_help = 1;
@@ -206,6 +210,9 @@ void conf_print(const config_t* conf)
 
 	if (conf->blacklist && *conf->blacklist)
 		logn("blacklist: %s\n", conf->blacklist);
+
+	if (conf->hosts && *conf->hosts)
+		logn("hosts: %s\n", conf->hosts);
 
 	if (conf->proxy && *conf->proxy)
 		logn("proxy: %s\n", conf->proxy);
@@ -362,6 +369,12 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				conf->blacklist = strdup(value);
 			}
 		}
+		else if (strcmp(name, "hosts") == 0 && strlen(value)) {
+			if (force || !conf->hosts) {
+				free(conf->hosts);
+				conf->hosts = strdup(value);
+			}
+		}
 		else if (strcmp(name, "proxy") == 0 && strlen(value)) {
 			if (force || !conf->proxy) {
 				free(conf->proxy);
@@ -375,7 +388,7 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				}
 			}
 		}
-        else if (strcmp(name, "channel_args") == 0 && strlen(value)) {
+		else if (strcmp(name, "channel_args") == 0 && strlen(value)) {
 			if (force || !have_channel_args) {
 				if (conf_add_channel_args(conf, value)) {
 					return -1;
@@ -421,6 +434,9 @@ void conf_free(config_t* conf)
 
 	free(conf->blacklist);
 	conf->blacklist = NULL;
+
+	free(conf->hosts);
+	conf->hosts = NULL;
 
 	free(conf->proxy);
 	conf->proxy = NULL;

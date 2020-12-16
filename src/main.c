@@ -22,6 +22,7 @@
 #include "../rbtree/rbtree.h"
 #include "channel.h"
 #include "channel_cache.h"
+#include "channel_hosts.h"
 #include "http.h"
 #include "mleak.h"
 
@@ -46,6 +47,7 @@ static chnroute_ctx chnr = NULL;
 static chnroute_ctx blacklist = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
+static channel_t* hosts = NULL;
 static channel_t* cache = NULL;
 static channel_t** channels = NULL;
 static int channel_num = 0;
@@ -100,6 +102,7 @@ Options:\n\
   --blacklist=BLACKLIST_FILE \n\
                            Path to black list file, e.g.: --blacklist=blacklist.txt.\n\
                            The format of the file is same as chnroute file.\n\
+  --hosts=HOSTS_FILE       Path to hosts file, e.g.: --hosts=/etc/hosts.\n\
   --proxy=PROXY_URL        Proxy url, e.g. --proxy=socks5://127.0.0.1:1080\n\
                            or --proxy=http://username:password@[::1]:80.\n\
                            Socks5 with no authentication and http proxy are supported.\n\
@@ -496,6 +499,23 @@ static int cache_cb(channel_t* ctx,
 	}
 }
 
+static int hosts_cb(channel_t* ctx,
+	int status,
+	ns_msg_t* result,
+	int fromcache,
+	int trust,
+	void* state)
+{
+	req_t* req = state;
+
+	if (status || !result || result->qdcount < 1) {
+		return cache->query(cache, req->msg, cache_cb, req);
+	}
+	else {
+		return _query_cb(ctx, status, result, fromcache, trust, state);
+	}
+}
+
 /* recv a request */
 static int server_recv_msg(const char *data, int datalen,
 	int listen,
@@ -508,7 +528,7 @@ static int server_recv_msg(const char *data, int datalen,
 		return -1;
 	}
 
-	return cache->query(cache, req->msg, cache_cb, req);
+	return hosts->query(hosts, req->msg, hosts_cb, req);
 }
 
 static int server_udp_recv(int listen_index)
@@ -937,6 +957,23 @@ static int init_dohclient()
 		}
 	}
 
+	if (conf.hosts && *conf.hosts) {
+		int argslen = strlen(conf.hosts) + sizeof("hosts=");
+		char *args = (char*)malloc(argslen);
+		if (!args) {
+			loge("init_dohclient() error: alloc\n");
+			return -1;
+		}
+		snprintf(args, argslen, "hosts=%s", conf.hosts);
+		if (channel_create(&hosts, "hosts", args,
+			&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
+			loge("init_dohclient() error: create \"hosts\" channel error\n");
+			free(args);
+			return -1;
+		}
+		free(args);
+	}
+
 	if (http_init(&conf) != 0) {
 		loge("init_dohclient() error: http_init() error\n");
 		return -1;
@@ -1041,6 +1078,11 @@ static void uninit_dohclient()
 	if (cache) {
 		cache->destroy(cache);
 		cache = NULL;
+	}
+
+	if (hosts) {
+		hosts->destroy(hosts);
+		hosts = NULL;
 	}
 
 	chnroute_free(chnr);

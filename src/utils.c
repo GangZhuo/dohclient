@@ -38,3 +38,34 @@ char* trim_quote(char* s)
 
 	return start;
 }
+
+int parse_querystring(const char *query,
+	int (*callback)(char *name, char *value, void *state),
+	void *state)
+{
+	char *cpy;
+	char *p;
+	char *v;
+
+	if (!query) return -1;
+
+	cpy = strdup(query);
+
+	for (p = strtok(cpy, "&");
+		p && *p;
+		p = strtok(NULL, "&")) {
+
+		v = strchr(p, '=');
+		if (!v) continue;
+
+		*v = '\0';
+		v++;
+
+		if (callback(p, v, state)) {
+			return -1;
+		}
+	}
+
+	free(cpy);
+	return 0;
+}

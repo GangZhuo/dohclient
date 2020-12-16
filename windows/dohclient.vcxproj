@@ -166,6 +166,7 @@
     <ClCompile Include="..\src\channel_os.c" />
     <ClCompile Include="..\src\channel_tcp.c" />
     <ClCompile Include="..\src\channel_udp.c" />
+    <ClCompile Include="..\src\channel_hosts.c" />
     <ClCompile Include="..\src\chnroute.c" />
     <ClCompile Include="..\src\config.c" />
     <ClCompile Include="..\src\dns_request.c" />
@@ -191,6 +192,7 @@
     <ClInclude Include="..\src\channel_os.h" />
     <ClInclude Include="..\src\channel_tcp.h" />
     <ClInclude Include="..\src\channel_udp.h" />
+    <ClInclude Include="..\src\channel_hosts.h" />
     <ClInclude Include="..\src\chnroute.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\dllist.h" />
