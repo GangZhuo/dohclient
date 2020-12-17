@@ -41,6 +41,7 @@ tags
 # coc
 .clangd
 compile_commands.json
+.cache
 
 *.user
 dohclient
