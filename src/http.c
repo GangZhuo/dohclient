@@ -1393,14 +1393,16 @@ static int http_conn_send(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_send() error: errno=%d, %s - %s\n",
-				err, http_ssl_errstr(err),
-				conn->tag ? conn->tag : "");
-			if (err == SSL_ERROR_SYSCALL) {
-				while ((err = ERR_get_error()) != 0) {
-					loge("http_conn_send() error: errno=%d, %s - %s\n",
-						err, ERR_error_string(err, NULL),
-						conn->tag ? conn->tag : "");
+			if (conn->status != HTTP_CONN_ST_IDLE) {
+				loge("http_conn_send() error: errno=%d, %s - %s\n",
+					err, http_ssl_errstr(err),
+					conn->tag ? conn->tag : "");
+				if (err == SSL_ERROR_SYSCALL) {
+					while ((err = ERR_get_error()) != 0) {
+						loge("http_conn_send() error: errno=%d, %s - %s\n",
+							err, ERR_error_string(err, NULL),
+							conn->tag ? conn->tag : "");
+					}
 				}
 			}
 			return -1;
@@ -1448,14 +1450,16 @@ static int http_conn_recv(http_conn_t* conn)
 			return 0;
 		}
 		else {
-			loge("http_conn_recv() error: errno=%d, %s - %s\n",
-				err, http_ssl_errstr(err),
-				conn->tag ? conn->tag : "");
-			if (err == SSL_ERROR_SYSCALL) {
-				while ((err = ERR_get_error()) != 0) {
-					loge("http_conn_recv() error: errno=%d, %s - %s\n",
-						err, ERR_error_string(err, NULL),
-						conn->tag ? conn->tag : "");
+			if (conn->status != HTTP_CONN_ST_IDLE) {
+				loge("http_conn_recv() error: errno=%d, %s - %s\n",
+					err, http_ssl_errstr(err),
+					conn->tag ? conn->tag : "");
+				if (err == SSL_ERROR_SYSCALL) {
+					while ((err = ERR_get_error()) != 0) {
+						loge("http_conn_recv() error: errno=%d, %s - %s\n",
+							err, ERR_error_string(err, NULL),
+							conn->tag ? conn->tag : "");
+					}
 				}
 			}
 			return -1;
