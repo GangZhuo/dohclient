@@ -290,7 +290,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 	char buf[512];
 	char *line;
 	FILE *fp;
-	int r, rownum = 0;
+	int rownum = 0;
 	sockaddr_t addr;
 	void *ip;
 	int family;
@@ -385,7 +385,6 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 static int hosts_parse_files(channel_t *ctx, const char *filenames)
 {
 	char *s, *p;
-	int r;
 
 	s = strdup(filenames);
 
@@ -401,7 +400,7 @@ static int hosts_parse_files(channel_t *ctx, const char *filenames)
 
 	free(s);
 
-	return r;
+	return 0;
 }
 
 static int parse_args_callback(char *name, char *value, void *state)
