@@ -528,7 +528,12 @@ static int server_recv_msg(const char *data, int datalen,
 		return -1;
 	}
 
-	return hosts->query(hosts, req->msg, hosts_cb, req);
+	if (hosts) {
+		return hosts->query(hosts, req->msg, hosts_cb, req);
+	}
+	else {
+		return cache->query(cache, req->msg, cache_cb, req);
+	}
 }
 
 static int server_udp_recv(int listen_index)
