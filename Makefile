@@ -44,6 +44,7 @@ dohclient: $(OBJS)
 
 .PHONY : install
 install:
+	-rm /usr/local/bin/dohclient
 	cp ./dohclient /usr/local/bin
 
 .PHONY : uninstall
@@ -52,8 +53,6 @@ uninstall:
 
 .PHONY: clean
 clean:
-	-rm -f rbtree/*.o
-	-rm -f http-parser/*.o
-	-rm -f src/*.o dohclient
+	-rm -f rbtree/*.o http-parser/*.o src/*.o dohclient
 
 
