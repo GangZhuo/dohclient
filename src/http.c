@@ -86,6 +86,7 @@ struct http_request_t {
 	void* cb_state;
 	char *tag; /* give a tag, e.g. domain name */
 	void* state;
+	time_t expire;
 };
 
 struct http_response_t {
@@ -155,6 +156,12 @@ static inline void http_update_expire(http_conn_t* conn)
 static inline int http_is_expired(http_conn_t* conn, time_t now)
 {
 	return conn->conn.expire <= now;
+}
+
+static inline int http_is_request_expired(http_conn_t* conn, time_t now)
+{
+	http_request_t *req = conn->request;
+	return req && req->expire > 0 && req->expire <= now;
 }
 
 static void http_conn_free(http_conn_t *conn)
@@ -1695,6 +1702,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 	time_t now;
 	int r = 0;
 	int is_sending;
+	int is_req_expired;
 	now = time(NULL);
 	dllist_foreach(conns, cur, nxt,
 		http_conn_t, conn, entry) {
@@ -1792,8 +1800,11 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			}
 		}
 
-		if (r == 0 && http_is_expired(conn, now)) {
-			loge("http timeout - %s\n", get_sockname(conn->conn.sock));
+		if (r == 0 && ((is_req_expired = http_is_request_expired(conn, now)) || http_is_expired(conn, now))) {
+			if (is_req_expired)
+				loge("http request timeout - %s\n", get_sockname(conn->conn.sock));
+			else
+				logd("http timeout - %s\n", get_sockname(conn->conn.sock));
 			r = -1;
 			req = conn->request;
 			res = conn->response;
@@ -1898,6 +1909,7 @@ int http_step(http_ctx_t* ctx,
 }
 
 int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* request,
+	int timeout,
 	http_callback_fun_t callback, void* state)
 {
 	http_conn_t* conn;
@@ -1930,6 +1942,13 @@ int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* 
 
 	if (request->tag) {
 		conn->tag = strdup(request->tag);
+	}
+
+	if (timeout > 0) {
+		request->expire = time(NULL) + timeout;
+	}
+	else {
+		request->expire = 0;
 	}
 
 	if (conn->conn.status == cs_connected) {

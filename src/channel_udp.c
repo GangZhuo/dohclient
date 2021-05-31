@@ -418,8 +418,24 @@ int channel_udp_create(
 
 	memset(ctx, 0, sizeof(channel_udp_t));
 
+	ctx->name = name;
+	ctx->conf = conf;
+	ctx->proxies = proxies;
+	ctx->proxy_num = proxy_num;
+	ctx->chnr = chnr;
+	ctx->blacklist = blacklist;
+	ctx->data = data;
+	ctx->timeout = conf->timeout;
+
 	if (parse_args(ctx, args)) {
 		loge("channel_udp_create() error: parse_args() error\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	if (ctx->timeout <= 0) {
+		loge("channel_udp_create() error: invalid \"timeout\"\n");
+		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}
 
@@ -447,15 +463,7 @@ int channel_udp_create(
 	rbtree_init(&ctx->reqdic, rbcmp);
 	dllist_init(&ctx->reqs);
 
-	ctx->name = name;
-	ctx->conf = conf;
-	ctx->proxies = proxies;
-	ctx->proxy_num = proxy_num;
-	ctx->chnr = chnr;
-	ctx->blacklist = blacklist;
-	ctx->data = data;
 	ctx->sock = sock;
-
 	ctx->fdset = fdset;
 	ctx->step = step;
 	ctx->query = query;

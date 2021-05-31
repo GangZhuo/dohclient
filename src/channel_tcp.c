@@ -903,13 +903,6 @@ int channel_tcp_create(
 
 	memset(ctx, 0, sizeof(channel_tcp_t));
 
-	if (parse_args(ctx, args)) {
-		loge("channel_tcp_create() error: parse_args() error\n");
-		return CHANNEL_WRONG_ARG;
-	}
-
-	dllist_init(&ctx->reqs);
-
 	ctx->name = name;
 	ctx->conf = conf;
 	ctx->proxies = proxies;
@@ -917,6 +910,21 @@ int channel_tcp_create(
 	ctx->chnr = chnr;
 	ctx->blacklist = blacklist;
 	ctx->data = data;
+	ctx->timeout = conf->timeout;
+
+	if (parse_args(ctx, args)) {
+		loge("channel_tcp_create() error: parse_args() error\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	if (ctx->timeout <= 0) {
+		loge("channel_tcp_create() error: invalid \"timeout\"\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	dllist_init(&ctx->reqs);
 
 	ctx->fdset = fdset;
 	ctx->step = step;

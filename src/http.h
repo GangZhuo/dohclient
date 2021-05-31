@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#define DEFAULT_HTTP_TIMEOUT 20 * 60
+#define DEFAULT_HTTP_TIMEOUT 20 * 60 /* 20 minutes*/
 
 #define HTTP_OK			0
 #define HTTP_ABORT		1
@@ -127,6 +127,7 @@ int http_step(http_ctx_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset);
 
 int http_send(http_ctx_t* ctx, sockaddr_t* addr, int use_proxy, http_request_t* request,
+	int timeout,
 	http_callback_fun_t callback, void* state);
 
 #ifdef __cplusplus

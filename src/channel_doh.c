@@ -36,6 +36,7 @@ typedef struct channel_doh_t {
 	int keep_alive;
 	int use_proxy;
 	int ecs;
+	int timeout;
 	subnet_t china_net;
 	subnet_t foreign_net;
 	subnet_t china_net6;
@@ -760,7 +761,7 @@ static int doh_http_query(channel_req_t* rq, subnet_t* subnet)
 		return -1;
 	}
 
-	r = http_send(c->http, &c->http_addr, c->use_proxy, req, http_cb, rq);
+	r = http_send(c->http, &c->http_addr, c->use_proxy, req, c->timeout, http_cb, rq);
 	if (r) {
 		loge("doh_http_query() error: http_send() error\n");
 		free(http_request_get_data(req, NULL));
@@ -941,13 +942,16 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 			ctx->post = strcmp(v, "0");
 		}
 		else if (strcmp(p, "keep-alive") == 0) {
-            ctx->keep_alive = strcmp(v, "0");
+            ctx->keep_alive = atoi(v);
         }
 		else if (strcmp(p, "proxy") == 0) {
             ctx->use_proxy = strcmp(v, "0");
         }
         else if (strcmp(p, "ecs") == 0) {
             ctx->ecs = strcmp(v, "0");
+        }
+        else if (strcmp(p, "timeout") == 0) {
+            ctx->timeout = atoi(v);
         }
         else if (strcmp(p, "china-ip4") == 0) {
             if (v && *v && parse_subnet(&ctx->china_net, v)) {
@@ -1007,23 +1011,6 @@ int channel_doh_create(
 
 	memset(ctx, 0, sizeof(channel_doh_t));
 
-	if (parse_args(ctx, args)) {
-		loge("channel_doh_create() error: parse_args() error\n");
-		return CHANNEL_WRONG_ARG;
-	}
-
-	ctx->http = http_create(
-		proxies,
-		proxy_num,
-		DEFAULT_HTTP_TIMEOUT);
-	if (!ctx->http) {
-		free(ctx);
-		return CHANNEL_ALLOC;
-	}
-
-	rbtree_init(&ctx->reqdic, rbcmp);
-	dllist_init(&ctx->reqs);
-
 	ctx->name = name;
 	ctx->conf = conf;
 	ctx->proxies = proxies;
@@ -1031,6 +1018,41 @@ int channel_doh_create(
 	ctx->chnr = chnr;
 	ctx->blacklist = blacklist;
 	ctx->data = data;
+	ctx->timeout = conf->timeout;
+
+	if (parse_args(ctx, args)) {
+		loge("channel_doh_create() error: parse_args() error\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	if (ctx->timeout <= 0) {
+		loge("channel_doh_create() error: invalid \"timeout\"\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	if (ctx->keep_alive < 0) {
+		loge("channel_doh_create() error: invalid \"keep-alive\"\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	/* Compatible with old configuration */
+	if (ctx->keep_alive == 1)
+		ctx->keep_alive = DEFAULT_HTTP_TIMEOUT;
+
+	ctx->http = http_create(
+		proxies,
+		proxy_num,
+		ctx->keep_alive);
+	if (!ctx->http) {
+		free(ctx);
+		return CHANNEL_ALLOC;
+	}
+
+	rbtree_init(&ctx->reqdic, rbcmp);
+	dllist_init(&ctx->reqs);
 
 	ctx->fdset = fdset;
 	ctx->step = step;

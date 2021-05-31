@@ -24,9 +24,10 @@
 #define FLG_ECS_FRN		(1 << 11)
 #define FLG_BLACKLIST	(1 << 12)
 
-#define CH_DOH	0
-#define CH_UDP	1
-#define CH_TCP	2
+#define CH_NONE	0
+#define CH_DOH	1
+#define CH_UDP	2
+#define CH_TCP	3
 
 typedef int (*doh_query_func)(
 	channel_t* ctx,
@@ -43,10 +44,14 @@ typedef struct doh_server_t {
 	int keep_alive;
 	int use_proxy;
 	int ecs;
+	int timeout;
 	subnet_t net;
 	subnet_t net6;
 	int channel; /* CH_[DOH|UDP|TCP] */
-	channel_t* chctx;
+	union {
+		channel_t* chctx;
+		http_ctx_t* http;
+	};
 	doh_query_func query;
 	int auto_resolve_host;
 } doh_server_t;
@@ -56,7 +61,6 @@ typedef struct channel_chndoh_t {
 	dllist_t reqs;
 	struct rbtree_t reqdic;
 	int req_count;
-	http_ctx_t* http;
 
 	/* China DoH server */
 	doh_server_t chndoh;
@@ -82,6 +86,11 @@ typedef struct channel_req_t {
 	int untrust;
 	unsigned long start_time;
 } channel_req_t;
+
+#define is_auto_relolve(_s) \
+	((_s)->channel == CH_DOH && \
+	 (_s)->auto_resolve_host && \
+	 (_s)->addr_expire < time(NULL))
 
 static int doh_query(channel_req_t* rq);
 
@@ -147,9 +156,6 @@ static void destroy(channel_t* ctx)
 	dlitem_t* cur, * nxt;
 	channel_req_t* req;
 
-	/* Destroy http first */
-	http_destroy(c->http);
-
 	dllist_foreach(&c->reqs, cur, nxt,
 		channel_req_t, req, entry) {
 		dllist_remove(&req->entry);
@@ -162,7 +168,11 @@ static void destroy(channel_t* ctx)
 	free(c->chndoh.path);
 	free(c->chndoh.net.name);
 	free(c->chndoh.net6.name);
-	if (c->chndoh.chctx) {
+	if (c->chndoh.channel == CH_DOH && c->chndoh.http) {
+		http_destroy(c->chndoh.http);
+		c->chndoh.http = NULL;
+	}
+	else if (c->chndoh.chctx) {
 		c->chndoh.chctx->destroy(c->chndoh.chctx);
 		c->chndoh.chctx = NULL;
 	}
@@ -171,7 +181,11 @@ static void destroy(channel_t* ctx)
 	free(c->frndoh.path);
 	free(c->frndoh.net.name);
 	free(c->frndoh.net6.name);
-	if (c->frndoh.chctx) {
+	if (c->frndoh.channel == CH_DOH && c->frndoh.http) {
+		http_destroy(c->frndoh.http);
+		c->frndoh.http = NULL;
+	}
+	else if (c->frndoh.chctx) {
 		c->frndoh.chctx->destroy(c->frndoh.chctx);
 		c->frndoh.chctx = NULL;
 	}
@@ -299,21 +313,31 @@ static sock_t fdset(channel_t* ctx,
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
 	sock_t maxfd = 0, fd;
 
-	if (c->chndoh.chctx) {
+	if (c->chndoh.channel == CH_DOH) {
+		if (c->chndoh.http) {
+			fd = http_fdset(c->chndoh.http, readset, writeset, errorset);
+			if (fd < 0) return -1;
+			maxfd = MAX(maxfd, fd);
+		}
+	}
+	else if (c->chndoh.chctx) {
 		fd = c->chndoh.chctx->fdset(c->chndoh.chctx, readset, writeset, errorset);
 		if (fd < 0) return -1;
 		maxfd = MAX(maxfd, fd);
 	}
 
-	if (c->frndoh.chctx) {
+	if (c->frndoh.channel == CH_DOH) {
+		if (c->frndoh.http) {
+			fd = http_fdset(c->frndoh.http, readset, writeset, errorset);
+			if (fd < 0) return -1;
+			maxfd = MAX(maxfd, fd);
+		}
+	}
+	else if (c->frndoh.chctx) {
 		fd = c->frndoh.chctx->fdset(c->frndoh.chctx, readset, writeset, errorset);
 		if (fd < 0) return -1;
 		maxfd = MAX(maxfd, fd);
 	}
-
-	fd = http_fdset(c->http, readset, writeset, errorset);
-	if (fd < 0) return -1;
-	maxfd = MAX(maxfd, fd);
 
 	return maxfd;
 }
@@ -324,26 +348,34 @@ static int step(channel_t* ctx,
 	channel_chndoh_t* c = (channel_chndoh_t*)ctx;
 	int r;
 
-	if (c->chndoh.host && !c->chndoh.chctx && c->chndoh.auto_resolve_host && c->chndoh.addr_expire < time(NULL)) {
+	if (is_auto_relolve(&c->chndoh)) {
 		query_doh_addr(c, &c->chndoh);
 	}
 
-	if (c->frndoh.host && !c->frndoh.chctx && c->frndoh.auto_resolve_host && c->frndoh.addr_expire < time(NULL)) {
+	if (is_auto_relolve(&c->frndoh)) {
 		query_doh_addr(c, &c->frndoh);
 	}
 
-	if (c->chndoh.chctx) {
+	if (c->chndoh.channel == CH_DOH) {
+		if (c->chndoh.http) {
+			http_step(c->chndoh.http, readset, writeset, errorset);
+		}
+	}
+	else if (c->chndoh.chctx) {
 		r = c->chndoh.chctx->step(c->chndoh.chctx, readset, writeset, errorset);
 		if (r) return -1;
 	}
 
-	if (c->frndoh.chctx) {
+	if (c->frndoh.channel == CH_DOH) {
+		if (c->frndoh.http) {
+			http_step(c->frndoh.http, readset, writeset, errorset);
+		}
+	}
+	else if (c->frndoh.chctx) {
 		r = c->frndoh.chctx->step(c->frndoh.chctx, readset, writeset, errorset);
 		if (r) return -1;
 	}
 
-	http_step(c->http, readset, writeset, errorset);
-	
 	return 0;
 }
 
@@ -877,7 +909,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 		return -1;
 	}
 
-	r = http_send(c->http, &doh->addr, use_proxy, req, http_cb, rq);
+	r = http_send(doh->http, &doh->addr, use_proxy, req, doh->timeout, http_cb, rq);
 	if (r) {
 		loge("doh_channel_query() error: http_send() error\n");
 		free(http_request_get_data(req, NULL));
@@ -933,16 +965,7 @@ static int doh_query(channel_req_t* rq)
 	channel_chndoh_t* c = rq->ctx;
 	int r = 0;
 
-	if (c->chndoh.host || c->chndoh.query) {
-		r = doh_emit_query(rq, &c->chndoh);
-		if (r) {
-			loge("doh_query() error: doh_emit_query() error\n");
-			return -1;
-		}
-		rq->wait_num++;
-	}
-
-	if (c->frndoh.host || c->frndoh.query) {
+	if (c->frndoh.channel != CH_NONE) {
 		r = doh_emit_query(rq, &c->frndoh);
 		if (r) {
 			loge("doh_query() error: doh_emit_query() error\n");
@@ -950,7 +973,15 @@ static int doh_query(channel_req_t* rq)
 		}
 		rq->wait_num++;
 	}
-	
+
+	if (c->chndoh.channel != CH_NONE) {
+		r = doh_emit_query(rq, &c->chndoh);
+		if (r) {
+			loge("doh_query() error: doh_emit_query() error\n");
+			return -1;
+		}
+		rq->wait_num++;
+	}
 
 	if (rq->wait_num == 0) {
 		loge("doh_query() error: no DoH server\n");
@@ -1058,12 +1089,12 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			if (!try_parse_as_ip( &doh->addr, p,
 				(v && (*v)) 
 					? v 
-					: (doh->channel ? "53" : "443")) ) {
+					: (doh->channel == CH_DOH ? "443" : "53")) ) {
 				loge("parse address failed: %s:%s\n",
 						p,
 						(v && (*v)) 
 							? v 
-							: (doh->channel ? "53" : "443")
+							: (doh->channel == CH_DOH ? "443" : "53")
 					);
 				free(cpy);
 				return -1;
@@ -1081,7 +1112,7 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 		}
 		else if (strcmp(p, "chndoh.keep-alive") == 0 || strcmp(p, "frndoh.keep-alive") == 0) {
 			doh = strcmp(p, "chndoh.keep-alive") == 0 ? &ctx->chndoh : &ctx->frndoh;
-			doh->keep_alive = strcmp(v, "0");
+			doh->keep_alive = atoi(v);
 		}
 		else if (strcmp(p, "chndoh.post") == 0 || strcmp(p, "frndoh.post") == 0) {
 			doh = strcmp(p, "chndoh.post") == 0 ? &ctx->chndoh : &ctx->frndoh;
@@ -1115,10 +1146,20 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 			doh = strcmp(p, "chndoh.channel") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			if (strcmp(v, "udp") == 0) doh->channel = CH_UDP;
 			else if (strcmp(v, "tcp") == 0) doh->channel = CH_TCP;
+			else if (strcmp(v, "doh") == 0) doh->channel = CH_DOH;
+			else {
+				loge("parse \"%s=%s\" failed: Unknown channel\n", p, v);
+				free(cpy);
+				return -1;
+			}
 		}
 		else if (strcmp(p, "chndoh.resolve") == 0 || strcmp(p, "frndoh.resolve") == 0) {
 			doh = strcmp(p, "chndoh.resolve") == 0 ? &ctx->chndoh : &ctx->frndoh;
 			doh->auto_resolve_host = strcmp(v, "0");
+		}
+		else if (strcmp(p, "chndoh.timeout") == 0 || strcmp(p, "frndoh.timeout") == 0) {
+			doh = strcmp(p, "chndoh.timeout") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->timeout = atoi(v);
 		}
 		else {
 			logw("unknown argument: %s=%s\n", p, v);
@@ -1135,9 +1176,10 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 		char args[2048];
 		int n;
 		n = snprintf(args, sizeof(args),
-			"upstream=%s&proxy=%d&timeout=10",
+			"upstream=%s&proxy=%d&timeout=%d",
 			get_sockaddrname(&doh->addr),
-			doh->use_proxy);
+			doh->use_proxy,
+			doh->timeout);
 		if (n <= 0 || n >= sizeof(args))
 			return -1;
 		doh->query = channel_udp_query;
@@ -1154,9 +1196,10 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 		char args[2048];
 		int n;
 		n = snprintf(args, sizeof(args),
-			"upstream=%s&proxy=%d&timeout=10",
+			"upstream=%s&proxy=%d&timeout=%d",
 			get_sockaddrname(&doh->addr),
-			doh->use_proxy);
+			doh->use_proxy,
+			doh->timeout);
 		if (n <= 0 || n >= sizeof(args))
 			return -1;
 		doh->query = channel_tcp_query;
@@ -1168,6 +1211,60 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 			c->chnr,
 			c->blacklist,
 			doh);
+	}
+	else if (doh->channel == CH_DOH) {
+		doh->http = http_create(
+			c->proxies,
+			c->proxy_num,
+			doh->keep_alive);
+		if (!doh->http)
+			return -1;
+		return 0;
+	}
+	return -1;
+}
+
+static int check_doh_server(doh_server_t *doh)
+{
+	if (is_empty_sockaddr(&doh->addr)) {
+		loge("check_doh_server() error: no \"addr\"\n");
+		return -1;
+	}
+	if (doh->channel == CH_DOH) {
+		if (!doh->host || !*doh->host) {
+			loge("check_doh_server() error: no \"host\"\n");
+			return -1;
+		}
+		if (!doh->path || !*doh->path) {
+			loge("check_doh_server() error: no \"path\"\n");
+			return -1;
+		}
+	}
+	if (doh->timeout <= 0) {
+		loge("check_doh_server() error: invalid \"timeout\"\n");
+		return -1;
+	}
+	if (doh->keep_alive < 0) {
+		loge("check_doh_server() error: invalid \"keep-alive\"\n");
+		return -1;
+	}
+
+	/* Compatible with old configuration */
+	if (doh->keep_alive == 1)
+		doh->keep_alive = DEFAULT_HTTP_TIMEOUT;
+
+	return 0;
+}
+
+static int check_ctx(channel_chndoh_t *ctx)
+{
+	if (ctx->chndoh.channel != CH_NONE) {
+		if (check_doh_server(&ctx->chndoh))
+			return -1;
+	}
+	if (ctx->frndoh.channel != CH_NONE) {
+		if (check_doh_server(&ctx->frndoh))
+			return -1;
 	}
 	return 0;
 }
@@ -1193,28 +1290,6 @@ int channel_chndoh_create(
 
 	memset(ctx, 0, sizeof(channel_chndoh_t));
 
-	ctx->chndoh.keep_alive = TRUE;
-	ctx->frndoh.keep_alive = TRUE;
-	ctx->chndoh.auto_resolve_host = TRUE;
-	ctx->frndoh.auto_resolve_host = TRUE;
-
-	if (parse_args(ctx, args)) {
-		loge("channel_chndoh_create() error: parse_args() error\n");
-		return CHANNEL_WRONG_ARG;
-	}
-
-	ctx->http = http_create(
-		proxies,
-		proxy_num,
-		DEFAULT_HTTP_TIMEOUT);
-	if (!ctx->http) {
-		free(ctx);
-		return CHANNEL_ALLOC;
-	}
-
-	rbtree_init(&ctx->reqdic, rbcmp);
-	dllist_init(&ctx->reqs);
-
 	ctx->name = name;
 	ctx->conf = conf;
 	ctx->proxies = proxies;
@@ -1223,12 +1298,40 @@ int channel_chndoh_create(
 	ctx->blacklist = blacklist;
 	ctx->data = data;
 
+	ctx->chndoh.timeout = conf->timeout;
+	ctx->frndoh.timeout = conf->timeout;
+	ctx->chndoh.keep_alive = TRUE;
+	ctx->frndoh.keep_alive = TRUE;
+	ctx->chndoh.auto_resolve_host = TRUE;
+	ctx->frndoh.auto_resolve_host = TRUE;
+
+	if (parse_args(ctx, args)) {
+		loge("channel_chndoh_create() error: parse_args() error\n");
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	if (check_ctx(ctx)) {
+		free(ctx);
+		return CHANNEL_WRONG_ARG;
+	}
+
+	rbtree_init(&ctx->reqdic, rbcmp);
+	dllist_init(&ctx->reqs);
+
 	ctx->fdset = fdset;
 	ctx->step = step;
 	ctx->query = query;
 	ctx->destroy = destroy;
 
-	if (create_upstream_chctx(&ctx->chndoh, ctx) || create_upstream_chctx(&ctx->frndoh, ctx)) {
+	if (ctx->chndoh.channel != CH_NONE && create_upstream_chctx(&ctx->chndoh, ctx)) {
+		loge("channel_chndoh_create() error: create_upstream_chctx(chndoh) error\n");
+		destroy((channel_t*)ctx);
+		return CHANNEL_ERROR;
+	}
+
+	if (ctx->frndoh.channel != CH_NONE && create_upstream_chctx(&ctx->frndoh, ctx)) {
+		loge("channel_chndoh_create() error: create_upstream_chctx(frndoh) error\n");
 		destroy((channel_t*)ctx);
 		return CHANNEL_ERROR;
 	}

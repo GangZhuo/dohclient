@@ -3,6 +3,8 @@
 #include <assert.h>
 #include "mleak.h"
 
+const sockaddr_t empty_sockaddr[1] = {0};
+
 int try_parse_as_ip4(sockaddr_t* addr, const char* host, const char* port)
 {
 	struct sockaddr_in* in = (struct sockaddr_in*)(&addr->addr);

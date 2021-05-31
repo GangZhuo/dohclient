@@ -200,6 +200,13 @@ struct peer_t {
 extern "C" {
 #endif
 
+extern const sockaddr_t empty_sockaddr[1];
+
+static inline int is_empty_sockaddr(sockaddr_t *addr)
+{
+	return !addr || memcmp(addr, empty_sockaddr, sizeof(sockaddr_t)) == 0;
+}
+
 int try_parse_as_ip4(sockaddr_t* addr, const char* host, const char* port);
 int try_parse_as_ip6(sockaddr_t* addr, const char* host, const char* port);
 int try_parse_as_ip(sockaddr_t* addr, const char* host, const char* port);
