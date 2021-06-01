@@ -654,7 +654,7 @@ static int query_cb(channel_t* ctx,
 		if (ctx != NULL) {
 			doh_server_t* doh = (doh_server_t*)ctx->data;
 
-			loge("%d. query %s failed: %s (%lu ms)\n",
+			loge("%d. query %s failed - %s (%lu ms)\n",
 				2 - rq->wait_num,
 				rq->qr.qname,
 				get_sockaddrname(&doh->addr),
