@@ -9,10 +9,10 @@
     + [Usage](#usage)
     + [Channels](#channels)
       - [1. os](#1-os)
-      - [2. doh](#2-doh)
-        * [Channel Arguments](#channel-arguments)
-      - [3. chinadns](#3-chinadns)
-        * [Server Arguments](#server-arguments)
+      - [2. os](#2-udp)
+      - [3. os](#3-tcp)
+      - [4. doh](#4-doh)
+      - [5. chinadns](#5-chinadns)
     + [dohclient.config](#dohclientconfig)
     + [Proxy Google DoH By Cloudflare Workers](#proxy-google-doh-by-cloudflare-workers)
 
@@ -155,7 +155,7 @@ dohclient -b 0.0.0.0 -p 5354 --proxy=127.0.0.1:1080 -vv \
 查询超时时间，单位为秒。覆盖全局配置的超时时间。
 
 
-#### 3. doh
+#### 4. doh
 
 Example:
 ```
@@ -219,7 +219,7 @@ DoH 服务的路径。
 查询超时时间，单位为秒。覆盖全局配置的超时时间。
 
 
-#### 4. chinadns
+#### 5. chinadns
 
 Example:
 ```
