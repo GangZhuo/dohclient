@@ -4,13 +4,18 @@
 
 #define _M
 
+typedef struct upstream_t {
+	sockaddr_t addr;
+	sock_t sock;
+} upstream_t;
+
 typedef struct channel_udp_t {
 	CHANNEL_BASE(_M)
 	dllist_t reqs;
 	struct rbtree_t reqdic;
 	int req_count;
-	sock_t sock;
-	sockaddr_t upstream_addr;
+	upstream_t upstreams[MAX_UPSTREAM];
+	int upstream_num;
 	int use_proxy;
 	int timeout;
 	char recv_buffer[NS_PAYLOAD_SIZE];
@@ -101,8 +106,11 @@ static void destroy(channel_t* ctx)
 		}
 		req_destroy(req);
 	}
-	if (c->sock) {
-		close(c->sock);
+	if (c->upstream_num > 0) {
+		int i;
+		for (i = 0; i < c->upstream_num; i++) {
+			close(c->upstreams[i].sock);
+		}
 	}
 	free(ctx);
 }
@@ -114,6 +122,7 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 	ns_msg_t msg;
 	int len;
 	stream_t s = STREAM_INIT();
+	int i = 0, n = 0;
 
 	init_ns_msg(&msg);
 
@@ -152,11 +161,23 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 
 	ns_msg_free(&msg);
 
-	s.pos = 0;
 
-	r = udp_send(c->sock, &s, (const struct sockaddr*)&c->upstream_addr.addr, c->upstream_addr.addrlen);
-	if (r != s.size) {
-		loge("udp_query() error: udp_send() error\n");
+	for (i = 0, n = 0; i < c->upstream_num; i++) {
+		s.pos = 0;
+		r = udp_send(c->upstreams[i].sock, &s,
+				(const struct sockaddr*)&c->upstreams[i].addr.addr,
+				c->upstreams[i].addr.addrlen);
+		if (r != s.size) {
+			logw("udp_query() error: udp_send() error - %s\n",
+					get_sockaddrname(&c->upstreams[i].addr));
+		}
+		else {
+			n++;
+		}
+	}
+
+	if (n == 0) {
+		loge("udp_query() error: udp_send() error, no available upstream\n");
 		stream_free(&s);
 		return -1;
 	}
@@ -193,10 +214,13 @@ static int parse_recv(channel_udp_t* c, char* buf, int buf_len, struct sockaddr*
 
 	rbn = rbtree_lookup(&c->reqdic, &result->id);
 	if (!rbn) {
-		logd("request have been destroyed - %s\n", msg_key(result));
+		logd("request have been destroyed - %s - %s\n", msg_key(result), get_addrname(from));
 		ns_msg_free(result);
 		free(result);
 		return -1;
+	}
+	else if (loglevel >= LOG_DEBUG) {
+		logd("request got answer(s) - %s - %s\n", msg_key(result), get_addrname(from));
 	}
 
 	req = rbtree_container_of(rbn, udpreq_t, rbn);
@@ -247,33 +271,39 @@ static sock_t fdset(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	channel_udp_t* c = (channel_udp_t*)ctx;
-	FD_SET(c->sock, readset);
-	FD_SET(c->sock, errorset);
-	return c->sock;
+	sock_t maxfd = 0;
+	int i;
+	for (i = 0; i < c->upstream_num; i++) {
+		FD_SET(c->upstreams[i].sock, readset);
+		FD_SET(c->upstreams[i].sock, errorset);
+		maxfd = MAX(maxfd, c->upstreams[i].sock);
+	}
+	return maxfd;
 }
 
-static int step(channel_t* ctx,
-	fd_set* readset, fd_set* writeset, fd_set* errorset)
+static int upstream_step(channel_t* ctx,
+	fd_set* readset, fd_set* writeset, fd_set* errorset, int upstream)
 {
 	channel_udp_t* c = (channel_udp_t*)ctx;
+	upstream_t *up = &c->upstreams[upstream];
 	struct sockaddr_storage addr = { 0 };
 	struct sockaddr* from = (struct sockaddr*)&addr;
 	int from_len = sizeof(struct sockaddr_storage);
 	int r;
 	
-	if (FD_ISSET(c->sock, errorset)) {
-		int err = getsockerr(c->sock);
+	if (FD_ISSET(up->sock, errorset)) {
+		int err = getsockerr(up->sock);
 		loge("step(): sock error: errno=%d, %s \n",
 			err, strerror(err));
 		return -1;
 	}
-	else if (FD_ISSET(c->sock, readset)) {
-		r = udp_recv(c->sock, c->recv_buffer, NS_PAYLOAD_SIZE, from, &from_len);
+	else if (FD_ISSET(up->sock, readset)) {
+		r = udp_recv(up->sock, c->recv_buffer, NS_PAYLOAD_SIZE, from, &from_len);
 		if (r >= 0) {
 			parse_recv(c, c->recv_buffer, r, from, from_len);
 		}
 		else {
-			int err = getsockerr(c->sock);
+			int err = getsockerr(up->sock);
 			loge("step() error: errno=%d, %s\n",
 				err, strerror(err));
 			return -1;
@@ -282,6 +312,20 @@ static int step(channel_t* ctx,
 
 	check_expire(c);
 
+	return 0;
+}
+
+static int step(channel_t* ctx,
+	fd_set* readset, fd_set* writeset, fd_set* errorset)
+{
+	channel_udp_t* c = (channel_udp_t*)ctx;
+	int i,r;
+	for (i = 0; i < c->upstream_num; i++) {
+		r = upstream_step(ctx, readset, writeset, errorset, i);
+		if (r) {
+			return r;
+		}
+	}
 	return 0;
 }
 
@@ -343,27 +387,9 @@ static int parse_args(channel_udp_t* ctx, const char* args)
 		v++;
 
 		if (strcmp(p, "upstream") == 0) {
-			p = v;
-			if (*p == '[') {
-				p++;
-				v = strchr(p, ']');
-				if (v) {
-					*v = '\0';
-					v++;
-					if (*v == ':') {
-						v++;
-					}
-				}
-			}
-			else {
-				v = strchr(p, ':');
-				if (v) {
-					*v = '\0';
-					v++;
-				}
-			}
-
-			if (!try_parse_as_ip(&ctx->upstream_addr, p, (v && (*v)) ? v : "53")) {
+			int n = str2addrs(v, &ctx->upstreams[0].addr, MAX_UPSTREAM,
+					sizeof(upstream_t), "53");
+			if (n <= 0) {
 				loge("parse address failed: %s:%s\n",
 					p,
 					(v && (*v)) ? v : "53"
@@ -371,6 +397,7 @@ static int parse_args(channel_udp_t* ctx, const char* args)
 				free(cpy);
 				return -1;
 			}
+			ctx->upstream_num = n;
 		}
 		else if (strcmp(p, "proxy") == 0) {
 			ctx->use_proxy = strcmp(v, "0");
@@ -409,6 +436,7 @@ int channel_udp_create(
 {
 	channel_udp_t* ctx;
 	sock_t sock;
+	int i;
 
 	ctx = (channel_udp_t*)malloc(sizeof(channel_udp_t));
 	if (!ctx) {
@@ -439,31 +467,35 @@ int channel_udp_create(
 		return CHANNEL_WRONG_ARG;
 	}
 
-	sock = socket(ctx->upstream_addr.addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
+	for (i = 0; i < ctx->upstream_num; i++) {
 
-	if (sock == -1) {
-		loge("channel_udp_create() error: create socket error. errno=%d, %s - %s\n",
-			errno, strerror(errno), get_sockaddrname(&ctx->upstream_addr));
-		free(ctx);
-		return CHANNEL_CREATE_SOCKET;
-	}
+		sock = socket(ctx->upstreams[i].addr.addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
 
-	if (setnonblock(sock) != 0) {
-		loge("channel_udp_create() error: set sock non-block failed - %s\n",
-			get_sockaddrname(&ctx->upstream_addr));
-		close(sock);
-		free(ctx);
-		return CHANNEL_CREATE_SOCKET;
-	}
+		if (sock == -1) {
+			loge("channel_udp_create() error: create socket error. errno=%d, %s - %s\n",
+				errno, strerror(errno), get_sockaddrname(&ctx->upstreams[i].addr));
+			free(ctx);
+			return CHANNEL_CREATE_SOCKET;
+		}
+
+		if (setnonblock(sock) != 0) {
+			loge("channel_udp_create() error: set sock non-block failed - %s\n",
+				get_sockaddrname(&ctx->upstreams[i].addr));
+			close(sock);
+			free(ctx);
+			return CHANNEL_CREATE_SOCKET;
+		}
 
 #ifdef WINDOWS
-	disable_udp_connreset(sock);
+		disable_udp_connreset(sock);
 #endif
+
+		ctx->upstreams[i].sock = sock;
+	}
 
 	rbtree_init(&ctx->reqdic, rbcmp);
 	dllist_init(&ctx->reqs);
 
-	ctx->sock = sock;
 	ctx->fdset = fdset;
 	ctx->step = step;
 	ctx->query = query;

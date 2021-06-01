@@ -11,6 +11,10 @@
 extern "C" {
 #endif
 
+#ifndef MAX_UPSTREAM
+#define MAX_UPSTREAM 8
+#endif
+
 typedef struct channel_t channel_t;
 typedef int (*channel_create_func)(
 	channel_t** pctx,
