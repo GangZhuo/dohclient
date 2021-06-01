@@ -384,13 +384,13 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 
 static int hosts_parse_files(channel_t *ctx, const char *filenames)
 {
-	char *s, *p;
+	char *s, *p, *saveptr = NULL;
 
 	s = strdup(filenames);
 
-	for (p = strtok(s, ",");
+	for (p = strtok_r(s, ",", &saveptr);
 		p && *p;
-		p = strtok(NULL, ",")) {
+		p = strtok_r(NULL, ",", &saveptr)) {
 
 		if (hosts_parse_file(ctx, p)) {
 			free(s);

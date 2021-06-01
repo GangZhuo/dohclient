@@ -363,7 +363,7 @@ static int feedback_net_list(chnroute_ctx ctx, chnroute_list_t* list)
 
 int chnroute_parse(chnroute_ctx ctx, const char* filename)
 {
-	char* s, * p;
+	char* s, * p, *saveptr = NULL;
 	int r;
 	chnroute_list_t list;
 
@@ -373,9 +373,9 @@ int chnroute_parse(chnroute_ctx ctx, const char* filename)
 
 	s = strdup(filename);
 
-	for (p = strtok(s, ",");
+	for (p = strtok_r(s, ",", &saveptr);
 		p && *p;
-		p = strtok(NULL, ",")) {
+		p = strtok_r(NULL, ",", &saveptr)) {
 
 		if (parse_chnroute_file(&list, p)) {
 			free_chnroute_list(&list.items);

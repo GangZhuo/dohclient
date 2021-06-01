@@ -37,8 +37,10 @@ typedef int (*doh_query_func)(
 
 typedef struct doh_server_t {
 	time_t addr_expire;
-	sockaddr_t addr;
+	sockaddr_t addr[MAX_UPSTREAM];
+	int addr_num;
 	int post;
+	char *addrstr;
 	char* host;
 	char* path;
 	int keep_alive;
@@ -164,6 +166,7 @@ static void destroy(channel_t* ctx)
 		myreq_destroy(req);
 	}
 
+	free(c->chndoh.addrstr);
 	free(c->chndoh.host);
 	free(c->chndoh.path);
 	free(c->chndoh.net.name);
@@ -222,11 +225,11 @@ static int query_doh_addr_cb(channel_t* ctx,
 	
 	doh->addr_expire = time(NULL) + ns_get_ttl(result);
 
-	if (doh->addr.addr.ss_family == AF_INET) {
-		port = ((struct sockaddr_in*)&doh->addr.addr)->sin_port;
+	if (doh->addr->addr.ss_family == AF_INET) {
+		port = ((struct sockaddr_in*)&doh->addr->addr)->sin_port;
 	}
 	else {
-		port = ((struct sockaddr_in6*)&doh->addr.addr)->sin6_port;
+		port = ((struct sockaddr_in6*)&doh->addr->addr)->sin6_port;
 	}
 
 	rrcount = result->ancount + result->nscount;
@@ -234,9 +237,9 @@ static int query_doh_addr_cb(channel_t* ctx,
 		rr = result->rrs + i;
 		if (rr->type == NS_QTYPE_A) {
 			struct in_addr* in = (struct in_addr*)rr->rdata;
-			struct sockaddr_in* addr = (struct sockaddr_in*)&doh->addr.addr;
+			struct sockaddr_in* addr = (struct sockaddr_in*)&doh->addr->addr;
 			memset(&doh->addr, 0, sizeof(sockaddr_t));
-			doh->addr.addrlen = sizeof(struct sockaddr_in);
+			doh->addr->addrlen = sizeof(struct sockaddr_in);
 			addr->sin_family = AF_INET;
 			addr->sin_port = port;
 			memcpy(&addr->sin_addr, in, sizeof(struct in_addr));
@@ -244,9 +247,9 @@ static int query_doh_addr_cb(channel_t* ctx,
 		}
 		else if (rr->type == NS_QTYPE_AAAA) {
 			struct in6_addr* in6 = (struct in6_addr*)rr->rdata;
-			struct sockaddr_in6* addr = (struct sockaddr_in6*)&doh->addr.addr;
+			struct sockaddr_in6* addr = (struct sockaddr_in6*)&doh->addr->addr;
 			memset(&doh->addr, 0, sizeof(sockaddr_t));
-			doh->addr.addrlen = sizeof(struct sockaddr_in6);
+			doh->addr->addrlen = sizeof(struct sockaddr_in6);
 			addr->sin6_family = AF_INET;
 			addr->sin6_port = port;
 			memcpy(&addr->sin6_addr, in6, sizeof(struct in6_addr));
@@ -620,7 +623,7 @@ static int query_cb(channel_t* ctx,
 				2 - rq->wait_num,
 				rq->qr.qname,
 				msg_answers(result),
-				get_sockaddrname(&doh->addr),
+				get_sockaddrname(doh->addr),
 				OS_GetTickCount() - rq->start_time);
 		}
 
@@ -657,7 +660,7 @@ static int query_cb(channel_t* ctx,
 			loge("%d. query %s failed - %s (%lu ms)\n",
 				2 - rq->wait_num,
 				rq->qr.qname,
-				get_sockaddrname(&doh->addr),
+				get_sockaddrname(doh->addr),
 				OS_GetTickCount() - rq->start_time);
 		}
 	}
@@ -909,7 +912,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 		return -1;
 	}
 
-	r = http_send(doh->http, &doh->addr, use_proxy, req, doh->timeout, http_cb, rq);
+	r = http_send(doh->http, doh->addr, use_proxy, req, doh->timeout, http_cb, rq);
 	if (r) {
 		loge("doh_channel_query() error: http_send() error\n");
 		free(http_request_get_data(req, NULL));
@@ -1045,7 +1048,7 @@ static int parse_subnet(subnet_t* subnet, const char* s)
 
 static int parse_args(channel_chndoh_t *ctx, const char* args)
 {
-	char* cpy;
+	char* cpy, *saveptr = NULL;
 	char* p;
 	char* v;
 	doh_server_t* doh;
@@ -1054,9 +1057,9 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 
 	cpy = strdup(args);
 
-	for (p = strtok(cpy, "&");
+	for (p = strtok_r(cpy, "&", &saveptr);
 		p && *p;
-		p = strtok(NULL, "&")) {
+		p = strtok_r(NULL, "&", &saveptr)) {
 
 		v = strchr(p, '=');
 		if (!v) continue;
@@ -1065,40 +1068,23 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 		v++;
 
 		if (strcmp(p, "chndoh.addr") == 0 || strcmp(p, "frndoh.addr") == 0) {
+			int n;
 			doh = strcmp(p, "chndoh.addr") == 0 ? &ctx->chndoh : &ctx->frndoh;
-			p = v;
-			if (*p == '[') {
-				p++;
-				v = strchr(p, ']');
-				if (v) {
-					*v = '\0';
-					v++;
-					if (*v == ':') {
-						v++;
-					}
-				}
-			}
-			else {
-				v = strchr(p, ':');
-				if (v) {
-					*v = '\0';
-					v++;
-				}
-			}
-
-			if (!try_parse_as_ip( &doh->addr, p,
-				(v && (*v)) 
-					? v 
-					: (doh->channel == CH_DOH ? "443" : "53")) ) {
+			doh->addrstr = strdup(v);
+			n = str2addrs(v,
+					&doh->addr[0],
+					MAX_UPSTREAM,
+					sizeof(sockaddr_t),
+					doh->channel == CH_DOH ? "443" : "53");
+			if (n <= 0) {
 				loge("parse address failed: %s:%s\n",
-						p,
-						(v && (*v)) 
-							? v 
-							: (doh->channel == CH_DOH ? "443" : "53")
-					);
+					p,
+					doh->channel == CH_DOH ? "443" : "53"
+				);
 				free(cpy);
 				return -1;
 			}
+			doh->addr_num = n;
 		}
 		else if (strcmp(p, "chndoh.host") == 0 || strcmp(p, "frndoh.host") == 0) {
 			if (*v) {
@@ -1177,7 +1163,7 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 		int n;
 		n = snprintf(args, sizeof(args),
 			"upstream=%s&proxy=%d&timeout=%d",
-			get_sockaddrname(&doh->addr),
+			doh->addrstr,
 			doh->use_proxy,
 			doh->timeout);
 		if (n <= 0 || n >= sizeof(args))
@@ -1197,7 +1183,7 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 		int n;
 		n = snprintf(args, sizeof(args),
 			"upstream=%s&proxy=%d&timeout=%d",
-			get_sockaddrname(&doh->addr),
+			doh->addrstr,
 			doh->use_proxy,
 			doh->timeout);
 		if (n <= 0 || n >= sizeof(args))
@@ -1226,7 +1212,7 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 
 static int check_doh_server(doh_server_t *doh)
 {
-	if (is_empty_sockaddr(&doh->addr)) {
+	if (is_empty_sockaddr(doh->addr)) {
 		loge("check_doh_server() error: no \"addr\"\n");
 		return -1;
 	}

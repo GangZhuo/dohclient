@@ -368,7 +368,7 @@ int channel_udp_query(channel_t* ctx,
 
 static int parse_args(channel_udp_t* ctx, const char* args)
 {
-	char* cpy;
+	char* cpy, *saveptr = NULL;
 	char* p;
 	char* v;
 
@@ -376,9 +376,9 @@ static int parse_args(channel_udp_t* ctx, const char* args)
 
 	cpy = strdup(args);
 
-	for (p = strtok(cpy, "&");
+	for (p = strtok_r(cpy, "&", &saveptr);
 		p && *p;
-		p = strtok(NULL, "&")) {
+		p = strtok_r(NULL, "&", &saveptr)) {
 
 		v = strchr(p, '=');
 		if (!v) continue;

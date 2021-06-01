@@ -43,7 +43,7 @@ int parse_querystring(const char *query,
 	int (*callback)(char *name, char *value, void *state),
 	void *state)
 {
-	char *cpy;
+	char *cpy, *saveptr = NULL;
 	char *p;
 	char *v;
 
@@ -51,9 +51,9 @@ int parse_querystring(const char *query,
 
 	cpy = strdup(query);
 
-	for (p = strtok(cpy, "&");
+	for (p = strtok_r(cpy, "&", &saveptr);
 		p && *p;
-		p = strtok(NULL, "&")) {
+		p = strtok_r(NULL, "&", &saveptr)) {
 
 		v = strchr(p, '=');
 		if (!v) continue;

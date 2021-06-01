@@ -887,14 +887,15 @@ static int parse_args(channel_doh_t *ctx, const char* args)
 	char* cpy;
 	char* p;
 	char* v;
+	char *saveptr = NULL;
 
 	if (!args) return -1;
 
 	cpy = strdup(args);
 
-	for (p = strtok(cpy, "&");
+	for (p = strtok_r(cpy, "&", &saveptr);
 		p && *p;
-		p = strtok(NULL, "&")) {
+		p = strtok_r(NULL, "&", &saveptr)) {
 
 		v = strchr(p, '=');
 		if (!v) continue;

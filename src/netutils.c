@@ -256,15 +256,15 @@ int str2addrs(
 	int element_size,
 	const char* default_port)
 {
-	char* s, * p;
+	char* s, * p, *saveptr = NULL;
 	int i;
 	sockaddr_t* addr;
 
 	s = strdup(str);
 
-	for (i = 0, p = strtok(s, ",");
+	for (i = 0, p = strtok_r(s, ",", &saveptr);
 		p && *p && i < max_num;
-		p = strtok(NULL, ",")) {
+		p = strtok_r(NULL, ",", &saveptr)) {
 
 		addr = (sockaddr_t*)(((char*)addrs) + (size_t)element_size * i);
 
@@ -407,15 +407,15 @@ int str2proxies(
 	proxy_t* proxies,
 	int max_num)
 {
-	char* s, * p;
+	char* s, * p, *saveptr = NULL;
 	int i;
 	proxy_t* proxy;
 
 	s = strdup(str);
 
-	for (i = 0, p = strtok(s, ",");
+	for (i = 0, p = strtok_r(s, ",", &saveptr);
 		p && *p && i < max_num;
-		p = strtok(NULL, ",")) {
+		p = strtok_r(NULL, ",", &saveptr)) {
 
 		proxy = proxies + i;
 

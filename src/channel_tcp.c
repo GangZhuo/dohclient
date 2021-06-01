@@ -12,7 +12,7 @@ typedef struct channel_tcp_t {
 	CHANNEL_BASE(_M)
 	dllist_t reqs;
 	int req_count;
-	sockaddr_t upstream_addr;
+	sockaddr_t upstream_addr[1];
 	int use_proxy;
 	int timeout;
 } channel_tcp_t;
@@ -76,7 +76,7 @@ static tcpreq_t* req_new(
 		cs = tcp_connect(&ctx->proxies->addr, &sock);
 	}
 	else {
-		cs = tcp_connect(&ctx->upstream_addr, &sock);
+		cs = tcp_connect(ctx->upstream_addr, &sock);
 	}
 	if (cs != cs_connected && cs != cs_connecting) {
 		loge("req_new() error: tcp_connect() error\n");
@@ -379,8 +379,8 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req)
 			s->array[0] = 0x05;
 			s->array[1] = 0x01;
 			s->array[2] = 0x00;
-			if (ctx->upstream_addr.addr.ss_family == AF_INET) {
-				struct sockaddr_in* addr = (struct sockaddr_in*)&ctx->upstream_addr.addr;
+			if (ctx->upstream_addr->addr.ss_family == AF_INET) {
+				struct sockaddr_in* addr = (struct sockaddr_in*)&ctx->upstream_addr->addr;
 				int port = htons(addr->sin_port);
 				s->array[3] = 0x01;
 				memcpy(s->array + 4, &addr->sin_addr, 4);
@@ -390,7 +390,7 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req)
 			}
 			else {
 				s->array[3] = 0x04;
-				struct sockaddr_in6* addr = (struct sockaddr_in6*)&ctx->upstream_addr.addr;
+				struct sockaddr_in6* addr = (struct sockaddr_in6*)&ctx->upstream_addr->addr;
 				int port = htons(addr->sin6_port);
 				s->array[3] = 0x01;
 				memcpy(s->array + 4, &addr->sin6_addr, 16);
@@ -481,7 +481,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req)
 	case cs_connected:
 		logv("hp_handshake(): CONNECT\n");
 		if (rsize == 0) {
-			const char *target_host = get_sockaddrname(&ctx->upstream_addr);
+			const char *target_host = get_sockaddrname(ctx->upstream_addr);
 			const int authorization = strlen(proxy->username) > 0;
 			char *auth_code = NULL;
 			int auth_code_len = 0;
@@ -810,7 +810,7 @@ int channel_tcp_query(channel_t* ctx,
 
 static int parse_args(channel_tcp_t* ctx, const char* args)
 {
-	char* cpy;
+	char* cpy, *saveptr = NULL;
 	char* p;
 	char* v;
 
@@ -818,9 +818,9 @@ static int parse_args(channel_tcp_t* ctx, const char* args)
 
 	cpy = strdup(args);
 
-	for (p = strtok(cpy, "&");
+	for (p = strtok_r(cpy, "&", &saveptr);
 		p && *p;
-		p = strtok(NULL, "&")) {
+		p = strtok_r(NULL, "&", &saveptr)) {
 
 		v = strchr(p, '=');
 		if (!v) continue;
@@ -849,7 +849,7 @@ static int parse_args(channel_tcp_t* ctx, const char* args)
 				}
 			}
 
-			if (!try_parse_as_ip(&ctx->upstream_addr, p, (v && (*v)) ? v : "53")) {
+			if (!try_parse_as_ip(ctx->upstream_addr, p, (v && (*v)) ? v : "53")) {
 				loge("parse address failed: %s:%s\n",
 					p,
 					(v && (*v)) ? v : "53"
