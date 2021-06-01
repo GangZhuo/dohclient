@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #endif
 
+#include "utils.h"
 #include "log.h"
 #include "dllist.h"
 #include "mleak.h"

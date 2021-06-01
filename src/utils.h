@@ -13,6 +13,7 @@ extern "C" {
 #ifdef WINDOWS
 #ifndef strdup
 #define strdup(s) _strdup(s)
+#define strtok_r(s,d,c) strtok_s((s),(d),(c))
 #endif
 #else
 #ifndef strnicmp
