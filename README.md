@@ -112,7 +112,7 @@ Example:
 dohclient -b 0.0.0.0 -p 5354 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=udp \
-          --channel-args="upstream=8.8.8.8:53&timeout=1"
+          --channel-args="upstream=8.8.8.8:53&timeout=5"
 ```
 
 通过 UDP 协议原样转发查询数据到上游服务器（不支持代理服务器）。
@@ -135,7 +135,7 @@ Example:
 dohclient -b 0.0.0.0 -p 5354 --proxy=127.0.0.1:1080 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=tcp \
-          --channel-args="upstream=8.8.8.8:53&proxy=0&timeout=1"
+          --channel-args="upstream=8.8.8.8:53&proxy=0&timeout=5"
 ```
 
 通过 TCP 协议原样转发查询数据到上游服务器。
