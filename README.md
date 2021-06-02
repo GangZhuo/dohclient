@@ -241,6 +241,10 @@ os,udp,tcp 三个通道的配置同上方的说明。
 
 服务器的类型：doh - DoH 服务器，udp - 普通 DNS 服务器 (使用 UDP 协议查询)，tcp - 普通 DNS 服务器 (使用 TCP 协议查询)。
 
+* <chndoh|frndoh>.name=[name]
+
+通道名称，仅用于打印日志。
+
 * <chndoh|frndoh>.addr=<IP>[:PORT]
 
 服务器的地址，当 <chndoh|frndoh>.channel=doh 时，为 DoH 服务器的地址，第 1 次启动时，通过此地址解析一次 DoH 服务器的域名。

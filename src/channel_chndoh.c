@@ -40,6 +40,7 @@ typedef struct doh_server_t {
 	sockaddr_t addr[MAX_UPSTREAM];
 	int addr_num;
 	int post;
+	char *name;
 	char *addrstr;
 	char* host;
 	char* path;
@@ -166,6 +167,7 @@ static void destroy(channel_t* ctx)
 		myreq_destroy(req);
 	}
 
+	free(c->chndoh.name);
 	free(c->chndoh.addrstr);
 	free(c->chndoh.host);
 	free(c->chndoh.path);
@@ -623,7 +625,7 @@ static int query_cb(channel_t* ctx,
 				2 - rq->wait_num,
 				rq->qr.qname,
 				msg_answers(result),
-				get_sockaddrname(doh->addr),
+				doh->name ? doh->name : (doh->host ? doh->host : doh->addrstr),
 				OS_GetTickCount() - rq->start_time);
 		}
 
@@ -660,7 +662,7 @@ static int query_cb(channel_t* ctx,
 			loge("%d. query %s failed - %s (%lu ms)\n",
 				2 - rq->wait_num,
 				rq->qr.qname,
-				get_sockaddrname(doh->addr),
+				doh->name ? doh->name : (doh->host ? doh->host : doh->addrstr),
 				OS_GetTickCount() - rq->start_time);
 		}
 	}
@@ -1085,6 +1087,10 @@ static int parse_args(channel_chndoh_t *ctx, const char* args)
 				return -1;
 			}
 			doh->addr_num = n;
+		}
+		else if (strcmp(p, "chndoh.name") == 0 || strcmp(p, "frndoh.name") == 0) {
+			doh = strcmp(p, "chndoh.name") == 0 ? &ctx->chndoh : &ctx->frndoh;
+			doh->name = strdup(v);
 		}
 		else if (strcmp(p, "chndoh.host") == 0 || strcmp(p, "frndoh.host") == 0) {
 			if (*v) {
