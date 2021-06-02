@@ -185,7 +185,7 @@ static void destroy(channel_t* ctx)
 	free(ctx);
 }
 
-static int parse_result(tcpreq_t* req, char* buf, int buf_len)
+static int parse_result(tcpreq_t* req, char* buf, int buf_len, reqconn_t *conn)
 {
 	channel_tcp_t* c = req->ctx;
 	ns_msg_t* result = NULL;
@@ -209,6 +209,9 @@ static int parse_result(tcpreq_t* req, char* buf, int buf_len)
 		return -1;
 	}
 
+	logd("request got answer(s) - %s - %s\n",
+		msg_key(result), get_sockaddrname(&c->upstreams[conn->upstream]));
+
 	if (req->callback) {
 		req->callback((channel_t*)c, 0, result, FALSE, TRUE, req->cb_state);
 		req->callback = NULL;
@@ -231,7 +234,7 @@ static int parse_recv(tcpreq_t* req, reqconn_t *conn)
 			return -1;
 		}
 		else if (left >= (msglen + 2)) {
-			if (parse_result(req, s->array + s->pos + 2, msglen)) {
+			if (parse_result(req, s->array + s->pos + 2, msglen, conn)) {
 				return -1;
 			}
 			else {
