@@ -219,7 +219,7 @@ static int parse_recv(channel_udp_t* c, char* buf, int buf_len, struct sockaddr*
 		free(result);
 		return -1;
 	}
-	else if (loglevel >= LOG_DEBUG) {
+	else {
 		logi("request got answer(s) - %s - %s\n", msg_key(result), get_addrname(from));
 	}
 
