@@ -162,7 +162,7 @@ Example:
 dohclient -b 0.0.0.0 -p 5354 --proxy=127.0.0.1:1080 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=doh \
-          --channel-args="addr=172.67.153.110:443&host=doh.beike.workers.dev&path=/dns-query&post=0&keep-alive=600&proxy=0&ecs=1&china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32&foreign-ip4=8.8.8.8/24&foreign-ip6=2001:df2:8300::/48"
+          --channel-args="addr=8.8.8.8:443&host=dns.google&path=/dns-query&post=0&keep-alive=600&proxy=0&ecs=1&china-ip4=114.114.114.114/24&china-ip6=2405:2d80::/32&foreign-ip4=8.8.8.8/24&foreign-ip6=2001:df2:8300::/48"
 ```
 
 ecs=0 时，等同于 DoH 服务的代理。ecs=1 时，使用每一个子网向 DoH 服务查询域名，当查询结果中包含中国 IP 时，选择中国子网的结果返回，否则选择国外子网的结果返回。
@@ -226,7 +226,7 @@ Example:
 dohclient -b 0.0.0.0 -p 5354 --proxy=127.0.0.1:1080 -vv \
           --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
           --channel=chinadns \
-          --channel-args="chndoh.channel=udp&chndoh.addr=223.5.5.5:53&frndoh.channel=doh&frndoh.addr=172.67.153.110:443&frndoh.host=doh.beike.workers.dev&frndoh.path=/dns-query&frndoh.post=0&frndoh.keep-alive=1&frndoh.proxy=0&frndoh.ecs=1&frndoh.net=199.19.0.0/24&frndoh.net6=2001:19f0:6401::/48"
+          --channel-args="chndoh.channel=udp&chndoh.addr=223.5.5.5:53&frndoh.channel=doh&frndoh.addr=8.8.8.8:443&frndoh.host=dns.google&frndoh.path=/dns-query&frndoh.post=0&frndoh.keep-alive=1&frndoh.proxy=0&frndoh.ecs=1&frndoh.net=199.19.0.0/24&frndoh.net6=2001:19f0:6401::/48"
 ```
 
 类似于 ChinaDNS，配置两个上游 DNS 服务器，查询时，同时向两个服务器查询。
