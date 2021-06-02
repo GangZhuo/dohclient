@@ -266,7 +266,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	key = req_key(req);
 
 	if (loglevel >= LOG_INFO) {
-		logd("query %s from %s by %s\n",
+		logi("query %s from %s by %s\n",
 			key,
 			req->fromtcp
 			? get_sockname(((peer_t*)req->from)->conn.sock)
@@ -428,7 +428,7 @@ static int _query_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logd("answer: %s - %s - %s\n",
+	logi("answer: %s - %s - %s\n",
 		key, msg_answers(result),
 		ctx->name);
 	if (loglevel > LOG_DEBUG) {

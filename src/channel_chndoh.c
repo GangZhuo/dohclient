@@ -220,7 +220,7 @@ static int query_doh_addr_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logd("new DoH server's IP: %s - %s\n",
+	logi("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
 	doh->addr_expire = time(NULL) + ns_get_ttl(result);
@@ -619,7 +619,7 @@ static int query_cb(channel_t* ctx,
 
 			result->id = ctx == c->chndoh.chctx ? 0 : 1;
 
-			logd("%d. query %s success: %s - %s (%lu ms)\n",
+			logi("%d. query %s success: %s - %s (%lu ms)\n",
 				2 - rq->wait_num,
 				rq->qr.qname,
 				msg_answers(result),
@@ -737,7 +737,7 @@ static void http_cb(
 
 		result->id = doh == &c->chndoh ? 0 : 1;
 
-		logd("%d. query %s success: %s - %s (%lu ms)\n",
+		logi("%d. query %s success: %s - %s (%lu ms)\n",
 			2 - rq->wait_num,
 			rq->qr.qname,
 			msg_answers(result),

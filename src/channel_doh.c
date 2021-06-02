@@ -165,7 +165,7 @@ static int http_addr_query_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logd("new DoH server's IP: %s - %s\n",
+	logi("new DoH server's IP: %s - %s\n",
 		key, msg_answers(result));
 	
 	c->http_addr_expire = time(NULL) + ns_get_ttl(result);

@@ -214,13 +214,13 @@ static int parse_recv(channel_udp_t* c, char* buf, int buf_len, struct sockaddr*
 
 	rbn = rbtree_lookup(&c->reqdic, &result->id);
 	if (!rbn) {
-		logd("request have been destroyed - %s - %s\n", msg_key(result), get_addrname(from));
+		logi("request have been destroyed - %s - %s\n", msg_key(result), get_addrname(from));
 		ns_msg_free(result);
 		free(result);
 		return -1;
 	}
 	else if (loglevel >= LOG_DEBUG) {
-		logd("request got answer(s) - %s - %s\n", msg_key(result), get_addrname(from));
+		logi("request got answer(s) - %s - %s\n", msg_key(result), get_addrname(from));
 	}
 
 	req = rbtree_container_of(rbn, udpreq_t, rbn);
