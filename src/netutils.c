@@ -669,7 +669,7 @@ int tcp_recv(sock_t sock, char* buf, int buflen)
 	if (nread == -1) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			logi("tcp_recv() error: errno=%d, %s\n",
+			loge("tcp_recv() error: errno=%d, %s\n",
 				err, strerror(err));
 			return -1;
 		}

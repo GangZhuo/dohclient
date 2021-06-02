@@ -1804,7 +1804,7 @@ static void dl_step_func(dllist_t* conns, http_step_state* st)
 			if (is_req_expired)
 				loge("http request timeout - %s\n", get_sockname(conn->conn.sock));
 			else
-				logd("http timeout - %s\n", get_sockname(conn->conn.sock));
+				logd("http connection timeout - %s\n", get_sockname(conn->conn.sock));
 			r = -1;
 			req = conn->request;
 			res = conn->response;

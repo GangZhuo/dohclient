@@ -621,7 +621,7 @@ static int query_cb(channel_t* ctx,
 
 			result->id = ctx == c->chndoh.chctx ? 0 : 1;
 
-			logi("%d. query %s success: %s - %s (%lu ms)\n",
+			logd("%d. query %s success: %s - %s (%lu ms)\n",
 				2 - rq->wait_num,
 				rq->qr.qname,
 				msg_answers(result),
@@ -739,7 +739,7 @@ static void http_cb(
 
 		result->id = doh == &c->chndoh ? 0 : 1;
 
-		logi("%d. query %s success: %s - %s (%lu ms)\n",
+		logd("%d. query %s success: %s - %s (%lu ms)\n",
 			2 - rq->wait_num,
 			rq->qr.qname,
 			msg_answers(result),
