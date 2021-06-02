@@ -743,7 +743,7 @@ static void http_cb(
 			2 - rq->wait_num,
 			rq->qr.qname,
 			msg_answers(result),
-			doh->host,
+			doh->name ? doh->name : (doh->host ? doh->host : doh->addrstr),
 			OS_GetTickCount() - rq->start_time);
 	}
 	else {
@@ -752,7 +752,7 @@ static void http_cb(
 			rq->qr.qname,
 			http_status,
 			status_text,
-			http_request_get_host(request),
+			doh->name ? doh->name : (doh->host ? doh->host : doh->addrstr),
 			OS_GetTickCount() - rq->start_time);
 	}
 
