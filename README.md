@@ -18,6 +18,67 @@
 
 You can find a example config at https://github.com/GangZhuo/http-proxy/wiki/%E9%85%8D%E7%BD%AE%E7%A4%BA%E4%BE%8B
 
+
+### 无污染 DNS 配置示例
+
+在本地 5354 端口提供一个无污染 DNS 解析服务的配置示例:
+
+* 参考 https://github.com/GangZhuo/cf-doh 搭建一个 Google DoH 服务代理，
+  假设 Cloudflare Workers 的域名为 xxx.user.workers.dev
+  (注意: xxx 最好为一随机字符串，当 xxx 中包含 doh 等敏感字符是会被 gfw 阻断)
+
+* 使用如下命令解析 xxx.user.workers.dev 域名，并记录一个 IP 地址备用
+
+```
+$ dig xxx.user.workers.dev
+
+; <<>> DiG <<>> xxx.user.workers.dev
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 37856
+;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;xxx.user.workers.dev.  IN      A
+
+;; ANSWER SECTION:
+xxx.user.workers.dev. 60 IN     A       104.21.74.67
+xxx.user.workers.dev. 60 IN     A       172.67.153.122
+
+;; Query time: 146 msec
+;; SERVER: 192.168.1.1#53(192.168.1.1)
+;; WHEN:
+;; MSG SIZE  rcvd:
+```
+
+例如，记录 IP 104.21.74.67 备用。
+
+
+* 使用如下命令启动服务
+
+```
+dohclient -b 127.0.0.1 -p 5354 -vv \
+          --chnroute="/etc/dohclient/chnroute.txt,/etc/dohclient/chnroute6.txt" \
+          --channel=chinadns \
+          --channel-args="chndoh.name=AliDNS&chndoh.channel=udp&chndoh.addr=223.5.5.5&frndoh.name=GoogleDNS&frndoh.channel=doh&frndoh.addr=104.21.74.67:443&frndoh.host=xxx.user.workers.dev&frndoh.path=/dns-query&frndoh.resolve=0&frndoh.keep-alive=600"
+```
+
+其中 chndoh.addr=223.5.5.5 为国内阿里的 DNS 服务器，frndoh.addr=104.21.74.67 为刚刚记录的 IP, 
+frndoh.host=xxx.user.workers.dev 为 Cloudflare Workers 的域名，frndoh.keep-alive=600 配置重用
+HTTP 连接，单位为秒，即查询完成后，HTTP 连接保留 600 秒 (10 分钟)，因此下次查询可重用此连接。
+
+/etc/dohclient/chnroute.txt 和 /etc/dohclient/chnroute6.txt 两个文件可以从源码的 asset 目录中复制，
+也可通过脚本自己产生 (参考 https://github.com/GangZhuo/CleanDNS/blob/master/README.md#update-chnroute-ipv4)。
+
+* 使用如下命令测试服务
+
+```
+$ dig www.google.com @127.0.0.1 -p 5354
+$ dig twitter.com @127.0.0.1 -p 5354
+```
+
+dohclient 的缓存遵循 DNS 的 TTL 标准。
+
 ### Build on Linux
 
 ```
