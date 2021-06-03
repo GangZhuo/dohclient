@@ -126,6 +126,10 @@ Options:
   -p BIND_PORT             Port that listen on, default: 53.
                            The port specified in "-b" is priority .
   -t TIMEOUT               Timeout (seconds), default: 5.
+  --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 1.
+                           0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.
+  --mode=[0|1|2]           Specify how to choose a channel.
+                           0 - Random, 1 - Concurrent, 2 - Polling.
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.
   --channel-args=ARGS      Channel arguments. e.g. --channel-args="addr=8.8.4.4:443
                            &host=dns.google&path=/dns-query&proxy=1&ecs=1
