@@ -86,7 +86,7 @@ Options:\n\
   -p BIND_PORT             Port that listen on, default: " DEFAULT_LISTEN_PORT ".\n\
                            The port specified in \"-b\" is priority .\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
-  --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 0.\n\
+  --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 1.\n\
                            0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.\n\
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\
   --channel-args=ARGS      Channel arguments. e.g. --channel-args=\"addr=8.8.4.4:443\n\
