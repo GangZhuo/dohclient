@@ -55,7 +55,11 @@ static int channel_num = 0;
 
 #ifdef WINDOWS
 
-static SERVICE_STATUS ServiceStatus = { 0 };
+static SERVICE_STATUS ServiceStatus = {
+	.dwServiceType = SERVICE_WIN32,
+	.dwCurrentState = SERVICE_START_PENDING,
+	.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN
+};
 static SERVICE_STATUS_HANDLE hStatus = NULL;
 
 static void ServiceMain(int argc, char** argv);
@@ -1135,15 +1139,6 @@ static void ServiceMain(int argc, char** argv)
 	BOOL bRet;
 	bRet = TRUE;
 
-	ServiceStatus.dwServiceType = SERVICE_WIN32;
-	ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
-	ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
-
-	ServiceStatus.dwWin32ExitCode = 0;
-	ServiceStatus.dwServiceSpecificExitCode = 0;
-	ServiceStatus.dwCheckPoint = 0;
-	ServiceStatus.dwWaitHint = 0;
-
 	hStatus = RegisterServiceCtrlHandler(DOHCLIENT_NAME, (LPHANDLER_FUNCTION)ControlHandler);
 	if (hStatus == (SERVICE_STATUS_HANDLE)0)
 	{
@@ -1151,21 +1146,27 @@ static void ServiceMain(int argc, char** argv)
 		return;
 	}
 
+	if (init_dohclient() != 0) {
+		ServiceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+		ServiceStatus.dwServiceSpecificExitCode = ERROR_SERVICE_NOT_ACTIVE;
+		goto exit;
+	}
+
 	ServiceStatus.dwCurrentState = SERVICE_RUNNING;
 	SetServiceStatus(hStatus, &ServiceStatus);
 
-	if (init_dohclient() != 0)
-		return;
+	if (do_loop() != 0) {
+		ServiceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+		ServiceStatus.dwServiceSpecificExitCode = ERROR_SERVICE_NOT_ACTIVE;
+		goto exit;
+	}
 
-	if (do_loop() != 0)
-		return;
-
+  exit:
 	uninit_dohclient();
 
 	conf_free(&conf);
 
 	ServiceStatus.dwCurrentState = SERVICE_STOPPED;
-	ServiceStatus.dwWin32ExitCode = 0;
 	SetServiceStatus(hStatus, &ServiceStatus);
 }
 
