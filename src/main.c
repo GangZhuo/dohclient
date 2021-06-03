@@ -37,6 +37,7 @@ static int req_rbkeycmp(const void* a, const void* b);
 static config_t conf = {
 	.timeout = -1,
 	.cache_timeout = -1,
+	.channel_choose_mode = -1,
 };
 static int running = 0;
 static listen_t listens[MAX_LISTEN] = { 0 };
@@ -92,6 +93,8 @@ Options:\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
   --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 1.\n\
                            0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.\n\
+  --mode=[0|1|2]           Specify how to choose a channel.\n\
+                           0 - Random, 1 - Concurrent, 2 - Polling.\n\
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\
   --channel-args=ARGS      Channel arguments. e.g. --channel-args=\"addr=8.8.4.4:443\n\
                            &host=dns.google&path=/dns-query&proxy=1&ecs=1\n\
@@ -403,10 +406,47 @@ static void req_check_expire(time_t now)
 	}
 }
 
-static channel_t* choose_channel()
+typedef struct {
+	int current;
+} chooser_t;
+
+static int last_choosed_channel = -1;
+
+static channel_t *choose_channel(chooser_t *chooser)
 {
-	int i = rand() % channel_num;
-	return channels[i];
+	channel_t *ch = NULL;
+	int i;
+	if (!chooser)
+		return NULL;
+	switch (conf.channel_choose_mode) {
+		case CHOOSE_MODE_CONCUR:
+			if (chooser->current >= channel_num)
+				return NULL;
+			i = chooser->current++;
+			ch = channels[i];
+			break;
+		case CHOOSE_MODE_POLL:
+			if (chooser->current)
+				return NULL;
+			i = (++last_choosed_channel) % channel_num;
+			chooser->current = i + 1;
+			ch = channels[i];
+			break;
+		case CHOOSE_MODE_RANDOM:
+		default:
+			if (chooser->current)
+				return NULL;
+			if (channel_num > 1) {
+				i = rand() % channel_num;
+			}
+			else {
+				i = 0;
+			}
+			chooser->current = i + 1;
+			ch = channels[i];
+			break;
+	}
+	return ch;
 }
 
 /* get a query result */
@@ -435,20 +475,22 @@ static int _query_cb(channel_t* ctx,
 
 	key = msg_key(result);
 
-	logi("answer: %s - %s - %s\n",
-		key, msg_answers(result),
-		ctx->name);
+	rbn = reqdic_find(key);
+
+	if (rbn)
+		logi("answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
+	else
+		logd("drop answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
 	if (loglevel > LOG_DEBUG) {
 		ns_print(result);
 	}
 
 	if (result && !fromcache && trust) {
-		if (cache_add(cache, key, result) == 0) {
+		if (cache_add(cache, key, result, rbn ? TRUE : FALSE) == 0) {
 			is_add_cache = TRUE;
 		}
 	}
 
-	rbn = reqdic_find(key);
 	if (!rbn) {
 		if (result && !fromcache) {
 			ns_msg_free(result);
@@ -498,12 +540,19 @@ static int cache_cb(channel_t* ctx,
 	req_t* req = state;
 
 	if (status || !result || result->qdcount < 1) {
-		channel_t* channel = choose_channel();
-		return channel->query(channel, req->msg, query_cb, req);
+		chooser_t chooser[1] = {0};
+		channel_t* channel;
+		int n = 0, r;
+		while ((channel = choose_channel(chooser)) != NULL) {
+			r = channel->query(channel, req->msg, query_cb, req);
+			if (r == 0) {
+				n++;
+			}
+		}
+		if (n > 0)
+			return 0;
 	}
-	else {
-		return _query_cb(ctx, status, result, fromcache, trust, state);
-	}
+	return _query_cb(ctx, status, result, fromcache, trust, state);
 }
 
 static int hosts_cb(channel_t* ctx,

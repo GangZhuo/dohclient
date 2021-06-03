@@ -11,6 +11,10 @@
 #define CACHE_TIMEOUT_NEVEL_EXPIRE  0
 #define CACHE_TIMEOUT_FOLLOWING_TTL 1
 
+#define CHOOSE_MODE_RANDOM     0
+#define CHOOSE_MODE_CONCUR     1
+#define CHOOSE_MODE_POLL       2
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +32,7 @@ typedef struct config_t {
 	char* hosts;
 	char** channels;
 	char** channel_args;
+	int channel_choose_mode;
 	int daemonize;
 	int timeout;
 	int cache_timeout;

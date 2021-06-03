@@ -175,7 +175,7 @@ static inline void update_expire(cache_t *c, cache_item_t *item, int ttl)
 	}
 }
 
-int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
+int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 {
 	cache_t* c = (cache_t*)ctx;
 	cache_item_t* item;
@@ -222,7 +222,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 			logv("cache added: %s\n", key);
 		}
 	}
-	else {
+	else if (force) {
 		item = rbtree_container_of(rbn, cache_item_t, node);
 		ns_msg_t* newmsg = ns_msg_clone(msg);
 		if (!newmsg) {

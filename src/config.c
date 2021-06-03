@@ -83,6 +83,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"blacklist",    required_argument, NULL, 11},
 		{"hosts",        required_argument, NULL, 12},
 		{"cache-timeout",required_argument, NULL, 13},
+		{"mode",         required_argument, NULL, 14},
 		{0, 0, 0, 0}
 	};
 
@@ -131,6 +132,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		case 13:
 			conf->cache_timeout = atoi(optarg);
 			break;
+		case 14:
+			conf->channel_choose_mode = atoi(optarg);
+			break;
 		case 'h':
 			conf->is_print_help = 1;
 			break;
@@ -174,6 +178,9 @@ int conf_check(config_t* conf)
 	}
 	if (conf->cache_timeout < 0) {
 		conf->cache_timeout = CACHE_TIMEOUT_FOLLOWING_TTL;
+	}
+	if (conf->channel_choose_mode < 0) {
+		conf->channel_choose_mode = CHOOSE_MODE_CONCUR;
 	}
 	if (conf->channels == NULL) {
 		if (conf_add_channel(conf, DEFAULT_CHANNEL)) {
@@ -228,6 +235,7 @@ void conf_print(const config_t* conf)
 		logn("timeout: %d\n", conf->timeout);
 
 	logn("cache timeout: %d\n", conf->cache_timeout);
+	logn("mode: %d\n", conf->channel_choose_mode);
 
 	channel = conf->channels;
 	args = conf->channel_args;
@@ -407,6 +415,11 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 		else if (strcmp(name, "cache_timeout") == 0 && strlen(value)) {
 			if (force || conf->cache_timeout <= 0) {
 				conf->cache_timeout = atoi(value);
+			}
+		}
+		else if (strcmp(name, "mode") == 0 && strlen(value)) {
+			if (force || conf->channel_choose_mode < 0) {
+				conf->channel_choose_mode = atoi(value);
 			}
 		}
 		else {

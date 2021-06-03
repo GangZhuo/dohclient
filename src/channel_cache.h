@@ -19,7 +19,7 @@ int cache_create(
 	const chnroute_ctx blacklist,
 	void* data);
 
-int cache_add(channel_t* ctx, const char* key, const ns_msg_t* msg);
+int cache_add(channel_t* ctx, const char* key, const ns_msg_t* msg, int force);
 
 #ifdef __cplusplus
 }

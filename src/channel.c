@@ -57,11 +57,21 @@ int channel_create(
 	void* data)
 {
 	channel_info_t* info;
+	char chname[20] = {0};
+	char *dot;
+
+	dot = strchr(name, '.');
+	if (dot) {
+		memcpy(chname, name, MIN(dot - name, sizeof(chname) - 1));
+	}
+	else {
+		strncpy(chname, name, sizeof(chname) - 1);
+	}
 
 	info = _infos;
 	while (info) {
 
-		if (strcmp(info->name, name) == 0) {
+		if (strcmp(info->name, chname) == 0) {
 			return info->create(pctx,
 				name, args, conf,
 				proxies, proxy_num,
