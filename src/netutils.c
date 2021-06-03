@@ -820,7 +820,7 @@ void peer_destroy(peer_t* peer)
 unsigned long OS_GetTickCount()
 {
 #ifdef WINDOWS
-	return GetTickCount();
+	return clock();
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
