@@ -404,7 +404,7 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				}
 			}
 		}
-		else if (strcmp(name, "cache-timeout") == 0 && strlen(value)) {
+		else if (strcmp(name, "cache_timeout") == 0 && strlen(value)) {
 			if (force || conf->cache_timeout <= 0) {
 				conf->cache_timeout = atoi(value);
 			}
