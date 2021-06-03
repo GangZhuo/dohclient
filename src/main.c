@@ -29,6 +29,7 @@
 /* rb-tree node */
 typedef struct rbn_t {
 	char *key;
+	unsigned long ctime;
 	struct rbnode_t node;
 	dllist_t reqs;
 } rbn_t;
@@ -212,6 +213,7 @@ static int reqdic_add(req_t *req, const char* key)
 		memset(rbn, 0, sizeof(rbn_t));
 		dllist_init(&rbn->reqs);
 		rbn->key = strdup(key);
+		rbn->ctime = OS_GetTickCount();
 		rbn->node.key = rbn->key;
 		rbtree_insert(&reqdic, &rbn->node);
 		dllist_add(&rbn->reqs, &req->entry_rbn);
@@ -477,10 +479,14 @@ static int _query_cb(channel_t* ctx,
 
 	rbn = reqdic_find(key);
 
-	if (rbn)
-		logi("answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
-	else
+	if (rbn) {
+		logi("answer: %s - %s - %s (%lu ms)\n", key, msg_answers(result),
+				ctx->name, OS_GetTickCount() - rbn->ctime);
+	}
+	else {
 		logd("drop answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
+	}
+
 	if (loglevel > LOG_DEBUG) {
 		ns_print(result);
 	}
