@@ -175,6 +175,126 @@ static inline void update_expire(cache_t *c, cache_item_t *item, int ttl)
 	}
 }
 
+void cache_each(channel_t *ctx,
+		int (*f)(const ns_msg_t *msg, void *data), void *data)
+{
+	cache_t *c = (cache_t*)ctx;
+	dlitem_t *cur, *nxt;
+	cache_item_t *item;
+	int r;
+	dllist_foreach(&c->items, cur, nxt,
+		cache_item_t, item, entry) {
+		r = f(item->msg, data);
+		if (r)
+			break;
+	}
+}
+
+const ns_msg_t *cache_get(channel_t *ctx, const char *key)
+{
+	cache_t *c = (cache_t*)ctx;
+	cache_item_t *item;
+	struct rbnode_t *rbn;
+
+	if (!key) {
+		loge("cache_get() error: invalid arguments\n");
+		return NULL;
+	}
+
+	rbn = rbtree_lookup(&c->dic, key);
+	if (!rbn) {
+		loge("cache_get() error: item not exists - %s\n", key);
+		return NULL;
+	}
+
+	item = rbtree_container_of(rbn, cache_item_t, node);
+	return item->msg;
+}
+
+int cache_remove(channel_t *ctx, const char *key)
+{
+	cache_t *c = (cache_t*)ctx;
+	cache_item_t *item;
+	struct rbnode_t *rbn;
+
+	if (!key) {
+		loge("cache_remove() error: invalid arguments\n");
+		return -1;
+	}
+
+	rbn = rbtree_lookup(&c->dic, key);
+	if (!rbn) {
+		loge("cache_remove() error: item not exists - %s\n", key);
+		return -1;
+	}
+
+	item = rbtree_container_of(rbn, cache_item_t, node);
+	ns_msg_free(item->msg);
+	free(item->msg);
+	dllist_remove(&item->entry);
+	logv("cache removed: %s\n", key);
+	return 0;
+}
+
+int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg)
+{
+	cache_t *c = (cache_t*)ctx;
+	cache_item_t *item;
+	struct rbnode_t *rbn;
+	int ttl;
+	ns_msg_t *newmsg;
+
+	if (!key || !msg) {
+		loge("cache_edit() error: invalid arguments\n");
+		return -1;
+	}
+
+	if (!msg->qrs || !msg->rrs ||
+		msg->qdcount < 1 || ns_rrcount(msg) < 1) {
+		loge("cache_edit() error: invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
+			(int)msg->qdcount,
+			(int)msg->ancount,
+			(int)msg->nscount,
+			(int)msg->arcount,
+			key);
+		return -1;
+	}
+
+	ttl = (int)ns_get_ttl(msg);
+
+	/* no ttl */
+	if (ttl < 1) {
+		loge("cache_edit() error: no ttl\n");
+		return -1;
+	}
+
+	rbn = rbtree_lookup(&c->dic, key);
+	if (!rbn) {
+		loge("cache_edit() error: item not exists - %s\n", key);
+		return -1;
+	}
+
+	item = rbtree_container_of(rbn, cache_item_t, node);
+	newmsg = ns_msg_clone(msg);
+	if (!newmsg) {
+		loge("cache_edit() error: ns_msg_clone() error\n");
+		return -1;
+	}
+	ns_msg_free(item->msg);
+	free(item->msg);
+	item->msg = newmsg;
+	update_expire(c, item, ttl);
+	dllist_remove(&item->entry);
+	cache_item_add(c, item);
+	if (loglevel > LOG_DEBUG) {
+		logv("cache updated: %s - %s\n", key, msg_answers(msg));
+	}
+	else {
+		logv("cache updated: %s\n", key);
+	}
+	return 0;
+}
+
 int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 {
 	cache_t* c = (cache_t*)ctx;

@@ -23,6 +23,7 @@
 #include "channel.h"
 #include "channel_cache.h"
 #include "channel_hosts.h"
+#include "cache_api.h"
 #include "http.h"
 #include "mleak.h"
 
@@ -584,6 +585,19 @@ static int server_recv_msg(const char *data, int datalen,
 	void *from, int fromlen, int fromtcp)
 {
 	req_t* req;
+
+#if DOHCLIENT_CACHE_API
+	int r;
+
+	r = cache_api_try_parse(cache, data, datalen, &listens[listen],
+			from, fromlen, fromtcp);
+	if (r == 0) {
+		return 0;
+	}
+	else if (r == -1) {
+		return -1;
+	}
+#endif
 
 	req = req_add_new(data, datalen, listen, from, fromlen, fromtcp);
 	if (!req) {

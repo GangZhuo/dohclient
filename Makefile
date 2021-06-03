@@ -5,6 +5,7 @@ OBJS = \
 	rbtree/rbtree.o \
 	http-parser/http_parser.o \
 	src/base64url.o \
+	src/cache_api.o \
 	src/channel.o \
 	src/channel_cache.o \
 	src/channel_chndoh.o \
@@ -25,7 +26,7 @@ OBJS = \
 	src/utils.o \
 	src/mleak.o
 
-CFLAGS +=
+CFLAGS += -DDOHCLIENT_CACHE_API
 LIBS += -lssl -lcrypto
 MYLIBS =
 
