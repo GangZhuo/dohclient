@@ -36,6 +36,7 @@ typedef struct rbn_t {
 static int req_rbkeycmp(const void* a, const void* b);
 static config_t conf = {
 	.timeout = -1,
+	.cache_timeout = -1,
 };
 static int running = 0;
 static listen_t listens[MAX_LISTEN] = { 0 };
@@ -85,6 +86,8 @@ Options:\n\
   -p BIND_PORT             Port that listen on, default: " DEFAULT_LISTEN_PORT ".\n\
                            The port specified in \"-b\" is priority .\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
+  --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 0.\n\
+                           0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.\n\
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\
   --channel-args=ARGS      Channel arguments. e.g. --channel-args=\"addr=8.8.4.4:443\n\
                            &host=dns.google&path=/dns-query&proxy=1&ecs=1\n\

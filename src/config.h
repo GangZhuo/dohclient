@@ -8,6 +8,9 @@
 #define DEFAULT_CHANNEL "doh"
 #define DEFAULT_CHANNEL_ARGS "addr=223.5.5.5:443&host=dns.alidns.com&path=/dns-query&proxy=0"
 
+#define CACHE_TIMEOUT_NEVEL_EXPIRE  0
+#define CACHE_TIMEOUT_FOLLOWING_TTL 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -17,16 +20,17 @@ typedef struct config_t {
 	char* listen_port;
 	char* pid_file;
 	char* log_file;
-	int daemonize;
 	char* launch_log;
 	char* config_file;
-	int timeout;
 	char* proxy;
 	char* chnroute;
 	char* blacklist;
 	char* hosts;
 	char** channels;
 	char** channel_args;
+	int daemonize;
+	int timeout;
+	int cache_timeout;
 	int log_level;
 	int is_print_version;
 	int is_print_help;

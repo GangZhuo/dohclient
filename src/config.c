@@ -82,6 +82,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"channel-args", required_argument, NULL, 10},
 		{"blacklist",    required_argument, NULL, 11},
 		{"hosts",        required_argument, NULL, 12},
+		{"cache-timeout",required_argument, NULL, 13},
 		{0, 0, 0, 0}
 	};
 
@@ -127,6 +128,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		case 12:
 			conf->hosts = strdup(optarg);
 			break;
+		case 13:
+			conf->cache_timeout = atoi(optarg);
+			break;
 		case 'h':
 			conf->is_print_help = 1;
 			break;
@@ -167,6 +171,9 @@ int conf_check(config_t* conf)
 	}
 	if (conf->timeout <= 0) {
 		conf->timeout = DEFAULT_TIMEOUT;
+	}
+	if (conf->cache_timeout < 0) {
+		conf->cache_timeout = CACHE_TIMEOUT_FOLLOWING_TTL;
 	}
 	if (conf->channels == NULL) {
 		if (conf_add_channel(conf, DEFAULT_CHANNEL)) {
@@ -218,7 +225,9 @@ void conf_print(const config_t* conf)
 		logn("proxy: %s\n", conf->proxy);
 
 	if (conf->timeout > 0)
-		logn("peer timeout: %d\n", conf->timeout);
+		logn("timeout: %d\n", conf->timeout);
+
+	logn("cache timeout: %d\n", conf->cache_timeout);
 
 	channel = conf->channels;
 	args = conf->channel_args;
@@ -393,6 +402,11 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				if (conf_add_channel_args(conf, value)) {
 					return -1;
 				}
+			}
+		}
+		else if (strcmp(name, "cache-timeout") == 0 && strlen(value)) {
+			if (force || conf->cache_timeout <= 0) {
+				conf->cache_timeout = atoi(value);
 			}
 		}
 		else {

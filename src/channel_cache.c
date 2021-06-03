@@ -63,6 +63,7 @@ static void cache_item_add(cache_t* c, cache_item_t* item)
 	dlitem_t* cur, * nxt;
 	cache_item_t* p;
 
+	/* TODO: Use Heap Data Structure, see https://en.wikipedia.org/wiki/Heap_(data_structure) */
 	dllist_foreach_revert(&c->items, cur, nxt,
 		cache_item_t, p, entry) {
 		
@@ -120,7 +121,9 @@ static int step(channel_t* ctx,
 	fd_set* readset, fd_set* writeset, fd_set* errorset)
 {
 	cache_t* c = (cache_t*)ctx;
-	cache_check_expire(c);
+	if (c->conf->cache_timeout != CACHE_TIMEOUT_NEVEL_EXPIRE) {
+		cache_check_expire(c);
+	}
 	return 0;
 }
 
@@ -162,6 +165,16 @@ error:
 	return 0;
 }
 
+static inline void update_expire(cache_t *c, cache_item_t *item, int ttl)
+{
+	if (c->conf->cache_timeout == CACHE_TIMEOUT_FOLLOWING_TTL) {
+		item->expire = time(NULL) + ttl;
+	}
+	else if (c->conf->cache_timeout != CACHE_TIMEOUT_NEVEL_EXPIRE) {
+		item->expire = time(NULL) + c->conf->cache_timeout;
+	}
+}
+
 int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 {
 	cache_t* c = (cache_t*)ctx;
@@ -199,7 +212,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 			return -1;
 		}
 
-		item->expire = time(NULL) + ttl;
+		update_expire(c, item, ttl);
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
 		if (loglevel > LOG_DEBUG) {
@@ -219,7 +232,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg)
 		ns_msg_free(item->msg);
 		free(item->msg);
 		item->msg = newmsg;
-		item->expire = time(NULL) + ttl;
+		update_expire(c, item, ttl);
 		dllist_remove(&item->entry);
 		cache_item_add(c, item);
 		if (loglevel > LOG_DEBUG) {
