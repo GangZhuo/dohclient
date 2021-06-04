@@ -19,7 +19,6 @@ OBJS = \
 	src/dns_request.o \
 	src/http.o \
 	src/log.o \
-	src/main.o \
 	src/netutils.o \
 	src/ns_msg.o \
 	src/stream.o \
@@ -35,9 +34,12 @@ ifneq ($(debug), 0)
     LDFLAGS += -g -ggdb
 endif
 
-all: dohclient
+all: dohclient dohclient-cache
 
-dohclient: $(OBJS)
+dohclient: $(OBJS) src/main.o
+	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
+
+dohclient-cache: $(OBJS) src/dohclient-cache.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 %.o: %.c
@@ -54,6 +56,6 @@ uninstall:
 
 .PHONY: clean
 clean:
-	-rm -f rbtree/*.o http-parser/*.o src/*.o dohclient
+	-rm -f rbtree/*.o http-parser/*.o src/*.o dohclient dohclient-cache
 
 

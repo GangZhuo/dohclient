@@ -45,6 +45,7 @@ compile_commands.json
 
 *.user
 dohclient
+dohclient-cache
 windows/Debug
 windows/Release
 windows/x64
