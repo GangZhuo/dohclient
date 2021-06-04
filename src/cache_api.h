@@ -8,6 +8,7 @@
 #define CACHE_API_OK        0 /* OK */
 #define CACHE_API_EARG      1 /* Invalid Arguments */
 #define CACHE_API_ENOTFOUND 2 /* Not Found */
+#define CACHE_API_EALLOC    3 /* Alloc */
 
 #ifdef __cplusplus
 extern "C" {

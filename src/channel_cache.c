@@ -175,7 +175,7 @@ static inline void update_expire(cache_t *c, cache_item_t *item, int ttl)
 	}
 }
 
-void cache_each(channel_t *ctx,
+int cache_each(channel_t *ctx,
 		int (*f)(const ns_msg_t *msg, void *data), void *data)
 {
 	cache_t *c = (cache_t*)ctx;
@@ -186,8 +186,9 @@ void cache_each(channel_t *ctx,
 		cache_item_t, item, entry) {
 		r = f(item->msg, data);
 		if (r)
-			break;
+			return r;
 	}
+	return 0;
 }
 
 const ns_msg_t *cache_get(channel_t *ctx, const char *key)
@@ -229,9 +230,9 @@ int cache_remove(channel_t *ctx, const char *key)
 	}
 
 	item = rbtree_container_of(rbn, cache_item_t, node);
-	ns_msg_free(item->msg);
-	free(item->msg);
 	dllist_remove(&item->entry);
+	rbtree_remove(&c->dic, &item->node);
+	cache_item_destroy(item);
 	logv("cache removed: %s\n", key);
 	return 0;
 }

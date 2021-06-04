@@ -23,7 +23,7 @@ int cache_add(channel_t* ctx, const char* key, const ns_msg_t* msg, int force);
 int cache_remove(channel_t *ctx, const char *key);
 int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg);
 const ns_msg_t *cache_get(channel_t *ctx, const char *key);
-void cache_each(channel_t *ctx,
+int cache_each(channel_t *ctx,
 		int (*f)(const ns_msg_t *msg, void *data), void *data);
 
 #ifdef __cplusplus

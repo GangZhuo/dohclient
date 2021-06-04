@@ -230,16 +230,9 @@ try_print:
 	if (cnt < 0)
 		return -1;
 
-	if (stream_rcap(stream) < (cnt + 1)) {
-		if (stream_set_cap(stream, stream->pos + align(cnt + 1)))
-			return -1;
-	}
-
-	if (stream_write(stream, buf, cnt) != cnt) {
+	if (stream_writes(stream, buf, cnt) != cnt) {
 		return -1;
 	}
-
-	stream->array[stream->pos] = '\0';
 
 	return cnt;
 }
@@ -300,16 +293,9 @@ try_print:
 	if (cnt < 0)
 		return -1;
 
-	if ((stream->cap - stream->size) < (cnt + 1)) {
-		if (stream_set_cap(stream, stream->size + align(cnt + 1)))
-			return -1;
-	}
-
-	if (stream_append(stream, buf, cnt) != cnt) {
+	if (stream_appends(stream, buf, cnt) != cnt) {
 		return -1;
 	}
-
-	stream->array[stream->size] = '\0';
 
 	return cnt;
 }
