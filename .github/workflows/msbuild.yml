@@ -24,6 +24,12 @@ jobs:
     - name: checkout submodules
       run: git submodule update --init --recursive
       
+    - name: Download Openssl
+      run: curl https://github.com/GangZhuo/openssl-vs16/releases/download/openssl-1.1.1h-vs16/openssl-1.1.1h-vs16.zip --output windows/openssl/openssl-1.1.1h-vs16.zip
+      
+    - name: Extract Openssl
+      run: 7z x windows/openssl/openssl-1.1.1h-vs16.zip -owindows/openssl
+      
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
