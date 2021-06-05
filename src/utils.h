@@ -42,6 +42,7 @@ extern "C" {
 #define TRUE 1
 #endif
 
+int is_littleendian();
 char* ltrim(char* s);
 char* rtrim(char* s);
 char* trim_quote(char* s);

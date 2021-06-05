@@ -104,7 +104,7 @@ int channel_build_msg(
 	}
 
 	msg->id = id;
-	msg->flags = *flags;
+	ns_set_flags(msg, flags);
 
 	if (qr) {
 		msg->qrs = ns_qr_clone(qr, 1);

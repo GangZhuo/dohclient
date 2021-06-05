@@ -24,7 +24,7 @@ typedef struct channel_udp_t {
 typedef struct udpreq_t {
 	uint16_t req_id;
 	uint16_t id;
-	ns_flags_t flags;
+	uint16_t flags;
 	ns_qr_t qr;
 	time_t expire;
 	channel_query_cb callback;

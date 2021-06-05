@@ -154,24 +154,20 @@ typedef struct ns_qr_t {
 } ns_qr_t;
 
 typedef struct ns_flags_t {
-	union {
-		struct {
-			uint32_t qr : 1;
-			uint32_t opcode : 4;
-			uint32_t aa : 1;
-			uint32_t tc : 1;
-			uint32_t rd : 1;
-			uint32_t ra : 1;
-			uint32_t z : 3;
-			uint32_t rcode : 4;
-		} bits;
-		uint16_t value;
-	};
+	uint8_t qr : 1;
+	uint8_t opcode : 4;
+	uint8_t aa : 1;
+	uint8_t tc : 1;
+	uint8_t rd : 1;
+
+	uint8_t ra : 1;
+	uint8_t z : 3;
+	uint8_t rcode : 4;
 } ns_flags_t;
 
 typedef struct ns_msg_t {
 	uint16_t id;
-	ns_flags_t flags;
+	uint16_t flags;
 	uint16_t qdcount;
 	uint16_t ancount;
 	uint16_t nscount;
@@ -183,6 +179,9 @@ typedef struct ns_msg_t {
 
 int init_ns_msg(ns_msg_t *msg);
 void ns_msg_free(ns_msg_t *msg);
+
+ns_flags_t ns_get_flags(ns_msg_t *msg);
+uint16_t ns_set_flags(ns_msg_t *msg, const ns_flags_t *flags);
 
 int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes);
 
@@ -245,22 +244,15 @@ const char *ns_classname(uint16_t cls);
 /* parse subnet like "192.168.1.1/24" */
 int ns_ecs_parse_subnet(struct sockaddr *addr /*out*/, int *pmask /*out*/, const char *subnet /*in*/);
 
-#define ns_flag_qr(msg) ((((msg)->flags.value) >> 15) & 1)
-#define ns_flag_opcode(msg) ((((msg)->flags.value) >> 11) & 0xf)
-#define ns_flag_aa(msg) ((((msg)->flags.value) >> 10) & 1)
-#define ns_flag_tc(msg) ((((msg)->flags.value) >> 9) & 1)
-#define ns_flag_rd(msg) ((((msg)->flags.value) >> 8) & 1)
-#define ns_flag_ra(msg) ((((msg)->flags.value) >> 7) & 1)
-#define ns_flag_z(msg) ((((msg)->flags.value) >> 4) & 7)
-
 static inline int ns_flag_rcode(ns_msg_t *msg)
 {
-    int rcode = (msg->flags.value) & 0xf;
-    ns_rr_t *rr = ns_find_rr(msg, NS_TYPE_OPT);
-    if (rr) {
-        rcode |= (rr->ttl >> 20) & 0xff00;
-    }
-    return rcode;
+	ns_flags_t flags = ns_get_flags(msg);
+	int rcode = (flags.rcode) & 0xf;
+	ns_rr_t *rr = ns_find_rr(msg, NS_TYPE_OPT);
+	if (rr) {
+		rcode |= (rr->ttl >> 20) & 0xff00;
+	}
+	return rcode;
 }
 
 #define ns_is_edns_rr(rr) ((rr)->type == NS_QTYPE_OPT)

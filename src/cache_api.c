@@ -349,15 +349,19 @@ static int cache_api_put(api_ctx_t *ctx)
 			ns_msg_t msg[1] = { 0 };
 			ns_qr_t  qr[1]  = { 0 };
 			ns_rr_t  an[1]  = { 0 };
+			ns_flags_t flags = { 0 };
 
 			msg->id = 0;
-			msg->flags.bits.qr = 1;
-			msg->flags.bits.opcode = 0;
-			msg->flags.bits.aa = 0;
-			msg->flags.bits.tc = 0;
-			msg->flags.bits.ra = 1;
-			msg->flags.bits.z = 0;
-			msg->flags.bits.rcode = 0;
+			flags.qr = 1;
+			flags.opcode = 0;
+			flags.aa = 0;
+			flags.tc = 0;
+			flags.ra = 1;
+			flags.z = 0;
+			flags.rcode = 0;
+			ns_set_flags(msg, &flags);
+
+			logd("value: %x %d\n", msg->flags, flags.qr);
 		
 			msg->qdcount = 1;
 			msg->qrs = qr;

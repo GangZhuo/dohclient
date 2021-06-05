@@ -59,7 +59,9 @@ static int query(channel_t* ctx,
 		goto error;
 	}
 
-	flg.bits.qr = 1;
+	flg.qr = 1;
+	flg.aa = 1;
+	flg.ra = 1;
 
 	result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!result) {

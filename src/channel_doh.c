@@ -46,7 +46,7 @@ typedef struct channel_doh_t {
 typedef struct channel_req_t {
 	uint16_t req_id;
 	uint16_t id;
-	ns_flags_t flags;
+	uint16_t flags;
 	ns_qr_t qr;
 	channel_query_cb callback;
 	void* cb_state;
@@ -213,14 +213,19 @@ static void query_http_addr(channel_doh_t* c)
 {
 	channel_req_t* req;
 	ns_msg_t msg;
+	ns_flags_t flags;
 
 	c->http_addr_expire = time(NULL) + 60;
 
 	init_ns_msg(&msg);
 
 	msg.id = 0;
-	msg.flags.bits.aa = 1;
-	msg.flags.bits.ra = 1;
+
+	flags = ns_get_flags(&msg);
+	flags.aa = 1;
+	flags.ra = 1;
+	ns_set_flags(&msg, &flags);
+
 	msg.qdcount = 1;
 	msg.qrs = (ns_qr_t*)malloc(sizeof(ns_qr_t));
 	if (!msg.qrs) {

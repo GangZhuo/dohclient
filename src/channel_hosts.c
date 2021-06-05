@@ -145,6 +145,7 @@ static int query(channel_t *ctx,
 	ns_msg_t result = { 0 };
 	ns_qr_t qr = { 0 };
 	ns_rr_t an = { 0 };
+	ns_flags_t flags = { 0 };
 
 	if (!msg->qrs || msg->qdcount < 1) {
 		loge("hosts_query() error: invalid msg (qdcount=%d)\n",
@@ -193,13 +194,15 @@ static int query(channel_t *ctx,
 	/* TODO: create result */
 
 	result.id = msg->id;
-	result.flags.bits.qr = 1;
-	result.flags.bits.opcode = 0;
-	result.flags.bits.aa = 0;
-	result.flags.bits.tc = 0;
-	result.flags.bits.ra = 1;
-	result.flags.bits.z = 0;
-	result.flags.bits.rcode = 0;
+
+	flags.qr = 1;
+	flags.opcode = 0;
+	flags.aa = 0;
+	flags.tc = 0;
+	flags.ra = 1;
+	flags.z = 0;
+	flags.rcode = 0;
+	ns_set_flags(&result, &flags);
 
 	result.qdcount = 1;
 	result.qrs = &qr;

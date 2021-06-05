@@ -359,7 +359,7 @@ static int send_by_tcp(const char *pkg, int len)
 
 static int is_digitstr(const char *s)
 {
-	char *p = s;
+	const char *p = s;
 	while (*p) {
 		if (!isdigit(*p))
 			return FALSE;

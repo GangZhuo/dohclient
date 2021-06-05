@@ -1,6 +1,13 @@
 #include "utils.h"
 #include "mleak.h"
 
+int is_littleendian()
+{
+	short int number = 0x1;
+	char *numPtr = (char*)&number;
+	return (numPtr[0] == 1);
+}
+
 char* ltrim(char* s)
 {
 	char* p = s;

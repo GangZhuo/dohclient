@@ -41,6 +41,37 @@ static int indexof_char(char *p, int ch);
 
 static void ns_msg_free_rdata(ns_rr_t* rr);
 
+ns_flags_t ns_get_flags(ns_msg_t *msg)
+{
+	ns_flags_t f;
+	int v = msg->flags;
+	f.qr = (v >> 15) & 1;
+	f.opcode = (v >> 11) & 0xf;
+	f.aa = (v >> 10) & 1;
+	f.tc = (v >> 9) & 1;
+	f.rd = (v >> 8) & 1;
+	f.ra = (v >> 7) & 1;
+	f.z = (v >> 4) & 0x7;
+	f.rcode = v & 0xf;
+	return f;
+}
+
+uint16_t ns_set_flags(ns_msg_t *msg, const ns_flags_t *flags)
+{
+	int32_t rv = 0;
+	rv |= ((int)flags->qr & 1) << 15;
+	rv |= ((int)flags->opcode & 0xf) << 11;
+	rv |= ((int)flags->aa & 1) << 10;
+	rv |= ((int)flags->tc & 1) << 9;
+	rv |= ((int)flags->rd & 1) << 8;
+	rv |= ((int)flags->ra & 1) << 7;
+	rv |= ((int)flags->z & 7) << 4;
+	rv |= ((int)flags->rcode & 0xf);
+	if (msg)
+		msg->flags = (uint16_t)(rv & 0xffff);
+	return (uint16_t)(rv & 0xffff);
+}
+
 int init_ns_msg(ns_msg_t *msg)
 {
 	memset(msg, 0, sizeof(ns_msg_t));
@@ -867,7 +898,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 	check_len(12);
 
 	msg->id = (uint16_t)stream_readi16(&s);
-	msg->flags.value = (uint16_t)stream_readi16(&s);
+	msg->flags = (uint16_t)stream_readi16(&s);
 	msg->qdcount = (uint16_t)stream_readi16(&s);
 	msg->ancount = (uint16_t)stream_readi16(&s);
 	msg->nscount = (uint16_t)stream_readi16(&s);
@@ -1601,7 +1632,7 @@ int ns_serialize(stream_t *s, ns_msg_t *msg, int compression)
 	ctx.startpos = spos;
 
 	check(2, stream_writei16(s, msg->id));
-	check(2, stream_writei16(s, msg->flags.value));
+	check(2, stream_writei16(s, msg->flags));
 	check(2, stream_writei16(s, msg->qdcount));
 	check(2, stream_writei16(s, msg->ancount));
 	check(2, stream_writei16(s, msg->nscount));
@@ -1868,23 +1899,25 @@ void ns_print(ns_msg_t *msg)
 	int i, rrcount;
 	ns_qr_t *qr;
 	ns_rr_t *rr;
+	ns_flags_t flags;
 
 	logd("<<< MSG START >>>\n");
 	logd("ID: 0x%x, FLAGS: 0x%x, QDCOUNT: 0x%x, ANCOUNT: 0x%x, NSCOUNT: 0x%x, ARCOUNT: 0x%x\n",
 		(int)(msg->id & 0xffff),
-		(int)(msg->flags.value & 0xffff),
+		(int)(msg->flags & 0xffff),
 		(int)(msg->qdcount & 0xffff),
 		(int)(msg->ancount & 0xffff),
 		(int)(msg->nscount & 0xffff),
 		(int)(msg->arcount & 0xffff));
+	flags = ns_get_flags(msg);
 	logd("FLAGS:%s%s%s%s%s opcode=%d rcode=%d\n",
-		msg->flags.bits.qr ? " qr" : "",
-		msg->flags.bits.aa ? " aa" : "",
-		msg->flags.bits.tc ? " tc" : "",
-		msg->flags.bits.rd ? " rd" : "",
-		msg->flags.bits.ra ? " ra" : "",
-		msg->flags.bits.opcode,
-		msg->flags.bits.rcode);
+		flags.qr ? " qr" : "",
+		flags.aa ? " aa" : "",
+		flags.tc ? " tc" : "",
+		flags.rd ? " rd" : "",
+		flags.ra ? " ra" : "",
+		flags.opcode,
+		flags.rcode);
 
 	for (i = 0; i < msg->qdcount; i++) {
 		qr = msg->qrs + i;
