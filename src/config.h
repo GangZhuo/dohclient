@@ -37,6 +37,7 @@ typedef struct config_t {
 	int timeout;
 	int cache_timeout;
 	int log_level;
+	int is_cache_api_enabled;
 	int is_print_version;
 	int is_print_help;
 	int is_config_file_readed;

@@ -40,6 +40,7 @@ static config_t conf = {
 	.timeout = -1,
 	.cache_timeout = -1,
 	.channel_choose_mode = -1,
+	.is_cache_api_enabled = -1,
 };
 static int running = 0;
 static listen_t listens[MAX_LISTEN] = { 0 };
@@ -117,7 +118,12 @@ Options:\n\
   --hosts=HOSTS_FILE       Path to hosts file, e.g.: --hosts=/etc/hosts.\n\
   --proxy=PROXY_URL        Proxy url, e.g. --proxy=[socks5://]127.0.0.1:1080\n\
                            or --proxy=http://username:password@[::1]:80.\n\
-                           Supports socks5 (no authentication) and http proxy.\n\
+                           Supports socks5 (no authentication) and http proxy.");
+#if DOHCLIENT_CACHE_API
+	printf("%s\n","\
+  --cache-api              Enable cache api.");
+#endif
+	printf("%s\n","\
   -v                       Verbose logging.\n\
   -h                       Show this help message and exit.\n\
   -V                       Print version and then exit.\n\
@@ -589,15 +595,17 @@ static int server_recv_msg(const char *data, int datalen,
 	req_t* req;
 
 #if DOHCLIENT_CACHE_API
-	int r;
+	if (conf.is_cache_api_enabled) {
+		int r;
 
-	r = cache_api_try_parse(cache, data, datalen, &listens[listen],
-			from, fromlen, fromtcp);
-	if (r == 0) {
-		return 0;
-	}
-	else if (r == -1) {
-		return -1;
+		r = cache_api_try_parse(cache, data, datalen, &listens[listen],
+				from, fromlen, fromtcp);
+		if (r == 0) {
+			return 0;
+		}
+		else if (r == -1) {
+			return -1;
+		}
 	}
 #endif
 

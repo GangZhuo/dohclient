@@ -84,6 +84,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"hosts",        required_argument, NULL, 12},
 		{"cache-timeout",required_argument, NULL, 13},
 		{"mode",         required_argument, NULL, 14},
+		{"cache-api",    no_argument,       NULL, 15},
 		{0, 0, 0, 0}
 	};
 
@@ -134,6 +135,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			break;
 		case 14:
 			conf->channel_choose_mode = atoi(optarg);
+			break;
+		case 15:
+			conf->is_cache_api_enabled = 1;
 			break;
 		case 'h':
 			conf->is_print_help = 1;
@@ -192,6 +196,9 @@ int conf_check(config_t* conf)
 			return -1;
 		}
 	}
+	if (conf->is_cache_api_enabled == -1) {
+		conf->is_cache_api_enabled = 0;
+	}
 
 	p = conf->channels;
 	while (p && *p) {
@@ -233,6 +240,11 @@ void conf_print(const config_t* conf)
 
 	if (conf->timeout > 0)
 		logn("timeout: %d\n", conf->timeout);
+
+	if (conf->is_cache_api_enabled)
+		logn("cache api: yes\n");
+	else
+		logn("cache api: no\n");
 
 	logn("cache timeout: %d\n", conf->cache_timeout);
 	logn("mode: %d\n", conf->channel_choose_mode);
@@ -420,6 +432,11 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 		else if (strcmp(name, "mode") == 0 && strlen(value)) {
 			if (force || conf->channel_choose_mode < 0) {
 				conf->channel_choose_mode = atoi(value);
+			}
+		}
+		else if (strcmp(name, "cache_api") == 0 && strlen(value)) {
+			if (force || conf->is_cache_api_enabled == -1) {
+				conf->is_cache_api_enabled = is_true_val(value);
 			}
 		}
 		else {
