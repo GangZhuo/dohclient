@@ -48,11 +48,26 @@ dohclient-cache: $(OBJS) src/dohclient-cache.o
 .PHONY : install
 install:
 	-rm /usr/local/bin/dohclient
+	-rm /usr/local/bin/dohclient-cache
+	-mkdir -p /usr/local/bin
 	cp ./dohclient /usr/local/bin
+	cp ./dohclient-cache /usr/local/bin
+
+.PHONY : install-config
+install-config:
+	-mkdir -p /etc/dohclient
+	cp ./asset/chnroute.txt /etc/dohclient
+	cp ./asset/chnroute6.txt /etc/dohclient
+	cp ./asset/dohclient.config /etc/dohclient
 
 .PHONY : uninstall
 uninstall:
-	rm /usr/local/bin/dohclient
+	-rm /usr/local/bin/dohclient
+	-rm /usr/local/bin/dohclient-cache
+
+.PHONY : uninstall-config
+uninstall-config:
+	-rm -rf /etc/dohclient
 
 .PHONY: clean
 clean:
