@@ -34,7 +34,7 @@ jobs:
       run: dir windows/openssl
       
     - name: Extract Openssl
-      run: cd windows/openssl && 7z x openssl.zip && cd ../../
+      run: 7z x -y windows/openssl/openssl.zip -owindows/openssl
       
     - name: dir 2
       run: dir windows/openssl
