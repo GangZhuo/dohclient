@@ -25,16 +25,13 @@ jobs:
       run: git submodule update --init --recursive
       
     - name: Download Openssl
-      run: curl https://github.com/GangZhuo/openssl-vs16/releases/download/openssl-1.1.1h-vs16/openssl-1.1.1h-vs16.zip --output windows/openssl/openssl.zip
+      run: curl -L https://github.com/GangZhuo/openssl-vs16/releases/download/openssl-1.1.1h-vs16/openssl-1.1.1h-vs16.zip --output windows/openssl/openssl.zip
       
     - name: Dir0
       run: dir
       
     - name: dir 1
       run: dir windows/openssl
-      
-    - name: cat
-      run: cat windows/openssl/openssl.zip
       
     - name: Extract Openssl
       run: 7z x -y windows/openssl/openssl.zip -owindows/openssl
