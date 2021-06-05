@@ -14,6 +14,8 @@ extern "C" {
 #ifndef strdup
 #define strdup(s) _strdup(s)
 #define strtok_r(s,d,c) strtok_s((s),(d),(c))
+#define strncasecmp _strnicmp
+#define strcasecmp _stricmp
 #endif
 #else
 #ifndef strnicmp

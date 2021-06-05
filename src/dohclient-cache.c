@@ -12,6 +12,7 @@
 
 #include "version.h"
 #include "netutils.h"
+#include "mleak.h"
 
 #define MAX_CMD_ARGS 4
 
@@ -95,13 +96,15 @@ static int send_by_udp(const char *pkg, int len)
 	}
 
 	if (setnonblock(sock) != 0) {
-		fprintf(stderr, "send_by_udp() error: set sock non-block failed\n");
+		fprintf(stderr, "send_by_udp() error: set sock non-block failed. errno=%d, %s\n",
+			errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	if (setreuseaddr(sock) != 0) {
-		fprintf(stderr, "send_by_udp() error: set sock reuse address failed\n");
+		fprintf(stderr, "send_by_udp() error: set sock reuse address failed. errno=%d, %s\n",
+			errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
@@ -138,7 +141,7 @@ static int send_by_udp(const char *pkg, int len)
 		}
 
 		if (FD_ISSET(sock, &errorset)) {
-			fprintf(stderr, "sock error: errno=%d, %s\n",
+			fprintf(stderr, "send_by_udp() error: sock error: errno=%d, %s\n",
 					errno, strerror(errno));
 			close(sock);
 			return -1;
@@ -147,7 +150,7 @@ static int send_by_udp(const char *pkg, int len)
 		if (FD_ISSET(sock, &readset)) {
 			int nread;
 			struct sockaddr_storage from[1] = {0};
-			socklen_t fromlen[1] = {0};
+			socklen_t fromlen[1] = { sizeof(*from) };
 
 			nread = recvfrom(sock, recvbuffer, sizeof(recvbuffer) - 1, 0,
 					(struct sockaddr*)from, fromlen);
@@ -157,7 +160,7 @@ static int send_by_udp(const char *pkg, int len)
 				break;
 			}
 			else {
-				fprintf(stderr, "sock error: errno=%d, %s\n",
+				fprintf(stderr, "send_by_udp() error: recvfrom() error: errno=%d, %s\n",
 						errno, strerror(errno));
 				close(sock);
 				return -1;
@@ -167,7 +170,7 @@ static int send_by_udp(const char *pkg, int len)
 		if (FD_ISSET(sock, &writeset)) {
 			int nsend = sendto(sock, pkg, len, 0, to, tolen);
 			if (nsend == -1) {
-				fprintf(stderr, "send error: to=%s, errno=%d, %s\n",
+				fprintf(stderr, "send_by_udp() error: sendto() error: to=%s, errno=%d, %s\n",
 					get_addrname(to), errno, strerror(errno));
 				close(sock);
 				return -1;
@@ -180,7 +183,7 @@ static int send_by_udp(const char *pkg, int len)
 		now = time(NULL);
 
 		if ((int)(now - begin_time) > timeout) {
-			fprintf(stderr, "timeout\n");
+			fprintf(stderr, "send_by_udp() error: timeout\n");
 			close(sock);
 			return -1;
 		}
@@ -225,19 +228,22 @@ static int send_by_tcp(const char *pkg, int len)
 	}
 
 	if (setnonblock(sock) != 0) {
-		fprintf(stderr, "send_by_tcp() error: set sock non-block failed\n");
+		fprintf(stderr, "send_by_tcp() error: set sock non-block failed. errno=%d, %s\n",
+			errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	if (setreuseaddr(sock) != 0) {
-		fprintf(stderr, "send_by_tcp() error: set sock reuse address failed\n");
+		fprintf(stderr, "send_by_tcp() error: set sock reuse address failed. errno=%d, %s\n",
+			errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	if (setnodelay(sock) != 0) {
-		fprintf(stderr, "send_by_tcp() error: set sock nodelay failed\n");
+		fprintf(stderr, "send_by_tcp() error: set sock nodelay failed. errno=%d, %s\n",
+			errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
@@ -245,7 +251,7 @@ static int send_by_tcp(const char *pkg, int len)
 	if (connect(sock, to, tolen) != 0) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			loge("sock error: errno=%d, %s - %s\n",
+			loge("send_by_tcp() error: connect() error: errno=%d, %s - %s\n",
 				errno, strerror(errno), get_addrname(to));
 			close(sock);
 			return -1;
@@ -273,14 +279,14 @@ static int send_by_tcp(const char *pkg, int len)
 		tv.tv_usec = 50 * 1000;
 
 		if (select(sock + 1, &readset, &writeset, &errorset, &tv) == -1) {
-			fprintf(stderr, "select() error: errno=%d, %s \n",
+			fprintf(stderr, "send_by_tcp() error: select() error: errno=%d, %s \n",
 				errno, strerror(errno));
 			close(sock);
 			return -1;
 		}
 
 		if (FD_ISSET(sock, &errorset)) {
-			fprintf(stderr, "sock error: errno=%d, %s\n",
+			fprintf(stderr, "send_by_tcp() error: sock error: errno=%d, %s\n",
 					errno, strerror(errno));
 			close(sock);
 			return -1;
@@ -311,8 +317,10 @@ static int send_by_tcp(const char *pkg, int len)
 				}
 			}
 			else if (nread < 0) {
-				fprintf(stderr, "sock error: errno=%d, %s\n",
+				if (errno != 0) {
+					fprintf(stderr, "send_by_tcp() error: tcp_recv() error: errno=%d, %s\n",
 						errno, strerror(errno));
+				}
 				close(sock);
 				return -1;
 			}
@@ -321,7 +329,7 @@ static int send_by_tcp(const char *pkg, int len)
 		if (FD_ISSET(sock, &writeset)) {
 			int nsend = tcp_send(sock, s);
 			if (nsend == -1) {
-				fprintf(stderr, "send error: to=%s, errno=%d, %s\n",
+				fprintf(stderr, "send_by_tcp() error: tcp_send() error: to=%s, errno=%d, %s\n",
 					get_addrname(to), errno, strerror(errno));
 				close(sock);
 				return -1;
@@ -338,7 +346,7 @@ static int send_by_tcp(const char *pkg, int len)
 		now = time(NULL);
 
 		if ((int)(now - begin_time) > timeout) {
-			fprintf(stderr, "timeout\n");
+			fprintf(stderr, "send_by_tcp() error: timeout\n");
 			close(sock);
 			return -1;
 		}
@@ -349,12 +357,27 @@ static int send_by_tcp(const char *pkg, int len)
 	return 0;
 }
 
+static int is_digitstr(const char *s)
+{
+	char *p = s;
+	while (*p) {
+		if (!isdigit(*p))
+			return FALSE;
+		p++;
+	}
+	return TRUE;
+}
+
 int main(int argc, char **argv)
 {
-	int ch, i, n;
+	int ch, i, n, r;
 	char buf[1024];
 	char *pkg = buf + 2; /* 2 bytes length for TCP */
 	int pkgsize = sizeof(buf) - 2;
+
+#ifdef WINDOWS
+	win_init();
+#endif
 
 	while ((ch = getopt(argc, argv, "s:t:Tvh")) != -1) {
 		switch (ch) {
@@ -370,6 +393,10 @@ int main(int argc, char **argv)
 			host = optarg;
 			break;
 		case 't':
+			if (!is_digitstr(optarg)) {
+				fprintf(stderr, "Invalid timeout -- %s\n", optarg);
+				exit(1);
+			}
 			timeout = atoi(optarg);
 			break;
 		case 'T':
@@ -458,12 +485,9 @@ int main(int argc, char **argv)
 			exit(1);
 		}
 		if (cmd_arg_len == 4) {
-			int len = strlen(cmd_args[3]);
-			for (i = 0; i < len; i++) {
-				if (!isdigit(cmd_args[3][i])) {
-					fprintf(stderr, "Invalid TTL -- %s\n", cmd_args[3]);
-					exit(1);
-				}
+			if (!is_digitstr(cmd_args[3])) {
+				fprintf(stderr, "Invalid TTL -- %s\n", cmd_args[3]);
+				exit(1);
 			}
 		}
 		if (cmd_arg_len == 4) {
@@ -514,8 +538,12 @@ int main(int argc, char **argv)
 	/*fprintf(stdout, "%s\n", pkg);*/
 
 	if (tcp_mode)
-		return send_by_tcp(pkg, n);
+		r = send_by_tcp(pkg, n);
 	else
-		return send_by_udp(pkg, n);
+		r = send_by_udp(pkg, n);
+
+	print_leak();
+
+	return r;
 }
 
