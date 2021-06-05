@@ -36,7 +36,7 @@ jobs:
       
     - name: Extract Openssl
       working-directory: ${{env.GITHUB_WORKSPACE}}
-      run: 7z x windows/openssl/openssl-1.1.1h-vs16.zip -owindows/openssl
+      run: 7z x ${{env.GITHUB_WORKSPACE}}/windows/openssl/openssl-1.1.1h-vs16.zip -o${{env.GITHUB_WORKSPACE}}/windows/openssl
       
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
