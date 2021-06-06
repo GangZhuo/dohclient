@@ -461,7 +461,7 @@ int cache_api_try_parse(channel_t *cache, const char *data, int datalen,
 	api = cache_api_find(data, datalen);
 	if (api == NULL)
 		return 1;
-	logd("cache api: %s\n", api->name);
+	logd("cache api: %s\n", data);
 	if (api_data_parse(api_data, data, datalen)) {
 		return -1;
 	}

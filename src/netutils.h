@@ -184,11 +184,18 @@ struct conn_t {
 	/*void* data;*/
 };
 
+#if DOHCLIENT_CACHE_API
+typedef struct wsctx_t wsctx_t;
+#endif
+
 struct peer_t {
-	conn_t conn;
-	int listen;
-	dllist_t reqs;
-	void* data;
+	conn_t    conn;
+	int       listen;
+	dllist_t  reqs;
+#if DOHCLIENT_CACHE_API
+	int       is_ws;   /* Is WebSocket? */
+	wsctx_t  *wsctx;   /* WebSocket Context */
+#endif
 };
 
 #define get_addrport(/* struct sockaddr* */a) \

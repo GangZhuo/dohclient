@@ -829,7 +829,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 		return NULL;
 	}
 
-	dns = base64url_encode(s.array, s.size, &dns_len, FALSE);
+	dns = base64url_encode(s.array, s.size, &dns_len, FALSE, TRUE);
 	if (!dns) {
 		loge("doh_build_get_request() error: base64_encode() error\n");
 		stream_free(&s);

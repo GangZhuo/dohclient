@@ -25,6 +25,7 @@
 #include "channel_hosts.h"
 #include "cache_api.h"
 #include "http.h"
+#include "ws.h"
 #include "mleak.h"
 
 /* rb-tree node */
@@ -652,6 +653,8 @@ static int server_udp_recv(int listen_index)
 		return -1;
 	}
 
+	buffer[nread] = '\0'; /* so, can print as string */
+
 	if (server_recv_msg(buffer, nread, listen_index, &from, fromlen, FALSE)) {
 		return -1;
 	}
@@ -707,8 +710,33 @@ static int peer_handle_recv(peer_t* peer)
 	stream_t* s = &peer->conn.rs;
 	int msglen, left;
 
+#if DOHCLIENT_CACHE_API
+	if (conf.is_cache_api_enabled && peer->is_ws) {
+		return ws_onrecv(peer);
+	}
+#endif
+
 	while ((left = stream_rsize(s)) >= 2) {
 		msglen = stream_geti(s, s->pos, 2);
+#if DOHCLIENT_CACHE_API
+		if (conf.is_cache_api_enabled) {
+			if (msglen == 0x4745) {
+				if (left >= 4) {
+					msglen = stream_geti(s, s->pos, 4);
+					if (msglen == 0x47455420) {  /* 0x47455420 is ASCII of "GET " */
+						return ws_onrecv(peer);
+					}
+					else {
+						loge("peer_recv() error: Invalid HTTP Request\n");
+						return -1;
+					}
+				}
+				else {
+					break;
+				}
+			}
+		}
+#endif
 		if (msglen > NS_PAYLOAD_SIZE) {
 			loge("peer_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
 			return -1;
@@ -743,12 +771,17 @@ static int peer_recv(peer_t* peer)
 	char* buffer;
 	int buflen, nread;
 
-	if (stream_set_cap(s, NS_PAYLOAD_SIZE + 2)) {
-		return -1;
+	buflen = s->cap - s->size;
+
+	/* 2 bytes for length of dns-message, 1 byte for '\0' */
+	if (buflen < NS_PAYLOAD_SIZE + 3) {
+		if (stream_set_cap(s, s->size + NS_PAYLOAD_SIZE + 3)) {
+			return -1;
+		}
+		buflen = s->cap - s->size - 1; /* reserve 1 bytes for '\0' */
 	}
 
 	buffer = s->array + s->size;
-	buflen = s->cap - s->size;
 
 	nread = tcp_recv(sock, buffer, buflen);
 
@@ -759,6 +792,8 @@ static int peer_recv(peer_t* peer)
 		return 0;
 
 	s->size += nread;
+
+	s->array[s->size] = '\0'; /* so we can print as string */
 
 	peer->conn.rx += nread;
 
@@ -816,6 +851,10 @@ static void peer_close(peer_t* peer)
 		req_t, req, entry_peer) {
 		req_remove(req);
 	}
+#if DOHCLIENT_CACHE_API
+	if (peer->wsctx)
+		wsctx_free(peer->wsctx);
+#endif
 	peer_destroy(peer);
 }
 

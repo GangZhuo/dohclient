@@ -11,7 +11,8 @@ extern "C" {
 char *base64url_encode(const unsigned char *data,
     int input_length,
     int*output_length,
-    int tail_padding);
+    int tail_padding,
+	int dns);
 
 #ifdef __cplusplus
 }

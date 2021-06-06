@@ -584,7 +584,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 				char auth_str[PROXY_USERNAME_LEN + PROXY_PASSWORD_LEN];
 				sprintf(auth_str, "%s:%s", proxy->username, proxy->password);
 				auth_code = base64url_encode((const unsigned char*)auth_str,
-						strlen(auth_str), &auth_code_len, TRUE);
+						strlen(auth_str), &auth_code_len, TRUE, FALSE);
 			}
 			r = stream_writef(s,
 				"CONNECT %s HTTP/1.1\r\n"

@@ -21,9 +21,11 @@ OBJS = \
 	src/log.o \
 	src/netutils.o \
 	src/ns_msg.o \
+	src/sha1.o \
 	src/stream.o \
 	src/utils.o \
-	src/mleak.o
+	src/mleak.o \
+	src/ws.o
 
 CFLAGS += -DDOHCLIENT_CACHE_API
 LIBS += -lssl -lcrypto
