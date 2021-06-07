@@ -197,8 +197,10 @@
     <ClCompile Include="..\src\mleak.c" />
     <ClCompile Include="..\src\netutils.c" />
     <ClCompile Include="..\src\ns_msg.c" />
+    <ClCompile Include="..\src\sha1.c" />
     <ClCompile Include="..\src\stream.c" />
     <ClCompile Include="..\src\utils.c" />
+    <ClCompile Include="..\src\ws.c" />
     <ClCompile Include="argp\getopt.c" />
     <ClCompile Include="win.c" />
   </ItemGroup>
@@ -224,9 +226,11 @@
     <ClInclude Include="..\src\mleak.h" />
     <ClInclude Include="..\src\netutils.h" />
     <ClInclude Include="..\src\ns_msg.h" />
+    <ClInclude Include="..\src\sha1.h" />
     <ClInclude Include="..\src\stream.h" />
     <ClInclude Include="..\src\utils.h" />
     <ClInclude Include="..\src\version.h" />
+    <ClInclude Include="..\src\ws.h" />
     <ClInclude Include="argp\getopt.h" />
     <ClInclude Include="win.h" />
   </ItemGroup>

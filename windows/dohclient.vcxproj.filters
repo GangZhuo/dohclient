@@ -90,6 +90,12 @@
     <ClCompile Include="..\src\cache_api.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\sha1.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\ws.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\log.h">
@@ -168,6 +174,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\src\cache_api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\sha1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\ws.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
