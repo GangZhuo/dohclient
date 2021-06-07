@@ -20,6 +20,7 @@
 #define WS_SALT "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 typedef struct handshake_t {
+	char         url[512];
 	char         upgrade[50];
 	char         connection[50];
 	char         ws_key[50];
@@ -37,6 +38,7 @@ typedef struct wsctx_t {
 } wsctx_t;
 
 static int on_message_begin(http_parser *parser);
+static int on_url(http_parser *parser, const char *at, size_t length);
 static int on_header_field(http_parser *parser, const char *at, size_t length);
 static int on_header_value(http_parser *parser, const char *at, size_t length);
 static int on_headers_complete(http_parser *parser);
@@ -44,7 +46,7 @@ static int on_message_complete(http_parser *parser);
 
 static http_parser_settings hp_settings[1] = {{
 	.on_message_begin = on_message_begin,
-	.on_url = NULL,
+	.on_url = on_url,
 	.on_status = NULL,
 	.on_header_field = on_header_field,
 	.on_header_value = on_header_value,
@@ -105,6 +107,13 @@ int ws_onrecv(peer_t *peer)
 		s->pos += nparsed;
 	}
 
+	if (s->pos > 0) {
+		if (stream_quake(s)) {
+			loge("ws_onrecv() error: stream_quake() failed\n");
+			return -1;
+		}
+	}
+
 	return 0;
 }
 
@@ -128,7 +137,8 @@ static int on_message_begin(http_parser* parser)
 	peer_t *peer = parser->data;
 	handshake_t *c = peer->wsctx->hs;
 
-	c->upgrade[0] = '\0';;
+	c->url[0] = '\0';
+	c->upgrade[0] = '\0';
 	c->connection[0] = '\0';
 	c->ws_key[0] = '\0';
 	c->ws_protocol[0] = '\0';
@@ -136,6 +146,14 @@ static int on_message_begin(http_parser* parser)
 	c->hp_name[0] = '\0';
 	c->hp_value[0] = '\0';
 	c->hp_state = HP_STATE_NONE;
+	return 0;
+}
+
+static int on_url(http_parser *parser, const char *at, size_t length)
+{
+	peer_t* peer = parser->data;
+	handshake_t* c = peer->wsctx->hs;
+	strappend(c->url, sizeof(c->url), at, length);
 	return 0;
 }
 
@@ -242,51 +260,87 @@ static int on_message_complete(http_parser *parser)
 	handshake_t *c = peer->wsctx->hs;
 	stream_t *s = &peer->conn.ws;
 	char *key;
+	int is_ws = FALSE;
 	int r;
 
-	logd("HTTP Request Header Compiled\n");
+	logd("Http Request: url=%s\n", c->url);
 
-	if (strcasecmp(c->upgrade, "websocket")) {
-		loge("Invalid Upgrade: %s\n", c->upgrade);
-		return -1;
+	if (strcasecmp(c->upgrade, "websocket") == 0) {
+		if (strlen(c->ws_key) == 0) {
+			r = stream_writef(s,
+				"HTTP/1.1 400 Bad Request\r\n"
+				"Content-Type: text/plain\r\n"
+				"Content-Length: 11\r\n"
+				"\r\n"
+				"Bad Request");
+		}
+		else {
+			key = gen_ws_accept_key(c->ws_key);
+			s->pos = 0;
+			r = stream_writef(s,
+				"HTTP/1.1 101 Switching Protocols\r\n"
+				"Connection: Upgrade\r\n"
+				"Sec-WebSocket-Accept: %s\r\n"
+				"Sec-WebSocket-Protocol: %s\r\n"
+				"Upgrade: websocket\r\n"
+				"\r\n",
+				key,
+				strlen(c->ws_protocol) == 0 ? "chat" : c->ws_protocol);
+			free(key);
+			is_ws = TRUE;
+		}
 	}
-	else if (strlen(c->ws_key) == 0) {
-		loge("No Sec-WebSocket-Key\n");
-		return -1;
+	else if (strlen(c->upgrade) > 0) {
+		r = stream_writef(s,
+			"HTTP/1.1 400 Bad Request\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 11\r\n"
+			"\r\n"
+			"Bad Request");
 	}
-
-	key = gen_ws_accept_key(c->ws_key);
-
-	s->pos = 0;
-
-	r = stream_writef(s,
-			"HTTP/1.1 101 Switching Protocols\r\n"
-			"Upgrade: websocket\r\n"
-			"Connection: Upgrade\r\n"
-			"Sec-WebSocket-Accept: %s\r\n"
-			"Sec-WebSocket-Protocol: %s\r\n"
-			"\r\n",
-			key,
-			strlen(c->ws_protocol) == 0 ? "chat" : c->ws_protocol);
-
-	free(key);
-
+	else if (strcasecmp(c->url, "/") == 0) {
+		r = stream_writef(s,
+			"HTTP/1.1 200 Ok\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 7\r\n"
+			"\r\n"
+			"Working");
+	}
+	else if (strcasecmp(c->url, "/api") == 0) {
+		r = stream_writef(s,
+			"HTTP/1.1 403 Forbidden\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 9\r\n"
+			"\r\n"
+			"Forbidden");
+	}
+	else {
+		r = stream_writef(s,
+			"HTTP/1.1 404 Not Found\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 9\r\n"
+			"\r\n"
+			"Not Found");
+	}
+	
 	if (r == -1) {
-		loge("Create WebSocket Response Error: alloc\n");
+		loge("Create Response Error: alloc\n");
 		return -1;
 	}
 
-	logd("ws response: %s\n", s->array);
+	logd("Http Response: \n%s\n", s->array);
 
 	s->pos = 0;
 
 	r = tcp_send(peer->conn.sock, s);
 	if (r == -1) {
-		loge("Send WebSocket Response Error: %d, %s\n", errno, strerror(errno));
+		loge("Send Response Error: %d, %s\n", errno, strerror(errno));
 		return -1;
 	}
 
-	peer->wsctx->is_handshake = TRUE;
+	if (is_ws) {
+		peer->wsctx->is_handshake = TRUE;
+	}
 
 	return 0;
 }
