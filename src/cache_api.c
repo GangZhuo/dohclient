@@ -37,19 +37,19 @@ struct api_data_t {
 	int         datalen;
 };
 
-static int cache_api_list(api_ctx_t *ctx);
+static int cache_run_api_list(api_ctx_t *ctx);
 
-static int cache_api_get(api_ctx_t *ctx);
+static int cache_run_api_get(api_ctx_t *ctx);
 
-static int cache_api_put(api_ctx_t *ctx);
+static int cache_run_api_put(api_ctx_t *ctx);
 
-static int cache_api_delete(api_ctx_t *ctx);
+static int cache_run_api_delete(api_ctx_t *ctx);
 
 static cache_api_t apis[] = {
-	{ "GET",    cache_api_get },      /* UDP: "GET 'IN A www.baidu.com.'" */
-	{ "LIST",   cache_api_list },     /* UDP: "LIST" */
-	{ "PUT",    cache_api_put },      /* UDP: "PUT www.baidu.com. A 180.101.49.11 289" */
-	{ "DELETE", cache_api_delete },   /* UDP: "DELETE 'IN A www.baidu.com.'" */
+	{ "GET",    cache_run_api_get },      /* UDP: "GET 'IN A www.baidu.com.'" */
+	{ "LIST",   cache_run_api_list },     /* UDP: "LIST" */
+	{ "PUT",    cache_run_api_put },      /* UDP: "PUT www.baidu.com. A 180.101.49.11 289" */
+	{ "DELETE", cache_run_api_delete },   /* UDP: "DELETE 'IN A www.baidu.com.'" */
 };
 
 typedef struct range {
@@ -203,14 +203,22 @@ static int cache_api_send_result(api_ctx_t *ctx, const char *json)
 }
 
 struct each_state {
-	api_ctx_t *ctx;
 	stream_t  *s;
+	int        offset;
+	int        limit;
+	int        index;
+	int        count;
 };
 
 static int cb_each(const ns_msg_t *msg, void *data)
 {
 	struct each_state *st = data;
 	stream_t *s = st->s;
+
+	if (st->index < st->offset) {
+		st->index++;
+		return 0; /* skip */
+	}
 
 	if (s->size > 1) {
 		if (stream_appends(s, ",", 1) == -1) {
@@ -224,55 +232,64 @@ static int cb_each(const ns_msg_t *msg, void *data)
 		return -1;
 	}
 
+	st->index++;
+	st->count++;
+
+	if (st->limit > 0 && st->count >= st->limit)
+		return 1; /* break */
+
 	return 0;
 }
 
-static int cache_api_list(api_ctx_t *ctx)
+static int cache_list(channel_t *cache, stream_t *s, int offset, int limit)
 {
-	stream_t s[1] = {0};
 	struct each_state st[1] = {
-		{ .ctx = ctx, .s = s, }
+		{ .s = s, .offset = offset, .limit = limit, }
 	};
-	int r;
 
 	if (stream_appends(s, "[", 1) == -1) {
-		loge("cache_api_list() error: alloc\n");
+		loge("cache_list() error: alloc\n");
 		stream_free(s);
 		return -1;
 	}
 
-	if (cache_each(ctx->cache, cb_each, st) == -1) {
-		loge("cache_api_list() error: alloc\n");
+	if (cache_each(cache, cb_each, st) == -1) {
+		loge("cache_list() error: alloc\n");
 		stream_free(s);
 		return -1;
 	}
 
 	if (stream_appends(s, "]", 1) == -1) {
-		loge("cache_api_list() error: alloc\n");
+		loge("cache_list() error: alloc\n");
 		stream_free(s);
 		return -1;
 	}
 
-	r = cache_api_send_result(ctx, s->array);
-	stream_free(s);
-
-	return r;
+	return 0;
 }
 
-static int cache_api_get(api_ctx_t *ctx)
+char *cache_api_list(channel_t *cache, int offset, int limit)
 {
-	api_data_t *d = ctx->api_data;
-	char key[REQ_KEY_SIZE] = {0};
+	stream_t s[1] = {0};
+	char *json = NULL;
+	if (cache_list(cache, s, offset, limit) == -1) {
+		stream_free(s);
+		return NULL;
+	}
+	json = jsonmsgwrap(CACHE_API_OK, "OK", s->array);
+	stream_free(s);
+	return json;
+}
+
+char *cache_api_get(channel_t *cache, const char *key)
+{
 	const ns_msg_t *msg;
 	char *json = NULL;
-	int r;
-
-	copystr(key, sizeof(key), d->data, d->data + d->datalen);
 
 	if (!*key) {
 		json = jsonmsgwrap(CACHE_API_EARG, "No Cache Key", NULL);
 	}
-	else if ((msg = cache_get(ctx->cache, key)) != NULL) {
+	else if ((msg = cache_get(cache, key)) != NULL) {
 		char *d = nsmsg2json(msg);
 		if (d) {
 			json = jsonmsgwrap(CACHE_API_OK, "OK", d);
@@ -285,48 +302,30 @@ static int cache_api_get(api_ctx_t *ctx)
 
 	if (!json) {
 		loge("cache_api_get() error: failed to create json\n");
-		return -1;
+		return NULL;
 	}
 
-	r = cache_api_send_result(ctx, json);
-	free(json);
-
-	return r;
+	return json;
 }
 
-static int cache_api_put(api_ctx_t *ctx)
+char *cache_api_put(channel_t *cache, const char *name, const char *type,
+		const char *ip, const char *ttl)
 {
-	api_data_t *d = ctx->api_data;
-	char name[NS_NAME_SIZE] = {0};
-	char type[8] = {0}; /* A|AAAA */
-	char ttl[8] = {0};
-	char ip[INET6_ADDRSTRLEN + 1] = {0};
-	const char *p = d->data;
-	const char *e = d->data + d->datalen;
 	char *json = NULL;
 	int namelen;
 	int r;
 
-	p = copystr(name, sizeof(name), p, e);
-	p = copystr(type, sizeof(type), p, e);
-	p = copystr(ip,   sizeof(ip),   p, e);
-	p = copystr(ttl,  sizeof(ttl),  p, e);
-
-	logd("name: %s\n", name);
-	logd("type: %s\n", type);
-	logd("ip:   %s\n", ip);
-	logd("ttl:  %s\n", ttl);
-
 	namelen = strlen(name);
 
 	if (namelen == 0 ||
-			(name[namelen - 1] != '.' && namelen + 1 == sizeof(name)) ||
+			(name[namelen - 1] != '.' && namelen + 1 >= NS_NAME_SIZE) ||
 			!*type ||
 			!*ip ||
 			(strcasecmp(type, "A") && strcasecmp(type, "AAAA"))) {
 		json = jsonmsgwrap(CACHE_API_EARG, "Invalid Arguments", NULL);
 	}
 	else {
+		char qname[NS_NAME_SIZE] = {0};
 		int family = !strcasecmp(type, "A") ? AF_INET : AF_INET6;
 		int tl = *ttl ? atoi(ttl) : INT32_MAX;
 		sockaddr_t addr[1] = {0};
@@ -334,9 +333,10 @@ static int cache_api_put(api_ctx_t *ctx)
 		if (tl <= 0)
 			tl = INT32_MAX;
 
-		if (name[namelen - 1] != '.') {
-			name[namelen++] = '.';
-			name[namelen] = '\0';
+		strncpy(qname, name, NS_NAME_SIZE);
+		if (qname[namelen - 1] != '.') {
+			qname[namelen++] = '.';
+			qname[namelen] = '\0';
 		}
 
 		if (family == AF_INET && !try_parse_as_ip4(addr, ip, "53")) {
@@ -369,7 +369,7 @@ static int cache_api_put(api_ctx_t *ctx)
 			msg->ancount = 1;
 			msg->rrs = an;
 		
-			qr->qname = name;
+			qr->qname = qname;
 			qr->qclass = NS_QCLASS_IN;
 			qr->qtype = family == AF_INET ? NS_QTYPE_A : NS_QTYPE_AAAA;
 		
@@ -382,7 +382,7 @@ static int cache_api_put(api_ctx_t *ctx)
 				(void*)&((struct sockaddr_in*)&addr->addr)->sin_addr :
 				(void*)&((struct sockaddr_in6*)&addr->addr)->sin6_addr;
 
-			if (cache_add(ctx->cache, msg_key(msg), msg, TRUE)) {
+			if (cache_add(cache, msg_key(msg), msg, TRUE)) {
 				json = jsonmsgwrap(CACHE_API_EALLOC, "Invalid IPv6", NULL);
 			}
 			else {
@@ -391,25 +391,17 @@ static int cache_api_put(api_ctx_t *ctx)
 		}
 	}
 
-	r = cache_api_send_result(ctx, json);
-	free(json);
-
-	return r;
+	return json;
 }
 
-static int cache_api_delete(api_ctx_t *ctx)
+char *cache_api_delete(channel_t *cache, const char *key)
 {
-	api_data_t *d = ctx->api_data;
-	char key[REQ_KEY_SIZE] = {0};
 	char *json = NULL;
-	int r;
-
-	copystr(key, sizeof(key), d->data, d->data + d->datalen);
 
 	if (!*key) {
 		json = jsonmsgwrap(CACHE_API_EARG, "No Cache Key", NULL);
 	}
-	else if (cache_remove(ctx->cache, key) == 0) {
+	else if (cache_remove(cache, key) == 0) {
 		json = jsonmsgwrap(CACHE_API_OK, "OK", NULL);
 	}
 	else {
@@ -418,16 +410,88 @@ static int cache_api_delete(api_ctx_t *ctx)
 
 	if (!json) {
 		loge("cache_api_delete() error: failed to create json\n");
+		return NULL;
+	}
+
+	return json;
+}
+
+
+static int cache_run_api_list(api_ctx_t *ctx)
+{
+	char *json = NULL;
+	int r;
+	if ((json = cache_api_list(ctx->cache, 0, 0)) == NULL) {
+		return -1;
+	}
+	r = cache_api_send_result(ctx, json);
+	free(json);
+	return r;
+}
+
+static int cache_run_api_get(api_ctx_t *ctx)
+{
+	api_data_t *d = ctx->api_data;
+	char key[REQ_KEY_SIZE] = {0};
+	char *json = NULL;
+	int r;
+	copystr(key, sizeof(key), d->data, d->data + d->datalen);
+	if ((json = cache_api_get(ctx->cache, key)) == NULL) {
+		return -1;
+	}
+	r = cache_api_send_result(ctx, json);
+	free(json);
+	return r;
+}
+
+static int cache_run_api_put(api_ctx_t *ctx)
+{
+	api_data_t *d = ctx->api_data;
+	char name[NS_NAME_SIZE] = {0};
+	char type[8] = {0}; /* A|AAAA */
+	char ttl[8] = {0};
+	char ip[INET6_ADDRSTRLEN + 1] = {0};
+	const char *p = d->data;
+	const char *e = d->data + d->datalen;
+	char *json = NULL;
+	int r;
+
+	p = copystr(name, sizeof(name), p, e);
+	p = copystr(type, sizeof(type), p, e);
+	p = copystr(ip,   sizeof(ip),   p, e);
+	p = copystr(ttl,  sizeof(ttl),  p, e);
+
+	logd("name: %s\n", name);
+	logd("type: %s\n", type);
+	logd("ip:   %s\n", ip);
+	logd("ttl:  %s\n", ttl);
+
+	if ((json = cache_api_put(ctx->cache, name, type, ip, ttl)) == NULL) {
 		return -1;
 	}
 
 	r = cache_api_send_result(ctx, json);
-	free(json);
 
+	free(json);
 	return r;
 }
 
-static cache_api_t *cache_api_find(const char *data, int datalen)
+static int cache_run_api_delete(api_ctx_t *ctx)
+{
+	api_data_t *d = ctx->api_data;
+	char key[REQ_KEY_SIZE] = {0};
+	char *json = NULL;
+	int r;
+	copystr(key, sizeof(key), d->data, d->data + d->datalen);
+	if ((json = cache_api_get(ctx->cache, key)) == NULL) {
+		return -1;
+	}
+	r = cache_api_send_result(ctx, json);
+	free(json);
+	return r;
+}
+
+static cache_api_t *cache_find_api(const char *data, int datalen)
 {
 	int i;
 	cache_api_t *api;
@@ -458,7 +522,7 @@ int cache_api_try_parse(channel_t *cache, const char *data, int datalen,
 	cache_api_t *api;
 	api_ctx_t ctx[1] = {0};
 	api_data_t api_data[1] = {0};
-	api = cache_api_find(data, datalen);
+	api = cache_find_api(data, datalen);
 	if (api == NULL)
 		return 1;
 	logd("cache api: %s\n", data);

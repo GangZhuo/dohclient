@@ -54,7 +54,7 @@ static chnroute_ctx blacklist = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
 static channel_t* hosts = NULL;
-static channel_t* cache = NULL;
+channel_t *cache = NULL;
 static channel_t** channels = NULL;
 static int channel_num = 0;
 
@@ -716,30 +716,19 @@ static int peer_handle_recv(peer_t* peer)
 	}
 #endif
 
-	while ((left = stream_rsize(s)) >= 2) {
+	while ((left = stream_rsize(s)) >= 6) {
 		msglen = stream_geti(s, s->pos, 2);
-#if DOHCLIENT_CACHE_API
-		if (conf.is_cache_api_enabled) {
-			if (msglen == 0x4745) {
-				if (left >= 4) {
-					msglen = stream_geti(s, s->pos, 4);
-					if (msglen == 0x47455420) {  /* 0x47455420 is ASCII of "GET " */
-						return ws_onrecv(peer);
-					}
-					else {
-						loge("peer_recv() error: Invalid HTTP Request\n");
-						return -1;
-					}
-				}
-				else {
-					break;
-				}
-			}
-		}
-#endif
 		if (msglen > NS_PAYLOAD_SIZE) {
-			loge("peer_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
-			return -1;
+#if DOHCLIENT_CACHE_API
+			if (conf.is_cache_api_enabled && ws_can_parse(s->array + s->pos)) {
+				return ws_onrecv(peer);
+			}
+			else
+#endif
+			{
+				loge("peer_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
+				return -1;
+			}
 		}
 		else if (left >= (msglen + 2)) {
 			if (server_recv_msg(s->array + s->pos + 2, msglen, peer->listen, peer, 0, TRUE)) {
@@ -992,7 +981,11 @@ static int do_loop()
 
 			if (!running) break;
 
-			if (!r && is_expired(&peer->conn, now)) {
+			if (!r &&
+#if DOHCLIENT_CACHE_API
+					!peer->keep_alive &&
+#endif
+					is_expired(&peer->conn, now)) {
 				loge("peer timeout - %s\n", get_sockname(peer->conn.sock));
 				r = -1;
 			}

@@ -54,7 +54,7 @@ int parse_querystring(const char *query,
 	char *p;
 	char *v;
 
-	if (!query) return -1;
+	if (!query || !*query) return -1;
 
 	cpy = strdup(query);
 

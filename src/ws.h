@@ -12,6 +12,7 @@ extern "C" {
 
 typedef struct wsctx_t wsctx_t;
 
+int ws_can_parse(char *buf);
 void wsctx_free(wsctx_t *ctx);
 int ws_onrecv(peer_t *peer);
 
