@@ -9,6 +9,7 @@
 #include "base64url.h"
 #include "cache_api.h"
 #include "utils.h"
+#include "channel.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -452,14 +453,13 @@ static int run_post(peer_t *peer)
 	else if (strcasecmp(c->path, "/api/v1/list") == 0) {
 		char offset[10] = {0}, limit[10] = {0};
 		int off = 0, lim = 0;
-		parse_querystring_state_t st[1] = {0};
-		st->items[0].name = "offset";
-		st->items[0].pvalue = offset;
-		st->items[0].vsize = sizeof(offset);
-		st->items[1].name = "limit";
-		st->items[1].pvalue = limit;
-		st->items[1].vsize = sizeof(limit);
-		st->num = 2;
+		parse_querystring_state_t st[1] = {{
+			{
+				{ "offset", offset, sizeof (offset) },
+				{ "limit",  limit,  sizeof (limit) },
+			},
+			2,
+		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
 		if (*offset)
 			off = atoi(offset);
@@ -471,17 +471,14 @@ static int run_post(peer_t *peer)
 			strcasecmp(c->path, "/api/v1/delete") == 0) {
 		char qtype[10] = {0}, qclass[10] = {0}, qname[NS_NAME_SIZE] = {0};
 		char key[NS_NAME_SIZE] = {0};
-		parse_querystring_state_t st[1] = {0};
-		st->items[0].name = "type"; /* A|AAAA */
-		st->items[0].pvalue = qtype;
-		st->items[0].vsize = sizeof(qtype);
-		st->items[1].name = "class"; /* IN|CS|CH|HS */
-		st->items[1].pvalue = qclass;
-		st->items[1].vsize = sizeof(qclass);
-		st->items[2].name = "name";
-		st->items[2].pvalue = qname;
-		st->items[2].vsize = sizeof(qname);
-		st->num = 3;
+		parse_querystring_state_t st[1] = {{
+			{
+				{ "type",  qtype,  sizeof(qtype) }, /* A|AAAA */
+				{ "class", qclass, sizeof(qclass) }, /* IN|CS|CH|HS */
+				{ "name",  qname,  sizeof(qname) },
+			},
+			3,
+		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
 		snprintf(key, sizeof(key) - 1, "%s %s %s", qtype, qclass, qname);
 		if (strcasecmp(c->path, "/api/v1/delete") == 0)
@@ -492,20 +489,15 @@ static int run_post(peer_t *peer)
 	else if (strcasecmp(c->path, "/api/v1/put") == 0) {
 		char qtype[10] = {0}, ip[INET6_ADDRSTRLEN + 1] = {0},
 			 qname[NS_NAME_SIZE] = {0}, ttl[10] = {0};
-		parse_querystring_state_t st[1] = {0};
-		st->items[0].name = "type"; /* A|AAAA */
-		st->items[0].pvalue = qtype;
-		st->items[0].vsize = sizeof(qtype);
-		st->items[1].name = "ip";
-		st->items[1].pvalue = ip;
-		st->items[1].vsize = sizeof(ip);
-		st->items[2].name = "name";
-		st->items[2].pvalue = qname;
-		st->items[2].vsize = sizeof(qname);
-		st->items[3].name = "ttl";
-		st->items[3].pvalue = ttl;
-		st->items[3].vsize = sizeof(ttl);
-		st->num = 4;
+		parse_querystring_state_t st[1] = {{
+			{
+				{ "type",  qtype,  sizeof(qtype) }, /* A|AAAA */
+				{ "ip",    ip,     sizeof(ip) },
+				{ "name",  qname,  sizeof(qname) },
+				{ "ttl",   ttl,    sizeof(ttl) },
+			},
+			4,
+		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
 		json = cache_api_put(cache, qname, qtype, ip, ttl);
 	}

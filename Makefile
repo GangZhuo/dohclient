@@ -27,6 +27,13 @@ OBJS = \
 	src/mleak.o \
 	src/ws.o
 
+OBJS_DOHCLIENT_CACHE = \
+	src/log.o \
+	src/stream.o \
+	src/netutils.o \
+	src/utils.o \
+	src/mleak.o
+
 CFLAGS += -DDOHCLIENT_CACHE_API
 LIBS += -lssl -lcrypto
 MYLIBS =
@@ -41,7 +48,7 @@ all: dohclient dohclient-cache
 dohclient: $(OBJS) src/main.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
-dohclient-cache: $(OBJS) src/dohclient-cache.o
+dohclient-cache: $(OBJS_DOHCLIENT_CACHE) src/dohclient-cache.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 %.o: %.c
