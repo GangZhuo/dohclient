@@ -16,6 +16,8 @@
 #include <string.h>
 #include "mleak.h"
 
+#define WEBSOCKET_ENABLED 0
+
 #define HP_STATE_NONE  0
 #define HP_STATE_NAME  1
 #define HP_STATE_VALUE 2
@@ -46,7 +48,9 @@ typedef struct request_t {
 } request_t;
 
 typedef struct hsctx_t {
+#if WEBSOCKET_ENABLED
 	int        is_handshake;
+#endif
 	request_t *hs;
 } hsctx_t;
 
@@ -204,10 +208,13 @@ int hs_onrecv(peer_t *peer)
 		peer->is_hs = TRUE;
 	}
 
+#if WEBSOCKET_ENABLED
 	if (c->is_handshake) {
 		/* TODO: */
 	}
-	else {
+	else
+#endif
+	{
 		size_t nparsed;
 		request_t *hs = c->hs;
 		hs = (request_t *)malloc(sizeof(request_t));
@@ -635,13 +642,16 @@ static int run_websocket(peer_t *peer)
 	stream_t *s = &peer->conn.ws;
 	int r;
 
+#if WEBSOCKET_ENABLED
 	if (strcasecmp(c->upgrade, "websocket") || strlen(c->ws_key) == 0) {
+#endif
 		r = stream_writef(s,
 			"HTTP/1.1 400 Bad Request\r\n"
 			"Content-Type: text/plain\r\n"
 			"Content-Length: 11\r\n"
 			"\r\n"
 			"Bad Request");
+#if WEBSOCKET_ENABLED
 	}
 	else {
 		char *key;
@@ -655,6 +665,7 @@ static int run_websocket(peer_t *peer)
 			"\r\n", key);
 		free(key);
 	}
+#endif
 
 	logd("Http Response: \n%s\n", s->array);
 
@@ -666,8 +677,10 @@ static int run_websocket(peer_t *peer)
 		return -1;
 	}
 
+#if WEBSOCKET_ENABLED
 	peer->hsctx->is_handshake = TRUE;
 	peer->keep_alive = TRUE;
+#endif
 
 	return 0;
 }
