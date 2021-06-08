@@ -22,9 +22,7 @@
 				<option value="HS">HS</option>
 			</select>
 			<input id="txDomain" type="text" placeholder="Domain Name" value="" />
-			<button id="btnGet" type="button">GET</button>
-			<button id="btnListAll" type="button">LIST ALL</button>
-			<button id="btnWS" type="button">WebSocket</button>
+			<button id="btnGet" type="button">FIND</button>
 		</div>
 		<div>
 			<input id="txDomain2" type="text" placeholder="Domain Name" value="" />
@@ -34,12 +32,17 @@
 			</select>
 			<input id="txIP" name="txIP" type="text" placeholder="IPv4 or IPv6" value="" />
 			<input id="txTTL" name="txTTL" type="text" placeholder="TTL" value="" />
-			<button id="btnPut" type="button">PUT</button>
+			<button id="btnPut" type="button">ADD/EDIT</button>
+		</div>
+		<div>
+			<input id="txKeyword" type="text" placeholder="Keyword" value="" />
+			<button id="btnListAll" type="button">SEARCH</button>
 		</div>
 		<div>
 			<table id="tbList">
 				<thead>
 					<tr>
+						<th></th>
 						<th>Key</th>
 						<th>Answers</th>
 						<th><a data-action="refresh" class="refresh-page" title="Refresh" href="javascript: void(0);"><img class="refresh-img" src="img/refresh.svg" /></a></th>
@@ -47,13 +50,13 @@
 				</thead>
 				<tbody>
 					<tr>
-						<td colspan="3">No Data</td>
+						<td colspan="4">No Data</td>
 					</tr>
 				</tbody>
 				<tfoot>
 					<tr>
-						<td colspan="3">
-							<span class="offset-limit">0 - 100</span>
+						<td colspan="4">
+							<span class="offset-limit"></span>
 							<a data-action="prev-page" class="prev-page" title="Previous Page" href="javascript: void(0);">&lt;&lt;</a>
 							<a data-action="next-page" class="next-page" title="Next Page" href="javascript: void(0);">&gt;&gt;</a>
 						</td>

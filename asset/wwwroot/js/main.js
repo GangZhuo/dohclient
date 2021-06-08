@@ -1,9 +1,7 @@
 (function($) {
-	var Api = $.DohClientApi,
-		QTYPE = Api.QTYPE,
-		QCLASS = Api.QCLASS;
+	var Api = $.DohClientApi;
 	var api = new Api({});
-	var query = { offset: 0, limit: 100 };
+	var query = { keyword: null, offset: 0, limit: 100 };
 	var loading;
 
 	/* Parse querystring */
@@ -60,15 +58,16 @@
 		var html = [];
 		if (r.error) {
 			html.push('<tr>');
-			html.push('  <td class="errmsg" colspan="3">' + (r.msg || "Unknown Error") + '</td>');
+			html.push('  <td class="errmsg" colspan="4">' + (r.msg || "Unknown Error") + '</td>');
 			html.push('</tr>');
 		}
 		else {
-			var list = r.data || [];
+			var list = r.data.list || [];
 			var i;
 			for (i = 0; i < list.length; i++) {
 				var d = list[i] || {};
 				html.push('<tr>');
+				html.push('  <td>' + (r.data.offset + i + 1) + '</td>');
 				html.push('  <td>' + (d.key || '') + '</td>');
 				html.push('  <td>' + (d.answers || '') + '</td>');
 				html.push('  <td><a data-action="remove" data-key="' + (d.key || '') + '" class="remove" title="Remove" href="javascript: void(0);">Remove</a></td>');
@@ -76,16 +75,20 @@
 			}
 			if (i == 0) {
 				html.push('<tr>');
-				html.push('  <td colspan="3">No Data</td>');
+				html.push('  <td colspan="4">No Data</td>');
 				html.push('</tr>');
 			}
 		}
 		$("#tbList > tbody").html(html.join("\n"));
 	}
 
-	function bindRangeText(range) {
+	function bindRangeText(range, r) {
 		if (range) {
-			$(".offset-limit").html(range.offset + " - " + (range.offset + range.limit - 1));
+			$(".offset-limit").html(
+				"Total: " + r.data.total + ", " +
+				"Current: " + (range.offset + 1) + " - " +
+				              (range.offset + r.data.list.length) +
+				" ");
 		}
 		else {
 			$(".offset-limit").html("");
@@ -93,7 +96,7 @@
 	}
 
 	function bindPageBar(range, r) {
-		bindRangeText(range);
+		bindRangeText(range, r);
 		if (range && r && !r.error) {
 			if (range.offset == 0) {
 				$(".prev-page").addClass("disabled");
@@ -101,7 +104,7 @@
 			else {
 				$(".prev-page").removeClass("disabled");
 			}
-			if (r.data.length < range.limit) {
+			if (range.offset + r.data.list.length >= r.data.total) {
 				$(".next-page").addClass("disabled");
 			}
 			else {
@@ -128,6 +131,7 @@
 
 	function doListAll() {
 		query.offset = 0;
+		query.keyword = $("#txKeyword").val()
 		search();
 	}
 
@@ -146,7 +150,12 @@
 		api.get(d)
 		.done(function (r) {
 			if (!r.error)
-				r.data = [r.data];
+				r.data = {
+					offset: 0,
+					limit: 1,
+					total: 1,
+					list: [r.data]
+				};
 			bindTable(r);
 			bindPageBar(null, r);
 		})
@@ -197,7 +206,9 @@
 		search();
 	}
 
-	function doRemove(d) {
+	function doRemove(e) {
+		var a = e.currentTarget;
+		var d = $(a).data();
 		if (confirm("Sure to remove?")) {
 			loading.show("");
 			api.delete({
@@ -221,7 +232,8 @@
 		}
 	}
 
-	function doPrevPage() {
+	function doPrevPage(e) {
+		var a = e.currentTarget;
 		if (!$(a).hasClass("disabled") && query.offset > 0) {
 			query.offset -= query.limit;
 			if (query.offset < 0)
@@ -230,7 +242,8 @@
 		}
 	}
 
-	function doNextPage() {
+	function doNextPage(e) {
+		var a = e.currentTarget;
 		if (!$(a).hasClass("disabled")) {
 			query.offset += query.limit;
 			search();
@@ -240,28 +253,52 @@
 	function doAction(e) {
 		var a = e.currentTarget;
 		var d = $(a).data();
-		console.log(e,d);
 		switch (d.action) {
 			case "refresh":
-				doRefresh();
+				doRefresh(e);
 				break;
 			case "remove":
-				doRemove(d);
+				doRemove(e);
 				break;
 			case "prev-page":
-				doPrevPage();
+				doPrevPage(e);
 				break;
 			case "next-page":
-				doNextPage();
+				doNextPage(e);
 				break;
 		}
 	}
 
 	$(function() {
 		search();
-		$("#btnListAll").click(doListAll);
+
 		$("#btnGet").click(doGet);
+		$("#txDomain").on("keypress", function(e) {
+			if(e.which == 13) {
+				e.preventDefault();
+				$("#btnGet").click();
+			}
+		});
+
 		$("#btnPut").click(doPut);
+		$("#txDomain2,#txIP,#txTTL").on("keypress", function(e) {
+			if(e.which == 13) {
+				e.preventDefault();
+				$("#btnPut").click();
+			}
+		});
+
+		$("#btnListAll").click(doListAll);
+		$("#txKeyword").on("keypress", function(e) {
+			if(e.which == 13) {
+				e.preventDefault();
+				$("#btnListAll").click();
+			}
+		});
+
 		$("#tbList").on("click", "a", doAction);
+
+		$("#txKeyword").focus();
 	});
+
 })(jQuery);

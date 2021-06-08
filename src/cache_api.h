@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-char *cache_api_list(channel_t *cache, int offset, int limit);
+char *cache_api_list(channel_t *cache, const char *keyword, int offset, int limit);
 char *cache_api_get(channel_t *cache, const char *key);
 char *cache_api_put(channel_t *cache, const char *name, const char *type,
 		const char *ip, const char *ttl);

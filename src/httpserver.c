@@ -457,20 +457,22 @@ static int run_post(peer_t *peer)
 	}
 	else if (strcasecmp(c->path, "/api/v1/list") == 0) {
 		char offset[10] = {0}, limit[10] = {0};
+		char keyword[NS_NAME_SIZE] = {0};
 		int off = 0, lim = 0;
 		parse_querystring_state_t st[1] = {{
 			{
 				{ "offset", offset, sizeof (offset) },
 				{ "limit",  limit,  sizeof (limit) },
+				{ "keyword",keyword,sizeof (keyword) },
 			},
-			2,
+			3,
 		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
 		if (*offset)
 			off = atoi(offset);
 		if (*limit)
 			lim = atoi(limit);
-		json = cache_api_list(hsconf->cache, off, lim);
+		json = cache_api_list(hsconf->cache, keyword, off, lim);
 	}
 	else if (strcasecmp(c->path, "/api/v1/get") == 0 ||
 			strcasecmp(c->path, "/api/v1/delete") == 0) {

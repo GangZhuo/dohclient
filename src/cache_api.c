@@ -203,11 +203,13 @@ static int cache_api_send_result(api_ctx_t *ctx, const char *json)
 }
 
 struct each_state {
-	stream_t  *s;
-	int        offset;
-	int        limit;
-	int        index;
-	int        count;
+	const char *keyword;
+	stream_t   *s;
+	int         offset;
+	int         limit;
+	int         index;
+	int         count;
+	int         total;
 };
 
 static int cb_each(const ns_msg_t *msg, void *data)
@@ -215,39 +217,55 @@ static int cb_each(const ns_msg_t *msg, void *data)
 	struct each_state *st = data;
 	stream_t *s = st->s;
 
-	if (st->index < st->offset) {
-		st->index++;
-		return 0; /* skip */
-	}
-
-	if (s->size > 1) {
-		if (stream_appends(s, ",", 1) == -1) {
-			loge("cache_api_list() error: alloc\n");
-			return -1;
+	if (st->keyword && *st->keyword) {
+		if (!msg->qrs || !msg->qrs->qname ||
+				!strstr(msg->qrs->qname, st->keyword)) {
+			return 0; /* continue to next message */
 		}
 	}
 
-	if (nsmsg_write_as_json(s, msg) == -1) {
-		loge("cache_api_list() error: alloc\n");
-		return -1;
+	if (st->index >= st->offset &&
+			(st->limit == 0 || st->count < st->limit)) {
+
+		if (st->count > 0) {
+			if (stream_appends(s, ",", 1) == -1) {
+				loge("cache_api_list() error: alloc\n");
+				return -1;
+			}
+		}
+
+		if (nsmsg_write_as_json(s, msg) == -1) {
+			loge("cache_api_list() error: alloc\n");
+			return -1;
+		}
+
+		st->count++;
 	}
 
 	st->index++;
-	st->count++;
-
-	if (st->limit > 0 && st->count >= st->limit)
-		return 1; /* break */
+	st->total++;
 
 	return 0;
 }
 
-static int cache_list(channel_t *cache, stream_t *s, int offset, int limit)
+static int cache_list(channel_t *cache, stream_t *s,
+		const char *keyword, int offset, int limit)
 {
 	struct each_state st[1] = {
-		{ .s = s, .offset = offset, .limit = limit, }
+		{
+			.s = s,
+			.keyword = keyword,
+			.offset = offset,
+			.limit = limit,
+			.total = 0,
+		}
 	};
 
-	if (stream_appends(s, "[", 1) == -1) {
+	if (stream_appendf(s,
+				"{"
+				  "\"offset\":%d,"
+				  "\"limit\":%d,"
+				  "\"list\":[", offset, limit) == -1) {
 		loge("cache_list() error: alloc\n");
 		stream_free(s);
 		return -1;
@@ -259,7 +277,10 @@ static int cache_list(channel_t *cache, stream_t *s, int offset, int limit)
 		return -1;
 	}
 
-	if (stream_appends(s, "]", 1) == -1) {
+	if (stream_appendf(s,
+				  "],"
+				  "\"total\":%d"
+				"}", st->total) == -1) {
 		loge("cache_list() error: alloc\n");
 		stream_free(s);
 		return -1;
@@ -268,14 +289,14 @@ static int cache_list(channel_t *cache, stream_t *s, int offset, int limit)
 	return 0;
 }
 
-char *cache_api_list(channel_t *cache, int offset, int limit)
+char *cache_api_list(channel_t *cache, const char *keyword, int offset, int limit)
 {
 	stream_t s[1] = {0};
 	char *json = NULL;
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
 	}
-	else if (cache_list(cache, s, offset, limit) == -1) {
+	else if (cache_list(cache, s, keyword, offset, limit) == -1) {
 		stream_free(s);
 		return NULL;
 	}
@@ -433,7 +454,7 @@ static int cache_run_api_list(api_ctx_t *ctx)
 {
 	char *json = NULL;
 	int r;
-	if ((json = cache_api_list(ctx->cache, 0, 0)) == NULL) {
+	if ((json = cache_api_list(ctx->cache, NULL, 0, 0)) == NULL) {
 		return -1;
 	}
 	r = cache_api_send_result(ctx, json);
