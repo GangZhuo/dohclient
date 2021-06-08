@@ -54,7 +54,7 @@ static chnroute_ctx blacklist = NULL;
 static dllist_t reqs = DLLIST_INIT(reqs);
 static struct rbtree_t reqdic = RBTREE_INIT(req_rbkeycmp);
 static channel_t* hosts = NULL;
-channel_t *cache = NULL;
+static channel_t *cache = NULL;
 static channel_t** channels = NULL;
 static int channel_num = 0;
 
@@ -122,7 +122,8 @@ Options:\n\
                            Supports socks5 (no authentication) and http proxy.");
 #if DOHCLIENT_CACHE_API
 	printf("%s\n","\
-  --cache-api              Enable cache api.");
+  --cache-api              Enable cache api.\n\
+  --wwwroot=PATH           Directory path for web root.");
 #endif
 	printf("%s\n","\
   -v                       Verbose logging.\n\
@@ -1107,6 +1108,11 @@ static int init_dohclient()
 		loge("init_dohclient() error: create cache error\n");
 		return -1;
 	}
+
+#if DOHCLIENT_CACHE_API
+	wsconf->cache = cache;
+	wsconf->wwwroot = conf.wwwroot;
+#endif
 
 	ch = conf.channels;
 	while (ch && *ch) {

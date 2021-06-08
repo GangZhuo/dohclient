@@ -19,6 +19,7 @@ char *cache_api_get(channel_t *cache, const char *key);
 char *cache_api_put(channel_t *cache, const char *name, const char *type,
 		const char *ip, const char *ttl);
 char *cache_api_delete(channel_t *cache, const char *key);
+char *cache_api_wrapjson(int err, const char *msg, const char *data);
 
 int cache_api_try_parse(channel_t *cache, const char *data, int datalen,
 	listen_t *listen,

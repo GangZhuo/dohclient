@@ -85,6 +85,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"cache-timeout",required_argument, NULL, 13},
 		{"mode",         required_argument, NULL, 14},
 		{"cache-api",    no_argument,       NULL, 15},
+		{"wwwroot",      required_argument, NULL, 16},
 		{0, 0, 0, 0}
 	};
 
@@ -138,6 +139,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			break;
 		case 15:
 			conf->is_cache_api_enabled = 1;
+			break;
+		case 16:
+			conf->wwwroot = strdup(optarg);
 			break;
 		case 'h':
 			conf->is_print_help = 1;
@@ -199,6 +203,9 @@ int conf_check(config_t* conf)
 	if (conf->is_cache_api_enabled == -1) {
 		conf->is_cache_api_enabled = 0;
 	}
+	if (conf->wwwroot == NULL) {
+		conf->wwwroot = strdup(DEFAULT_WWWROOT);
+	}
 
 	p = conf->channels;
 	while (p && *p) {
@@ -245,6 +252,9 @@ void conf_print(const config_t* conf)
 		logn("cache api: yes\n");
 	else
 		logn("cache api: no\n");
+
+	if (conf->wwwroot)
+		logn("wwwroot: %s\n", conf->wwwroot);
 
 	logn("cache timeout: %d\n", conf->cache_timeout);
 	logn("mode: %d\n", conf->channel_choose_mode);
@@ -439,6 +449,12 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				conf->is_cache_api_enabled = is_true_val(value);
 			}
 		}
+		else if (strcmp(name, "wwwroot") == 0 && strlen(value)) {
+			if (force || !conf->wwwroot) {
+				free(conf->wwwroot);
+				conf->wwwroot = strdup(value);
+			}
+		}
 		else {
 			/*do nothing*/
 		}
@@ -484,6 +500,9 @@ void conf_free(config_t* conf)
 
 	free(conf->proxy);
 	conf->proxy = NULL;
+
+	free(conf->wwwroot);
+	conf->wwwroot = NULL;
 
 	p = conf->channel_args;
 	while (p && *p) {

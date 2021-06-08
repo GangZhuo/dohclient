@@ -126,14 +126,14 @@ static char *nsmsg2json(const ns_msg_t *msg)
 	return s->array;
 }
 
-static char *jsonmsgwrap(int err, const char *msg, const char *data)
+char *cache_api_wrapjson(int err, const char *msg, const char *data)
 {
 	stream_t s[1] = {0};
 	int r;
 	r = stream_writef(s, "{\"error\":%d,\"msg\":\"%s\",\"data\":%s}",
 			err, msg ? msg : "",  data ? data : "null");
 	if (r == -1) {
-		loge("jsonmsgwrap() error: Alloc\n");
+		loge("cache_api_wrapjson() error: Alloc\n");
 		stream_free(s);
 		return NULL;
 	}
@@ -272,12 +272,17 @@ char *cache_api_list(channel_t *cache, int offset, int limit)
 {
 	stream_t s[1] = {0};
 	char *json = NULL;
-	if (cache_list(cache, s, offset, limit) == -1) {
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (cache_list(cache, s, offset, limit) == -1) {
 		stream_free(s);
 		return NULL;
 	}
-	json = jsonmsgwrap(CACHE_API_OK, "OK", s->array);
-	stream_free(s);
+	else {
+		json = cache_api_wrapjson(CACHE_API_OK, "OK", s->array);
+		stream_free(s);
+	}
 	return json;
 }
 
@@ -286,23 +291,24 @@ char *cache_api_get(channel_t *cache, const char *key)
 	const ns_msg_t *msg;
 	char *json = NULL;
 
-	if (!*key) {
-		json = jsonmsgwrap(CACHE_API_EARG, "No Cache Key", NULL);
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!*key) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "No Cache Key", NULL);
 	}
 	else if ((msg = cache_get(cache, key)) != NULL) {
 		char *d = nsmsg2json(msg);
 		if (d) {
-			json = jsonmsgwrap(CACHE_API_OK, "OK", d);
+			json = cache_api_wrapjson(CACHE_API_OK, "OK", d);
 			free(d);
+		}
+		else {
+			json = cache_api_wrapjson(CACHE_API_EALLOC, "Failed to serialize ns_msg_t as json", NULL);
 		}
 	}
 	else {
-		json = jsonmsgwrap(CACHE_API_ENOTFOUND, "Not Found", NULL);
-	}
-
-	if (!json) {
-		loge("cache_api_get() error: failed to create json\n");
-		return NULL;
+		json = cache_api_wrapjson(CACHE_API_ENOTFOUND, "Not Found", NULL);
 	}
 
 	return json;
@@ -317,12 +323,15 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 
 	namelen = strlen(name);
 
-	if (namelen == 0 ||
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (namelen == 0 ||
 			(name[namelen - 1] != '.' && namelen + 1 >= NS_NAME_SIZE) ||
 			!*type ||
 			!*ip ||
 			(strcasecmp(type, "A") && strcasecmp(type, "AAAA"))) {
-		json = jsonmsgwrap(CACHE_API_EARG, "Invalid Arguments", NULL);
+		json = cache_api_wrapjson(CACHE_API_EARG, "Invalid Arguments", NULL);
 	}
 	else {
 		char qname[NS_NAME_SIZE] = {0};
@@ -340,10 +349,10 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 		}
 
 		if (family == AF_INET && !try_parse_as_ip4(addr, ip, "53")) {
-			json = jsonmsgwrap(CACHE_API_EARG, "Invalid IPv4", NULL);
+			json = cache_api_wrapjson(CACHE_API_EARG, "Invalid IPv4", NULL);
 		}
 		else if (family == AF_INET6 && !try_parse_as_ip6(addr, ip, "53")) {
-			json = jsonmsgwrap(CACHE_API_EARG, "Invalid IPv6", NULL);
+			json = cache_api_wrapjson(CACHE_API_EARG, "Invalid IPv6", NULL);
 		}
 		else {
 			ns_msg_t msg[1] = { 0 };
@@ -383,10 +392,10 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 				(void*)&((struct sockaddr_in6*)&addr->addr)->sin6_addr;
 
 			if (cache_add(cache, msg_key(msg), msg, TRUE)) {
-				json = jsonmsgwrap(CACHE_API_EALLOC, "Invalid IPv6", NULL);
+				json = cache_api_wrapjson(CACHE_API_EALLOC, "Invalid IPv6", NULL);
 			}
 			else {
-				json = jsonmsgwrap(CACHE_API_OK, "OK", NULL);
+				json = cache_api_wrapjson(CACHE_API_OK, "OK", NULL);
 			}
 		}
 	}
@@ -398,14 +407,17 @@ char *cache_api_delete(channel_t *cache, const char *key)
 {
 	char *json = NULL;
 
-	if (!*key) {
-		json = jsonmsgwrap(CACHE_API_EARG, "No Cache Key", NULL);
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!*key) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "No Cache Key", NULL);
 	}
 	else if (cache_remove(cache, key) == 0) {
-		json = jsonmsgwrap(CACHE_API_OK, "OK", NULL);
+		json = cache_api_wrapjson(CACHE_API_OK, "OK", NULL);
 	}
 	else {
-		json = jsonmsgwrap(CACHE_API_ENOTFOUND, "Not Found", NULL);
+		json = cache_api_wrapjson(CACHE_API_ENOTFOUND, "Not Found", NULL);
 	}
 
 	if (!json) {

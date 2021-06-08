@@ -127,8 +127,6 @@ static const char *methods[] = {
 	"CONNECT", "OPTIONS", "TRACE", "PATCH",
 };
 
-static char *wwwroot = "asset/wwwroot/";
-
 static int on_message_begin(http_parser *parser);
 static int on_url(http_parser *parser, const char *at, size_t length);
 static int on_header_field(http_parser *parser, const char *at, size_t length);
@@ -150,7 +148,9 @@ static http_parser_settings hp_settings[1] = {{
 	.on_chunk_complete = NULL,
 }};
 
-extern channel_t *cache;
+wsconfig_t wsconf[1] = {{
+	.wwwroot = "asset/wwwroot/",
+}};
 
 #define safe_free(p) do { if (p) { free(p); p = NULL; } } while(0)
 
@@ -319,7 +319,7 @@ static int parse_url(peer_t *peer)
 
 static int get_physical_path(char *buf, int bufsize, const char *path)
 {
-	int len1 = strlen(wwwroot);
+	int len1 = wsconf->wwwroot ? strlen(wsconf->wwwroot) : 0;
 	int len2 = strlen(path);
 
 	if (len1 + len2 + 1 > bufsize) {
@@ -328,7 +328,7 @@ static int get_physical_path(char *buf, int bufsize, const char *path)
 	}
 
 	if (len1 > 0) {
-		memcpy(buf, wwwroot, len1);
+		memcpy(buf, wsconf->wwwroot, len1);
 		if (buf[len1 - 1] != '/' && buf[len1 - 1] != '\\') {
 			buf[len1 - 1] = '/';
 			len1++;
@@ -465,7 +465,7 @@ static int run_post(peer_t *peer)
 			off = atoi(offset);
 		if (*limit)
 			lim = atoi(limit);
-		json = cache_api_list(cache, off, lim);
+		json = cache_api_list(wsconf->cache, off, lim);
 	}
 	else if (strcasecmp(c->path, "/api/v1/get") == 0 ||
 			strcasecmp(c->path, "/api/v1/delete") == 0) {
@@ -482,9 +482,9 @@ static int run_post(peer_t *peer)
 		parse_querystring(c->body, cb_parse_querystring, st);
 		snprintf(key, sizeof(key) - 1, "%s %s %s", qtype, qclass, qname);
 		if (strcasecmp(c->path, "/api/v1/delete") == 0)
-			json = cache_api_delete(cache, key);
+			json = cache_api_delete(wsconf->cache, key);
 		else
-			json = cache_api_get(cache, key);
+			json = cache_api_get(wsconf->cache, key);
 	}
 	else if (strcasecmp(c->path, "/api/v1/put") == 0) {
 		char qtype[10] = {0}, ip[INET6_ADDRSTRLEN + 1] = {0},
@@ -499,7 +499,7 @@ static int run_post(peer_t *peer)
 			4,
 		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
-		json = cache_api_put(cache, qname, qtype, ip, ttl);
+		json = cache_api_put(wsconf->cache, qname, qtype, ip, ttl);
 	}
 	else {
 		r = -1;
@@ -520,6 +520,7 @@ static int run_post(peer_t *peer)
 			get_mime("json"),
 			http_should_keep_alive(c->hp) ? "keep-alive" : "close",
 			len);
+		safe_free(json);
 		if (r == -1 || (r = stream_write(s, json, len)) == -1) {
 			loge("run_http_server() error: alloc\n");
 			stream_reset(s);

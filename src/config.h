@@ -7,6 +7,7 @@
 #define DEFAULT_TIMEOUT 5
 #define DEFAULT_CHANNEL "doh"
 #define DEFAULT_CHANNEL_ARGS "addr=223.5.5.5:443&host=dns.alidns.com&path=/dns-query&proxy=0"
+#define DEFAULT_WWWROOT "/etc/dohclient/wwwroot/"
 
 #define CACHE_TIMEOUT_NEVEL_EXPIRE  0
 #define CACHE_TIMEOUT_FOLLOWING_TTL 1
@@ -30,6 +31,7 @@ typedef struct config_t {
 	char* chnroute;
 	char* blacklist;
 	char* hosts;
+	char* wwwroot;
 	char** channels;
 	char** channel_args;
 	int channel_choose_mode;
