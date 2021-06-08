@@ -185,7 +185,7 @@ struct conn_t {
 };
 
 #if DOHCLIENT_CACHE_API
-typedef struct wsctx_t wsctx_t;
+typedef struct hsctx_t hsctx_t;
 #endif
 
 struct peer_t {
@@ -194,8 +194,8 @@ struct peer_t {
 	dllist_t  reqs;
 #if DOHCLIENT_CACHE_API
 	int       keep_alive;
-	int       is_ws;   /* Is WebSocket? */
-	wsctx_t  *wsctx;   /* WebSocket Context */
+	int       is_hs;   /* Is HttpServer? */
+	hsctx_t  *hsctx;   /* HttpServer Context */
 #endif
 };
 

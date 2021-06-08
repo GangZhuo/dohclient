@@ -200,7 +200,7 @@
     <ClCompile Include="..\src\sha1.c" />
     <ClCompile Include="..\src\stream.c" />
     <ClCompile Include="..\src\utils.c" />
-    <ClCompile Include="..\src\ws.c" />
+    <ClCompile Include="..\src\httpserver.c" />
     <ClCompile Include="argp\getopt.c" />
     <ClCompile Include="win.c" />
   </ItemGroup>
@@ -230,7 +230,7 @@
     <ClInclude Include="..\src\stream.h" />
     <ClInclude Include="..\src\utils.h" />
     <ClInclude Include="..\src\version.h" />
-    <ClInclude Include="..\src\ws.h" />
+    <ClInclude Include="..\src\httpserver.h" />
     <ClInclude Include="argp\getopt.h" />
     <ClInclude Include="win.h" />
   </ItemGroup>

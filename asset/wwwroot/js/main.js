@@ -34,8 +34,6 @@
 		}
 	})();
 
-	console.log(query);
-
 	loading = {
 		el: $("#loading"),
 		tx: $("#loading-message"),
@@ -128,63 +126,87 @@
 		});
 	}
 
-	$(function() {
+	function doListAll() {
+		query.offset = 0;
 		search();
+	}
 
-		$("#btnListAll").click(function() {
-			query.offset = 0;
-			search();
+	function doGet() {
+		var d = {
+			"type":  $("#txType").val(),
+			"class": $("#txClass").val(),
+			"name":  $("#txDomain").val()
+		};
+		if (!d.name) {
+			alert("Please input domain");
+			$("#txDomain").focus();
+			return;
+		}
+		loading.show("");
+		api.get(d)
+		.done(function (r) {
+			if (!r.error)
+				r.data = [r.data];
+			bindTable(r);
+			bindPageBar(null, r);
+		})
+		.always(function () {
+			loading.hide();
 		});
+	}
 
-		$("#btnGet").click(function() {
-			var d = {
-				"type":  $("#txType").val(),
-				"class": $("#txClass").val(),
-				"name":  $("#txDomain").val()
-			};
-			if (!d.name) {
-				alert("Please input domain");
-				$("#txDomain").focus();
-				return;
+	function doPut() {
+		var d = {
+			"type":  $("#txType2").val(),
+			"ip":    $("#txIP").val(),
+			"name":  $("#txDomain2").val(),
+			"ttl":   $("#txTTL").val()
+		};
+		if (!d.ip) {
+			alert("Please input IP");
+			$("#txIP").focus();
+			return;
+		}
+		if (!d.name) {
+			alert("Please input domain");
+			$("#txDomain2").focus();
+			return;
+		}
+		loading.show("");
+		api.put(d)
+		.always(function (r, textStatus, errorThrown) {
+			if (textStatus === "success") {
+				if (!r.error) {
+					if (confirm("Success! Refresh the list?")) {
+						search();
+					}
+				}
+				else {
+					loading.hide();
+					alert(r.msg || "Unknown Error");
+				}
 			}
-			loading.show("");
-			api.get(d)
-			.done(function (r) {
-				if (!r.error)
-					r.data = [r.data];
-				bindTable(r);
-				bindPageBar(null, r);
-			})
-			.always(function () {
+			else {
 				loading.hide();
-			});
+				alert(errorThrown);
+			}
 		});
+	}
 
-		$("#btnPut").click(function() {
-			var d = {
-				"type":  $("#txType2").val(),
-				"ip":    $("#txIP").val(),
-				"name":  $("#txDomain2").val(),
-				"ttl":   $("#txTTL").val()
-			};
-			if (!d.ip) {
-				alert("Please input IP");
-				$("#txIP").focus();
-				return;
-			}
-			if (!d.name) {
-				alert("Please input domain");
-				$("#txDomain2").focus();
-				return;
-			}
+	function doRefresh() {
+		search();
+	}
+
+	function doRemove(d) {
+		if (confirm("Sure to remove?")) {
 			loading.show("");
-			api.put(d)
+			api.delete({
+				key: d.key
+			})
 			.always(function (r, textStatus, errorThrown) {
 				if (textStatus === "success") {
 					if (!r.error) {
-						if (confirm("Success! Refresh the list?")) {
-							search();
-						}
+						search();
 					}
 					else {
 						loading.hide();
@@ -196,55 +218,50 @@
 					alert(errorThrown);
 				}
 			});
-		});
+		}
+	}
 
-		$("#tbList").on("click", "a", function (e) {
-			var a = e.currentTarget;
-			var d = $(a).data();
-			console.log(e,d);
-			switch (d.action) {
-				case "refresh":
-					search();
-					break;
-				case "remove":
-					if (confirm("Sure to remove?")) {
-						loading.show("");
-						api.delete({
-							key: d.key
-						})
-						.always(function (r, textStatus, errorThrown) {
-							if (textStatus === "success") {
-								if (!r.error) {
-									search();
-								}
-								else {
-									loading.hide();
-									alert(r.msg || "Unknown Error");
-								}
-							}
-							else {
-								loading.hide();
-								alert(errorThrown);
-							}
-						});
-					}
-					break;
-				case "prev-page":
-					if (!$(a).hasClass("disabled") && query.offset > 0) {
-						query.offset -= query.limit;
-						if (query.offset < 0)
-							query.offset = 0;
-						search();
-					}
-					break;
-				case "next-page":
-					if (!$(a).hasClass("disabled")) {
-						query.offset += query.limit;
-						search();
-					}
-					break;
-			}
-		});
+	function doPrevPage() {
+		if (!$(a).hasClass("disabled") && query.offset > 0) {
+			query.offset -= query.limit;
+			if (query.offset < 0)
+				query.offset = 0;
+			search();
+		}
+	}
 
+	function doNextPage() {
+		if (!$(a).hasClass("disabled")) {
+			query.offset += query.limit;
+			search();
+		}
+	}
+
+	function doAction(e) {
+		var a = e.currentTarget;
+		var d = $(a).data();
+		console.log(e,d);
+		switch (d.action) {
+			case "refresh":
+				doRefresh();
+				break;
+			case "remove":
+				doRemove(d);
+				break;
+			case "prev-page":
+				doPrevPage();
+				break;
+			case "next-page":
+				doNextPage();
+				break;
+		}
+	}
+
+	$(function() {
+		search();
+		$("#btnListAll").click(doListAll);
+		$("#btnGet").click(doGet);
+		$("#btnPut").click(doPut);
+		$("#tbList").on("click", "a", doAction);
 	});
 })(jQuery);

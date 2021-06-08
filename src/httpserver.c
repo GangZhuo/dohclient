@@ -1,5 +1,5 @@
 #if DOHCLIENT_CACHE_API
-#include "ws.h"
+#include "httpserver.h"
 #include "dllist.h"
 #include "netutils.h"
 #include "log.h"
@@ -28,7 +28,7 @@
 #define HVALUE_MAX     50       /* Max length of HTTP Header Value */
 #define HREQBODY_MAX   1024     /* Max length of HTTP Request Body */
 
-typedef struct handshake_t {
+typedef struct request_t {
 	char         url[URL_MAX];
 	char         path[URL_MAX];
 	char         querystring[URL_MAX];
@@ -43,17 +43,14 @@ typedef struct handshake_t {
 	char         hp_name[HNAME_MAX];
 	char         hp_value[HVALUE_MAX];
 	int          hp_state;
-} handshake_t;
+} request_t;
 
-typedef struct wsctx_t {
-	int            is_handshake;
-	handshake_t   *hs;
-} wsctx_t;
+typedef struct hsctx_t {
+	int        is_handshake;
+	request_t *hs;
+} hsctx_t;
 
-static struct mime_t {
-	const char *ext;
-	const char *mime;
-} mimes[] = {
+static mime_t mimes[] = {
 	{ "",       "application/octet-stream" },
 	{ "aac",    "audio/aac" },
 	{ "abw",    "application/x-abiword" },
@@ -153,7 +150,7 @@ static http_parser_settings hp_settings[1] = {{
 	.on_chunk_complete = NULL,
 }};
 
-wsconfig_t wsconf[1] = {{
+hsconfig_t hsconf[1] = {{
 	.wwwroot = "asset/wwwroot/",
 }};
 
@@ -172,7 +169,7 @@ static int strappend(char *to, size_t tosize, const char *at, size_t atlen)
 	return -1;
 }
 
-int ws_can_parse(char *buf)
+int hs_can_parse(char *buf)
 {
 	int i;
 	for (i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
@@ -182,27 +179,29 @@ int ws_can_parse(char *buf)
 	return FALSE;
 }
 
-void wsctx_free(wsctx_t *ctx)
+void hsctx_free(hsctx_t *ctx)
 {
+	if (ctx->hs)
+		free(ctx->hs);
 	free(ctx);
 }
 
-int ws_onrecv(peer_t *peer)
+int hs_onrecv(peer_t *peer)
 {
 	stream_t *s = &peer->conn.rs;
-	wsctx_t *c = peer->wsctx;
+	hsctx_t *c = peer->hsctx;
 
 	logd("ws_onrecv():\n%s\n", s->array + s->pos);
 
 	if (!c) {
-		c = (wsctx_t *)malloc(sizeof(wsctx_t));
+		c = (hsctx_t *)malloc(sizeof(hsctx_t));
 		if (!c) {
 			loge("ws_onrecv() error: alloc\n");
 			return -1;
 		}
-		memset(c, 0, sizeof(wsctx_t));
-		peer->wsctx = c;
-		peer->is_ws = TRUE;
+		memset(c, 0, sizeof(hsctx_t));
+		peer->hsctx = c;
+		peer->is_hs = TRUE;
 	}
 
 	if (c->is_handshake) {
@@ -210,13 +209,13 @@ int ws_onrecv(peer_t *peer)
 	}
 	else {
 		size_t nparsed;
-		handshake_t *hs = c->hs;
-		hs = (handshake_t *)malloc(sizeof(handshake_t));
+		request_t *hs = c->hs;
+		hs = (request_t *)malloc(sizeof(request_t));
 		if (!hs) {
 			loge("ws_onrecv() error: alloc\n");
 			return -1;
 		}
-		memset(hs, 0, sizeof(handshake_t));
+		memset(hs, 0, sizeof(request_t));
 		http_parser_init(hs->hp, HTTP_REQUEST);
 		hs->hp->data = peer;
 		c->hs = hs;
@@ -299,7 +298,7 @@ static int readfile(stream_t *s, const char *filename)
 
 static int parse_url(peer_t *peer)
 {
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 	char *p;
 
 	p = strchr(c->url, '?');
@@ -324,7 +323,7 @@ static int parse_url(peer_t *peer)
 
 static int get_physical_path(char *buf, int bufsize, const char *path)
 {
-	int len1 = wsconf->wwwroot ? strlen(wsconf->wwwroot) : 0;
+	int len1 = hsconf->wwwroot ? strlen(hsconf->wwwroot) : 0;
 	int len2 = strlen(path);
 
 	if (len1 + len2 + 1 > bufsize) {
@@ -333,7 +332,7 @@ static int get_physical_path(char *buf, int bufsize, const char *path)
 	}
 
 	if (len1 > 0) {
-		memcpy(buf, wsconf->wwwroot, len1);
+		memcpy(buf, hsconf->wwwroot, len1);
 		if (buf[len1 - 1] != '/' && buf[len1 - 1] != '\\') {
 			buf[len1 - 1] = '/';
 			len1++;
@@ -355,7 +354,7 @@ static int get_physical_path(char *buf, int bufsize, const char *path)
 
 static int run_get(peer_t *peer)
 {
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 	stream_t *s = &peer->conn.ws;
 	char filename[1024];
 	stream_t fs[1] = {0};
@@ -447,7 +446,7 @@ static int cb_parse_querystring(char *name, char *value, void *state)
 
 static int run_post(peer_t *peer)
 {
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 	stream_t *s = &peer->conn.ws;
 	char *json = NULL;
 	int r = 0;
@@ -471,7 +470,7 @@ static int run_post(peer_t *peer)
 			off = atoi(offset);
 		if (*limit)
 			lim = atoi(limit);
-		json = cache_api_list(wsconf->cache, off, lim);
+		json = cache_api_list(hsconf->cache, off, lim);
 	}
 	else if (strcasecmp(c->path, "/api/v1/get") == 0 ||
 			strcasecmp(c->path, "/api/v1/delete") == 0) {
@@ -495,9 +494,9 @@ static int run_post(peer_t *peer)
 			snprintf(key, sizeof(key) - 1, "%s %s %s", qtype, qclass, qname);
 		}
 		if (strcasecmp(c->path, "/api/v1/delete") == 0)
-			json = cache_api_delete(wsconf->cache, key);
+			json = cache_api_delete(hsconf->cache, key);
 		else
-			json = cache_api_get(wsconf->cache, key);
+			json = cache_api_get(hsconf->cache, key);
 	}
 	else if (strcasecmp(c->path, "/api/v1/put") == 0) {
 		char qtype[10] = {0}, ip[INET6_ADDRSTRLEN + 1] = {0},
@@ -512,7 +511,7 @@ static int run_post(peer_t *peer)
 			4,
 		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
-		json = cache_api_put(wsconf->cache, qname, qtype, ip, ttl);
+		json = cache_api_put(hsconf->cache, qname, qtype, ip, ttl);
 	}
 	else {
 		r = -1;
@@ -569,7 +568,7 @@ static int run_post(peer_t *peer)
 
 static int run_http_server(peer_t *peer)
 {
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 	stream_t *s = &peer->conn.ws;
 	int r;
 
@@ -630,7 +629,7 @@ static char *gen_ws_accept_key(const char *key)
 
 static int run_websocket(peer_t *peer)
 {
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 	stream_t *s = &peer->conn.ws;
 	int r;
 
@@ -665,7 +664,7 @@ static int run_websocket(peer_t *peer)
 		return -1;
 	}
 
-	peer->wsctx->is_handshake = TRUE;
+	peer->hsctx->is_handshake = TRUE;
 	peer->keep_alive = TRUE;
 
 	return 0;
@@ -674,7 +673,7 @@ static int run_websocket(peer_t *peer)
 static int on_message_begin(http_parser* parser)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	c->url[0] = '\0';
 	c->path[0] = '\0';
@@ -695,7 +694,7 @@ static int on_message_begin(http_parser* parser)
 static int on_url(http_parser *parser, const char *at, size_t length)
 {
 	peer_t *peer = parser->data;
-	handshake_t* c = peer->wsctx->hs;
+	request_t* c = peer->hsctx->hs;
 	strappend(c->url, sizeof(c->url), at, length);
 	return 0;
 }
@@ -703,7 +702,7 @@ static int on_url(http_parser *parser, const char *at, size_t length)
 static int on_header_field_complete(http_parser *parser)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	if (strcasecmp(c->hp_name, "Upgrade") == 0) {
 		strncpy(c->upgrade, c->hp_value, sizeof(c->upgrade) - 1);
@@ -743,7 +742,7 @@ static int on_header_field_complete(http_parser *parser)
 static int on_header_field(http_parser *parser, const char *at, size_t length)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	if (c->hp_state == HP_STATE_VALUE) {
 		if (on_header_field_complete(parser))
@@ -758,7 +757,7 @@ static int on_header_field(http_parser *parser, const char *at, size_t length)
 static int on_header_value(http_parser *parser, const char *at, size_t length)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	c->hp_state = HP_STATE_VALUE;
 	strappend(c->hp_value, sizeof(c->hp_value), at, length);
@@ -769,7 +768,7 @@ static int on_header_value(http_parser *parser, const char *at, size_t length)
 static int on_headers_complete(http_parser *parser)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	if (c->hp_state != HP_STATE_NONE) {
 		if (on_header_field_complete(parser))
@@ -782,7 +781,7 @@ static int on_headers_complete(http_parser *parser)
 static int on_body(http_parser *parser, const char *at, size_t length)
 {
 	peer_t *peer = parser->data;
-	handshake_t* c = peer->wsctx->hs;
+	request_t* c = peer->hsctx->hs;
 	strappend(c->body, sizeof(c->body), at, length);
 	return 0;
 }
@@ -790,7 +789,7 @@ static int on_body(http_parser *parser, const char *at, size_t length)
 static int on_message_complete(http_parser *parser)
 {
 	peer_t *peer = parser->data;
-	handshake_t *c = peer->wsctx->hs;
+	request_t *c = peer->hsctx->hs;
 
 	if (strlen(c->upgrade) > 0) {
 		return run_websocket(peer);

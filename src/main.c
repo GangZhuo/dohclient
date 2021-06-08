@@ -25,7 +25,7 @@
 #include "channel_hosts.h"
 #include "cache_api.h"
 #include "http.h"
-#include "ws.h"
+#include "httpserver.h"
 #include "mleak.h"
 
 /* rb-tree node */
@@ -712,8 +712,8 @@ static int peer_handle_recv(peer_t* peer)
 	int msglen, left;
 
 #if DOHCLIENT_CACHE_API
-	if (conf.is_cache_api_enabled && peer->is_ws) {
-		return ws_onrecv(peer);
+	if (conf.is_cache_api_enabled && peer->is_hs) {
+		return hs_onrecv(peer);
 	}
 #endif
 
@@ -721,8 +721,8 @@ static int peer_handle_recv(peer_t* peer)
 		msglen = stream_geti(s, s->pos, 2);
 		if (msglen > NS_PAYLOAD_SIZE) {
 #if DOHCLIENT_CACHE_API
-			if (conf.is_cache_api_enabled && ws_can_parse(s->array + s->pos)) {
-				return ws_onrecv(peer);
+			if (conf.is_cache_api_enabled && hs_can_parse(s->array + s->pos)) {
+				return hs_onrecv(peer);
 			}
 			else
 #endif
@@ -842,8 +842,8 @@ static void peer_close(peer_t* peer)
 		req_remove(req);
 	}
 #if DOHCLIENT_CACHE_API
-	if (peer->wsctx)
-		wsctx_free(peer->wsctx);
+	if (peer->hsctx)
+		hsctx_free(peer->hsctx);
 #endif
 	peer_destroy(peer);
 }
@@ -1110,8 +1110,8 @@ static int init_dohclient()
 	}
 
 #if DOHCLIENT_CACHE_API
-	wsconf->cache = cache;
-	wsconf->wwwroot = conf.wwwroot;
+	hsconf->cache = cache;
+	hsconf->wwwroot = conf.wwwroot;
 #endif
 
 	ch = conf.channels;

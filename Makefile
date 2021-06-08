@@ -18,19 +18,19 @@ OBJS = \
 	src/config.o \
 	src/dns_request.o \
 	src/http.o \
+	src/httpserver.o \
 	src/log.o \
 	src/netutils.o \
 	src/ns_msg.o \
 	src/sha1.o \
 	src/stream.o \
 	src/utils.o \
-	src/mleak.o \
-	src/ws.o
+	src/mleak.o
 
 OBJS_DOHCLIENT_CACHE = \
 	src/log.o \
-	src/stream.o \
 	src/netutils.o \
+	src/stream.o \
 	src/utils.o \
 	src/mleak.o
 
