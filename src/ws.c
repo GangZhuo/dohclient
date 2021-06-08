@@ -23,20 +23,25 @@
 #define WS_SALT "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 #define CONTENT_TYPE_URLENCODED "application/x-www-form-urlencoded"
 
+#define URL_MAX        512
+#define HNAME_MAX      50       /* Max length of HTTP Header Name  */
+#define HVALUE_MAX     50       /* Max length of HTTP Header Value */
+#define HREQBODY_MAX   1024     /* Max length of HTTP Request Body */
+
 typedef struct handshake_t {
-	char         url[512];
-	char         path[512];
-	char         querystring[512];
-	char         upgrade[50];
-	char         connection[50];
-	char         content_type[50];
-	char         body[1024];
-	char         ws_key[50];
-	char         ws_protocol[50];
-	char         ws_version[50];
+	char         url[URL_MAX];
+	char         path[URL_MAX];
+	char         querystring[URL_MAX];
+	char         upgrade[HVALUE_MAX];
+	char         connection[HVALUE_MAX];
+	char         content_type[HVALUE_MAX];
+	char         body[HREQBODY_MAX];
+	char         ws_key[HVALUE_MAX];
+	char         ws_protocol[HVALUE_MAX];
+	char         ws_version[HVALUE_MAX];
 	http_parser  hp[1];
-	char         hp_name[24];
-	char         hp_value[24];
+	char         hp_name[HNAME_MAX];
+	char         hp_value[HVALUE_MAX];
 	int          hp_state;
 } handshake_t;
 
@@ -447,7 +452,8 @@ static int run_post(peer_t *peer)
 	char *json = NULL;
 	int r = 0;
 
-	if (strcasecmp(c->content_type, CONTENT_TYPE_URLENCODED)) {
+	if (strncasecmp(c->content_type, CONTENT_TYPE_URLENCODED,
+				sizeof(CONTENT_TYPE_URLENCODED) - 1)) {
 		r = -1;
 	}
 	else if (strcasecmp(c->path, "/api/v1/list") == 0) {
@@ -475,12 +481,19 @@ static int run_post(peer_t *peer)
 			{
 				{ "type",  qtype,  sizeof(qtype) }, /* A|AAAA */
 				{ "class", qclass, sizeof(qclass) }, /* IN|CS|CH|HS */
-				{ "name",  qname,  sizeof(qname) },
+				{ "name",  qname,  sizeof(qname) - 1 },
+				{ "key",   key,    sizeof(key) - 1 },
 			},
 			3,
 		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
-		snprintf(key, sizeof(key) - 1, "%s %s %s", qtype, qclass, qname);
+		if (!*key) {
+			int qnamelen = strlen(qname);
+			if (qname[qnamelen - 1] != '.') {
+				strncat(qname, ".", sizeof(qname) - 1);
+			}
+			snprintf(key, sizeof(key) - 1, "%s %s %s", qtype, qclass, qname);
+		}
 		if (strcasecmp(c->path, "/api/v1/delete") == 0)
 			json = cache_api_delete(wsconf->cache, key);
 		else
@@ -520,8 +533,7 @@ static int run_post(peer_t *peer)
 			get_mime("json"),
 			http_should_keep_alive(c->hp) ? "keep-alive" : "close",
 			len);
-		safe_free(json);
-		if (r == -1 || (r = stream_write(s, json, len)) == -1) {
+		if (r == -1 || (r = stream_writes(s, json, len)) == -1) {
 			loge("run_http_server() error: alloc\n");
 			stream_reset(s);
 			r = stream_writef(s,
@@ -537,6 +549,7 @@ static int run_post(peer_t *peer)
 		else {
 			peer->keep_alive = http_should_keep_alive(c->hp);
 		}
+		safe_free(json);
 	}
 
 	if (r == -1) {
@@ -590,6 +603,8 @@ static int run_http_server(peer_t *peer)
 	}
 
 	s->pos = 0;
+
+	logd("Http Response:\n%s\n", s->array);
 
 	r = tcp_send(peer->conn.sock, s);
 	if (r == -1) {

@@ -46,6 +46,24 @@ char* trim_quote(char* s)
 	return start;
 }
 
+char *urldecode(char *s)
+{
+	char *src = s, *dest = s;
+	while (*src) {
+		if (*src == '%') {
+			/*TODO:..*/
+		}
+		else if (*src == '+') {
+			*dest++ = ' ';
+			src++;
+		}
+		else {
+			*dest++ = *src++;
+		}
+	}
+	return s;
+}
+
 int parse_querystring(const char *query,
 	int (*callback)(char *name, char *value, void *state),
 	void *state)
