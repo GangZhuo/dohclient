@@ -484,7 +484,7 @@ static int run_post(peer_t *peer)
 				{ "name",  qname,  sizeof(qname) - 1 },
 				{ "key",   key,    sizeof(key) - 1 },
 			},
-			3,
+			4,
 		}};
 		parse_querystring(c->body, cb_parse_querystring, st);
 		if (!*key) {

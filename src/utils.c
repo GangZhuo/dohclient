@@ -46,12 +46,48 @@ char* trim_quote(char* s)
 	return start;
 }
 
+static inline int ch2dec(int ch)
+{
+	if (ch >= '0' && ch <= '9')
+		ch -= '0';
+	else if (ch >= 'a' && ch <= 'z')
+		ch -= 'a';
+	else if (ch >= 'A' && ch <= 'F')
+		ch -= 'A';
+	else {
+		ch = -1;
+	}
+	return ch;
+}
+
+static inline int hex2dec(const char *s)
+{
+	int h = ch2dec(s[0]);
+	int l = ch2dec(s[1]);
+	/* a or b is not a hex char */
+	if (h == -1 || l == -1) {
+		return -1;
+	}
+	else {
+		return (h << 8) | l;
+	}
+}
+
 char *urldecode(char *s)
 {
 	char *src = s, *dest = s;
 	while (*src) {
 		if (*src == '%') {
-			/*TODO:..*/
+			int a = (int)src[1] & 0xF;
+			int b = a ? ((int)src[2] & 0xF) : 0;
+			int ch = b ? hex2dec(src + 1) : -1;
+			if (ch == -1) {
+				*dest++ = *src++;
+			}
+			else {
+				*dest++ = (char)ch;
+				src += 3;
+			}
 		}
 		else if (*src == '+') {
 			*dest++ = ' ';
@@ -61,6 +97,7 @@ char *urldecode(char *s)
 			*dest++ = *src++;
 		}
 	}
+	*dest = '\0';
 	return s;
 }
 
@@ -85,6 +122,8 @@ int parse_querystring(const char *query,
 
 		*v = '\0';
 		v++;
+
+		urldecode(v);
 
 		if (callback(p, v, state)) {
 			return -1;
