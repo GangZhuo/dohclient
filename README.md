@@ -151,6 +151,8 @@ Options:
   --proxy=PROXY_URL        Proxy url, e.g. --proxy=[socks5://]127.0.0.1:1080
                            or --proxy=http://username:password@[::1]:80.
                            Supports socks5 (no authentication) and http proxy.
+  --cache-api              Enable cache api.
+  --wwwroot=PATH           Directory path for web root.
   -v                       Verbose logging.
   -h                       Show this help message and exit.
   -V                       Print version and then exit.
@@ -382,4 +384,11 @@ config cfg
 ### Proxy Google DoH By Cloudflare Workers
 
 参考 https://github.com/GangZhuo/cf-doh
+
+### Cache API
+
+启用 --cache-api 后，会在绑定的端口上开启 HTTP 服务，用于管理内部缓存。
+可通过 --wwwroot 指定 HTTP 服务的根目录，源码的 asset/wwwroot/ 目录中
+实现了一个简单的缓存管理页面。也可通过 dohclient-cache 程序来管理缓存。
+
 
