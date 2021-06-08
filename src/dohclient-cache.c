@@ -457,13 +457,21 @@ int main(int argc, char **argv)
 		}
 	}
 	else if (strcasecmp(cmd, "LIST") == 0) {
-		if (cmd_arg_len != 0) {
-			for (i = 0; i < cmd_arg_len; i++) {
+		const char *keyword = "";
+		int offset = 0, limit = 0;
+		if (cmd_arg_len > 4) {
+			for (i = 4; i < cmd_arg_len; i++) {
 				fprintf(stderr, "Invalid argument -- %s\n", cmd_args[i]);
 			}
 			exit(1);
 		}
-		n = snprintf(pkg, pkgsize, "LIST");
+		if (cmd_arg_len > 0)
+			keyword = cmd_args[0];
+		if (cmd_arg_len > 1)
+			offset = atoi(cmd_args[1]);
+		if (cmd_arg_len > 2)
+			limit = atoi(cmd_args[2]);
+		n = snprintf(pkg, pkgsize, "LIST '%s' %d %d", keyword, offset, limit);
 		assert(n > 0 && n < pkgsize);
 	}
 	else if (strcasecmp(cmd, "PUT") == 0) {

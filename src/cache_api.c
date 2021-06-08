@@ -452,9 +452,20 @@ char *cache_api_delete(channel_t *cache, const char *key)
 
 static int cache_run_api_list(api_ctx_t *ctx)
 {
+	api_data_t *d = ctx->api_data;
+	char keyword[NS_NAME_SIZE] = {0};
+	char offset[8] = {0}; /* A|AAAA */
+	char limit[8] = {0};
+	const char *p = d->data;
+	const char *e = d->data + d->datalen;
 	char *json = NULL;
 	int r;
-	if ((json = cache_api_list(ctx->cache, NULL, 0, 0)) == NULL) {
+	p = copystr(keyword, sizeof(keyword), p, e);
+	p = copystr(offset,  sizeof(offset),  p, e);
+	p = copystr(limit,   sizeof(limit),   p, e);
+	if ((json = cache_api_list(ctx->cache, keyword,
+					*offset ? atoi(offset) : 0,
+					*limit ? atoi(limit) : 0)) == NULL) {
 		return -1;
 	}
 	r = cache_api_send_result(ctx, json);
