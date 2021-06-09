@@ -411,7 +411,15 @@ static const char* get_answers(stream_t *s, const ns_msg_t* msg)
 			len += r;
 		}
 		else {
-			/* do nothing */
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s [%d bytes]" : "%s %d %s %s [%d bytes]",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					(int)rr->rdlength);
+			if (r < 0)
+				return NULL;
+			len += r;
 		}
 	}
 
