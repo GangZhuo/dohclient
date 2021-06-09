@@ -73,6 +73,8 @@ static inline int hex2dec(const unsigned char *s)
 	}
 }
 
+/* Percent-encoding
+ * See https://developer.mozilla.org/en-US/docs/Glossary/percent-encoding */
 char *urldecode(char *s)
 {
 	unsigned char *src  = (unsigned char *)s,
