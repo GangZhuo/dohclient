@@ -556,7 +556,8 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 
 		key = msg_key(msg);
 		if (cache_add(ctx, key, msg, override) == -1) {
-			loge("cache_load_cachedb() error: cache_add() error: key=%s\n", key);
+			loge("cache_load_cachedb() error: cache_add() error: key=%s, %s\n",
+					key, msg_answers(msg));
 			fclose(fp);
 			return -1;
 		}

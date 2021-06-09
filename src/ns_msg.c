@@ -351,7 +351,12 @@ static const char* get_answers(stream_t *s, const ns_msg_t* msg)
 			char ipname[INET6_ADDRSTRLEN];
 			struct in_addr* addr = (struct in_addr*)rr->rdata;
 			inet_ntop(AF_INET, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(s, len > 0 ? ", %s" : "%s", ipname);
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s %s" : "%s %d %s %s %s",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					ipname);
 			if (r < 0)
 				return NULL;
 			len += r;
@@ -360,26 +365,47 @@ static const char* get_answers(stream_t *s, const ns_msg_t* msg)
 			struct in6_addr* addr = (struct in6_addr*)rr->rdata;
 			static char ipname[INET6_ADDRSTRLEN];
 			inet_ntop(AF_INET6, addr, ipname, INET6_ADDRSTRLEN);
-			r = stream_writef(s, len > 0 ? ", %s" : "%s", ipname);
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s %s" : "%s %d %s %s %s",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					ipname);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_PTR) {
-			r = stream_writef(s, len > 0 ? ", prt: %s" : "prt: %s", rr->rdata);
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s %s" : "%s %d %s %s %s",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					rr->rdata);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_CNAME) {
-			r = stream_writef(s, len > 0 ? ", cname: %s" : "cname: %s", rr->rdata);
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s %s" : "%s %d %s %s %s",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					rr->rdata);
 			if (r < 0)
 				return NULL;
 			len += r;
 		}
 		else if (rr->type == NS_QTYPE_SOA) {
 			ns_soa_t* soa = rr->rdata;
-			r = stream_writef(s, len > 0 ? ", ns1: %s, ns2: %s" : "ns1: %s, ns2: %s", soa->mname, soa->rname);
+			r = stream_writef(s, len > 0 ? ", %s %d %s %s %s,%s" : " %s %d %s %s %s,%s",
+					rr->name,
+					rr->ttl,
+					ns_classname(rr->cls),
+					ns_typename(rr->type),
+					soa->mname,
+					soa->rname);
 			if (r < 0)
 				return NULL;
 			len += r;
