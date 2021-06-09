@@ -163,8 +163,9 @@ int parse_querystring(const char *query,
 	char *cpy, *saveptr = NULL;
 	char *p;
 	char *v;
+	int r;
 
-	if (!query || !*query) return -1;
+	if (!query || !*query) return 0;
 
 	cpy = strdup(query);
 
@@ -180,8 +181,8 @@ int parse_querystring(const char *query,
 
 		urldecode(v);
 
-		if (callback(p, v, state)) {
-			return -1;
+		if ((r = callback(p, v, state)) != 0) {
+			return r;
 		}
 	}
 
