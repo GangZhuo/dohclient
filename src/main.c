@@ -97,6 +97,8 @@ Options:\n\
   -t TIMEOUT               Timeout (seconds), default: " XSTR(DEFAULT_TIMEOUT) ".\n\
   --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 1.\n\
                            0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.\n\
+  --cache-db=PATH          Load cache from.\n\
+                           e.g. --cache-db=\"/etc/dohclient/db0,/etc/dohclient/db1\".\n\
   --mode=[0|1|2]           Specify how to choose a channel.\n\
                            0 - Random, 1 - Concurrent, 2 - Polling.\n\
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\

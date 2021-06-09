@@ -128,6 +128,8 @@ Options:
   -t TIMEOUT               Timeout (seconds), default: 5.
   --cache-timeout=TIMEOUT  Cache Timeout (seconds), default: 1.
                            0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.
+  --cache-db=PATH          Load cache from.
+                           e.g. --cache-db="/etc/dohclient/db0,/etc/dohclient/db1".
   --mode=[0|1|2]           Specify how to choose a channel.
                            0 - Random, 1 - Concurrent, 2 - Polling.
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.
