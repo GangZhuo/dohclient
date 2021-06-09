@@ -32,6 +32,7 @@ typedef struct config_t {
 	char* blacklist;
 	char* hosts;
 	char* wwwroot;
+	char* cachedb;
 	char** channels;
 	char** channel_args;
 	int channel_choose_mode;

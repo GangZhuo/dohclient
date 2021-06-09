@@ -60,6 +60,19 @@ static inline int ch2dec(int ch)
 	return ch;
 }
 
+static inline int dec2ch(int d)
+{
+	if (d < 0xA) {
+		return d + '0';
+	}
+	else if (d <= 0xF) {
+		return 'A' + d - 0xA;
+	}
+	else {
+		return -1;
+	}
+}
+
 static inline int hex2dec(const unsigned char *s)
 {
 	int h = ch2dec(s[0]);
@@ -102,6 +115,45 @@ char *urldecode(char *s)
 	}
 	*dest = '\0';
 	return s;
+}
+
+int urlencode(char *buf, int buflen, const char *s)
+{
+	unsigned char *src  = (unsigned char *)s,
+				  *dest = (unsigned char *)buf,
+				  *end  = dest + buflen;
+	int n = 0;
+	while ((*src) && dest < end) {
+		int ch = *src++;
+		if (ch <= ' ' || ch > '~' ||
+				ch == ':' || ch ==  '/' || ch == '?' || ch == '#' ||
+				ch == '[' || ch ==  ']' || ch == '@' || ch == '!' ||
+				ch == '$' || ch ==  '&' || ch == '\''|| ch == '(' ||
+				ch == ')' || ch ==  '*' || ch == '+' || ch == ',' ||
+				ch == ';' || ch ==  '=' || ch ==  '%') {
+			if (ch == ' ') {
+				*dest++ = '+';
+			}
+			else {
+				int h = dec2ch((ch >> 4) & 0xf);
+				int l = dec2ch(ch & 0xf);
+				*dest++ = '%';
+				if (dest < end) {
+					*dest++ = h;
+					if (dest < end) {
+						*dest++ = l;
+					}
+				}
+			}
+		}
+		else {
+			*dest++ = ch;
+		}
+	}
+	if (dest < end) {
+		*dest = '\0';
+	}
+	return (int)(dest - (unsigned char*)buf);
 }
 
 int parse_querystring(const char *query,

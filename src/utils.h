@@ -51,6 +51,7 @@ char* ltrim(char* s);
 char* rtrim(char* s);
 char* trim_quote(char* s);
 char *urldecode(char *s);
+int urlencode(char *buf, int buflen, const char *s);
 int parse_querystring(const char *query,
 	int (*callback)(char *name, char *value, void *state),
 	void *state);

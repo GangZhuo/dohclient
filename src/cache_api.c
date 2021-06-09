@@ -341,7 +341,6 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 {
 	char *json = NULL;
 	int namelen;
-	int r;
 
 	namelen = strlen(name);
 
@@ -657,7 +656,7 @@ static int api_data_parse(api_data_t *d, const char *data, int datalen)
 	const char *e = data + datalen;
 	p = copystr(d->name, sizeof(d->name), p, e);
 	d->data = p;
-	d->datalen = e - p;
+	d->datalen = (int)(e - p);
 	return 0;
 }
 
