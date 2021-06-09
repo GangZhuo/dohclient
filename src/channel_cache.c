@@ -326,8 +326,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 	ttl = (int)ns_get_ttl(msg);
 
 	/* no ttl */
-	if (ttl < 1)
+	if (ttl < 1) {
+		loge("cache_add() error: no ttl\n");
 		return -1;
+	}
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
