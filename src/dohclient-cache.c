@@ -68,6 +68,16 @@ Commands:\n\
       Used to remove a item from the cache.\n\
       e.g. " DOHCLIENT_NAME "-cache delete A www.baidu.com\n\
 \n\
+  SAVE <FILE>\n\
+\n\
+      Save cache to a file.\n\
+      e.g. " DOHCLIENT_NAME "-cache save \"/var/dohclient.db\"\n\
+\n\
+  LOAD <FILE> [override]\n\
+\n\
+      Load file to the cache. Default to skip exists, use \"override\" to force update. \n\
+      e.g. " DOHCLIENT_NAME "-cache load \"/var/dohclient.db\" override\n\
+\n\
 Online help: <https://github.com/GangZhuo/dohclient>\n");
 }
 
@@ -535,6 +545,55 @@ int main(int argc, char **argv)
 				"DELETE '%s IN %s.'", cmd_args[0], cmd_args[1]);
 		if (n <= 0 || n >= pkgsize) {
 			fprintf(stderr, "Domain too long -- %s\n", cmd_args[1]);
+			exit(1);
+		}
+	}
+	else if (strcasecmp(cmd, "SAVE") == 0) {
+		if (cmd_arg_len < 1) {
+			fprintf(stderr, "Missing arguments\n");
+			exit(1);
+		}
+		else if (cmd_arg_len > 1) {
+			for (i = 1; i < cmd_arg_len; i++) {
+				fprintf(stderr, "Invalid argument -- %s\n", cmd_args[i]);
+			}
+			exit(1);
+		}
+		n = snprintf(pkg, pkgsize,
+				"SAVE \"%s\"", cmd_args[0]);
+		if (n <= 0 || n >= pkgsize) {
+			fprintf(stderr, "Filename too long -- %s\n", cmd_args[0]);
+			exit(1);
+		}
+	}
+	else if (strcasecmp(cmd, "LOAD") == 0) {
+		const char *override = "";
+		if (cmd_arg_len < 1) {
+			fprintf(stderr, "Missing arguments\n");
+			exit(1);
+		}
+		else if (cmd_arg_len > 2) {
+			for (i = 2; i < cmd_arg_len; i++) {
+				fprintf(stderr, "Invalid argument -- %s\n", cmd_args[i]);
+			}
+			exit(1);
+		}
+		if (cmd_arg_len > 1) {
+			if (strcasecmp(cmd_args[1], "override")) {
+				fprintf(stderr,
+						"Unknown argument -- %s\n"
+						"May be \"override\"?\n",
+						cmd_args[1]);
+				exit(1);
+			}
+			else {
+				override = cmd_args[1];
+			}
+		}
+		n = snprintf(pkg, pkgsize,
+				"LOAD \"%s\" \"%s\"", cmd_args[0], override);
+		if (n <= 0 || n >= pkgsize) {
+			fprintf(stderr, "Filename too long -- %s\n", cmd_args[0]);
 			exit(1);
 		}
 	}

@@ -23,6 +23,9 @@ int cache_add(channel_t* ctx, const char* key, const ns_msg_t* msg, int force);
 int cache_remove(channel_t *ctx, const char *key);
 int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg);
 const ns_msg_t *cache_get(channel_t *ctx, const char *key);
+int cache_load_cachedb(channel_t *ctx, const char *filename, int override);
+int cache_load_cachedbs(channel_t *ctx, const char *filenames, int override);
+int cache_save_cachedb(channel_t *ctx, const char *filename);
 int cache_each(channel_t *ctx,
 		int (*f)(const ns_msg_t *msg, void *data), void *data);
 

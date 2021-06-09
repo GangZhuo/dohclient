@@ -42,6 +42,10 @@ extern "C" {
 #define TRUE 1
 #endif
 
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
+
 int is_littleendian();
 char* ltrim(char* s);
 char* rtrim(char* s);

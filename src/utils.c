@@ -50,17 +50,17 @@ static inline int ch2dec(int ch)
 {
 	if (ch >= '0' && ch <= '9')
 		ch -= '0';
-	else if (ch >= 'a' && ch <= 'z')
-		ch -= 'a';
+	else if (ch >= 'a' && ch <= 'f')
+		ch -= 'a' - 10;
 	else if (ch >= 'A' && ch <= 'F')
-		ch -= 'A';
+		ch -= 'A' - 10;
 	else {
 		ch = -1;
 	}
 	return ch;
 }
 
-static inline int hex2dec(const char *s)
+static inline int hex2dec(const unsigned char *s)
 {
 	int h = ch2dec(s[0]);
 	int l = ch2dec(s[1]);
@@ -69,17 +69,18 @@ static inline int hex2dec(const char *s)
 		return -1;
 	}
 	else {
-		return (h << 8) | l;
+		return (h << 4) | l;
 	}
 }
 
 char *urldecode(char *s)
 {
-	char *src = s, *dest = s;
+	unsigned char *src  = (unsigned char *)s,
+				  *dest = (unsigned char *)s;
 	while (*src) {
 		if (*src == '%') {
-			int a = (int)src[1] & 0xF;
-			int b = a ? ((int)src[2] & 0xF) : 0;
+			int a = (int)src[1] & 0xFF;
+			int b = a ? ((int)src[2] & 0xFF) : 0;
 			int ch = b ? hex2dec(src + 1) : -1;
 			if (ch == -1) {
 				*dest++ = *src++;

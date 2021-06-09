@@ -38,18 +38,19 @@ struct api_data_t {
 };
 
 static int cache_run_api_list(api_ctx_t *ctx);
-
 static int cache_run_api_get(api_ctx_t *ctx);
-
 static int cache_run_api_put(api_ctx_t *ctx);
-
 static int cache_run_api_delete(api_ctx_t *ctx);
+static int cache_run_api_save(api_ctx_t *ctx);
+static int cache_run_api_load(api_ctx_t *ctx);
 
 static cache_api_t apis[] = {
 	{ "GET",    cache_run_api_get },      /* UDP: "GET 'IN A www.baidu.com.'" */
 	{ "LIST",   cache_run_api_list },     /* UDP: "LIST" */
 	{ "PUT",    cache_run_api_put },      /* UDP: "PUT www.baidu.com. A 180.101.49.11 289" */
 	{ "DELETE", cache_run_api_delete },   /* UDP: "DELETE 'IN A www.baidu.com.'" */
+	{ "SAVE",   cache_run_api_save },     /* UDP: "SAVE '/var/dohclient.db'" */
+	{ "LOAD",   cache_run_api_load },     /* UDP: "LOAD '/var/dohclient.db' override" */
 };
 
 typedef struct range {
@@ -449,6 +450,66 @@ char *cache_api_delete(channel_t *cache, const char *key)
 	return json;
 }
 
+char *cache_api_save(channel_t *cache, const char *filename)
+{
+	char *json = NULL;
+	int n;
+
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!*filename) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "No FileName", NULL);
+	}
+	else if ((n = cache_save_cachedb(cache, filename)) >= 0) {
+		char msg[64] = {0}, num[64] = {0};
+		snprintf(msg, sizeof(msg) - 1, "OK. Saved %d items.", n);
+		snprintf(num, sizeof(num) - 1, "%d", n);
+		json = cache_api_wrapjson(CACHE_API_OK, msg, num);
+	}
+	else {
+		json = cache_api_wrapjson(CACHE_API_ENORMAL,
+				"Save Error, maybe no permission", NULL);
+	}
+
+	if (!json) {
+		loge("cache_api_save() error: failed to create json\n");
+		return NULL;
+	}
+
+	return json;
+}
+
+char *cache_api_load(channel_t *cache, const char *filename, int override)
+{
+	char *json = NULL;
+	int n;
+
+	if (!cache) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!*filename) {
+		json = cache_api_wrapjson(CACHE_API_EARG, "No FileName", NULL);
+	}
+	else if ((n = cache_load_cachedb(cache, filename, override)) >= 0) {
+		char msg[64] = {0}, num[64] = {0};
+		snprintf(msg, sizeof(msg) - 1, "OK. Load %d items.", n);
+		snprintf(num, sizeof(num) - 1, "%d", n);
+		json = cache_api_wrapjson(CACHE_API_OK, msg, num);
+	}
+	else {
+		json = cache_api_wrapjson(CACHE_API_ENORMAL,
+				"Load Error, maybe no permission", NULL);
+	}
+
+	if (!json) {
+		loge("cache_api_load() error: failed to create json\n");
+		return NULL;
+	}
+
+	return json;
+}
+
 
 static int cache_run_api_list(api_ctx_t *ctx)
 {
@@ -530,6 +591,47 @@ static int cache_run_api_delete(api_ctx_t *ctx)
 	if ((json = cache_api_get(ctx->cache, key)) == NULL) {
 		return -1;
 	}
+	r = cache_api_send_result(ctx, json);
+	free(json);
+	return r;
+}
+
+static int cache_run_api_save(api_ctx_t *ctx)
+{
+	api_data_t *d = ctx->api_data;
+	char filename[PATH_MAX] = {0};
+	char *json = NULL;
+	int r;
+	copystr(filename, sizeof(filename), d->data, d->data + d->datalen);
+	if ((json = cache_api_save(ctx->cache, filename)) == NULL) {
+		return -1;
+	}
+	r = cache_api_send_result(ctx, json);
+	free(json);
+	return r;
+}
+
+static int cache_run_api_load(api_ctx_t *ctx)
+{
+	api_data_t *d = ctx->api_data;
+	char filename[PATH_MAX] = {0};
+	char override[50] = {0};
+	int is_override = FALSE;
+	const char *p = d->data;
+	const char *e = d->data + d->datalen;
+	char *json = NULL;
+	int r;
+
+	p = copystr(filename, sizeof(filename), p, e);
+	p = copystr(override, sizeof(override), p, e);
+
+	if (strcasecmp(override, "override") == 0)
+		is_override = TRUE;
+
+	if ((json = cache_api_load(ctx->cache, filename, is_override)) == NULL) {
+		return -1;
+	}
+
 	r = cache_api_send_result(ctx, json);
 	free(json);
 	return r;

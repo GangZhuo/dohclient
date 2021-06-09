@@ -202,6 +202,65 @@
 		});
 	}
 
+	function doSave() {
+		var d = {
+			"file":  $("#txSaveFile").val()
+		};
+		if (!d.file) {
+			alert("Please input file path");
+			$("#txSaveFile").focus();
+			return;
+		}
+		loading.show("");
+		api.save(d)
+		.always(function (r, textStatus, errorThrown) {
+			if (textStatus === "success") {
+				if (!r.error) {
+					alert(r.msg);
+				}
+				else {
+					loading.hide();
+					alert(r.msg || "Unknown Error");
+				}
+			}
+			else {
+				loading.hide();
+				alert(errorThrown);
+			}
+		});
+	}
+
+	function doLoad() {
+		var d = {
+			"file":     $("#txLoadFile").val(),
+			"override": $("#chkOverride")[0].checked ? 1 : 0
+		};
+		if (!d.file) {
+			alert("Please input file path");
+			$("#txLoadFile").focus();
+			return;
+		}
+		loading.show("");
+		api.load(d)
+		.always(function (r, textStatus, errorThrown) {
+			if (textStatus === "success") {
+				if (!r.error) {
+					if (confirm(r.msg + " Refresh the list?")) {
+						search();
+					}
+				}
+				else {
+					loading.hide();
+					alert(r.msg || "Unknown Error");
+				}
+			}
+			else {
+				loading.hide();
+				alert(errorThrown);
+			}
+		});
+	}
+
 	function doRefresh() {
 		search();
 	}
@@ -285,6 +344,22 @@
 			if(e.which == 13) {
 				e.preventDefault();
 				$("#btnPut").click();
+			}
+		});
+
+		$("#btnSaveTo").click(doSave);
+		$("#txSaveFile").on("keypress", function(e) {
+			if(e.which == 13) {
+				e.preventDefault();
+				$("#btnSaveTo").click();
+			}
+		});
+
+		$("#btnLoadFrom").click(doLoad);
+		$("#txLoadFile").on("keypress", function(e) {
+			if(e.which == 13) {
+				e.preventDefault();
+				$("#btnLoadFrom").click();
 			}
 		});
 

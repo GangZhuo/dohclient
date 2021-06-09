@@ -129,6 +129,47 @@
 		return this._post(url, d);
 	};
 
+	/*
+	 * Example:
+	 *
+	 * api.save({
+	 *     file:  "<PATH>"
+	 * })
+	 * .done(function (d) {
+	 *   if (d.error) {
+	 *       console.error(d);
+	 *   }
+	 *   else {
+	 *       console.log(d);
+	 *   }
+	 * });
+	 * */
+	pt.save = function(d) {
+		var url = this.config.url + "/save";
+		return this._post(url, d);
+	};
+
+	/*
+	 * Example:
+	 *
+	 * api.load({
+	 *     file:     "<PATH>",
+	 *     override: "<0|1>",
+	 * })
+	 * .done(function (d) {
+	 *   if (d.error) {
+	 *       console.error(d);
+	 *   }
+	 *   else {
+	 *       console.log(d);
+	 *   }
+	 * });
+	 * */
+	pt.load = function(d) {
+		var url = this.config.url + "/load";
+		return this._post(url, d);
+	};
+
 	$.DohClientApi = DohClientApi;
 
 })(jQuery);

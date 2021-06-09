@@ -9,6 +9,7 @@
 #define CACHE_API_EARG      1 /* Invalid Arguments */
 #define CACHE_API_ENOTFOUND 2 /* Not Found */
 #define CACHE_API_EALLOC    3 /* Alloc */
+#define CACHE_API_ENORMAL   4 /* Normal Error */
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,6 +20,8 @@ char *cache_api_get(channel_t *cache, const char *key);
 char *cache_api_put(channel_t *cache, const char *name, const char *type,
 		const char *ip, const char *ttl);
 char *cache_api_delete(channel_t *cache, const char *key);
+char *cache_api_save(channel_t *cache, const char *filename);
+char *cache_api_load(channel_t *cache, const char *filename, int override);
 char *cache_api_wrapjson(int err, const char *msg, const char *data);
 
 int cache_api_try_parse(channel_t *cache, const char *data, int datalen,

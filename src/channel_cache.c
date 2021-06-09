@@ -5,6 +5,10 @@
 #define _M
 #define REQ_KEY_SIZE (NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)
 
+#define CACHEDB_HEAD_SIZE 24
+#define CACHEDB_MAGIC     "DCDB"
+#define CACHEDB_VERSION   1
+
 typedef struct cache_t {
 	CHANNEL_BASE(_M)
 	dllist_t items;
@@ -363,6 +367,251 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 			logv("cache updated: %s\n", key);
 		}
 	}
+	else {
+		logv("cache update ignored: %s\n", key);
+	}
+
+	return 0;
+}
+
+int cache_save_cachedb(channel_t *ctx, const char *filename)
+{
+	FILE *fp;
+	int msglen, n;
+	cache_t *c = (cache_t*)ctx;
+	dlitem_t *cur, *nxt;
+	cache_item_t *item;
+	stream_t s[1] = {0};
+	int saved = 0;
+
+	if (!filename || !*filename) {
+		loge("cache_save_cachedb() error: Invalid filename: %s\n", filename);
+		return -1;
+	}
+
+	fp = fopen(filename, "wb");
+	if (fp == NULL) {
+		loge("cache_save_cachedb() error: Can't open file: %s\n", filename);
+		return -1;
+	}
+
+	if (stream_set_cap(s, NS_PAYLOAD_SIZE + 2)) {
+		loge("cache_save_cachedb(): stream_set_cap() error\n");
+		fclose(fp);
+		return -1;
+	}
+
+	/* File header (24 bytes) */
+	/* MAGIC (5 bytes) */
+	if (stream_write(s, CACHEDB_MAGIC, sizeof(CACHEDB_MAGIC)) == -1) {
+		loge("cache_save_cachedb(): stream_write() error\n");
+		fclose(fp);
+		return -1;
+	}
+
+	/* Version (2 bytes) */
+	if (stream_writei(s, CACHEDB_VERSION, 2) == -1) {
+		loge("cache_save_cachedb(): stream_write() error\n");
+		fclose(fp);
+		return -1;
+	}
+
+	/* Padding (17 bytes) */
+	{
+		char padding[17] = {0};
+		if (stream_write(s, padding, sizeof(padding)) == -1) {
+			loge("cache_save_cachedb(): stream_write() error\n");
+			fclose(fp);
+			return -1;
+		}
+	}
+
+	n = fwrite(s->array, 1, s->size, fp);
+	if (n != s->size) {
+		loge("cache_save_cachedb(): fwrite() error: %s\n", filename);
+		fclose(fp);
+		stream_free(s);
+		return -1;
+	}
+
+	dllist_foreach(&c->items, cur, nxt,
+		cache_item_t, item, entry) {
+
+		stream_reset(s);
+
+		/* write length */
+		stream_writei16(s, 0);
+
+		if ((msglen = ns_serialize(s, item->msg, 0)) <= 0) {
+			loge("cache_save_cachedb(): ns_serialize() error\n");
+			fclose(fp);
+			stream_free(s);
+			return -1;
+		}
+
+		s->pos = 0;
+		stream_seti16(s, 0, msglen);
+
+		n = fwrite(s->array, 1, s->size, fp);
+		if (n != s->size) {
+			loge("cache_save_cachedb(): fwrite() error: %s\n", filename);
+			fclose(fp);
+			stream_free(s);
+			return -1;
+		}
+
+		saved++;
+	}
+
+	fclose(fp);
+	stream_free(s);
+
+	logn("Save %d item(s) to cache database %s\n", saved, filename);
+
+	return saved;
+}
+
+int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
+{
+	FILE *fp;
+	int msglen, n;
+	unsigned char buf[NS_PAYLOAD_SIZE];
+	ns_msg_t msg[1] = {0};
+	const char *key;
+	int dbver = 0;
+	int added = 0;
+
+	if (!filename || !*filename) {
+		loge("cache_load_cachedb() error: Invalid filename: %s\n", filename);
+		return -1;
+	}
+
+	fp = fopen(filename, "rb");
+	if (fp == NULL) {
+		loge("cache_load_cachedb() error: Can't open file: %s\n", filename);
+		return -1;
+	}
+
+	if (fseek(fp, 0, SEEK_SET) != 0) {
+		loge("fseek\n");
+		fclose(fp);
+		return -1;
+	}
+
+	n = fread(buf, 1, CACHEDB_HEAD_SIZE, fp);
+	if (n != CACHEDB_HEAD_SIZE ||
+			memcmp(buf, CACHEDB_MAGIC, sizeof(CACHEDB_MAGIC))) {
+		loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+		fclose(fp);
+		return -1;
+	}
+
+	dbver = buf[sizeof(CACHEDB_MAGIC)];
+	dbver <<= 8;
+	dbver |= buf[sizeof(CACHEDB_MAGIC) + 1];
+	if (dbver != CACHEDB_VERSION) {
+		loge("cache_load_cachedb() error: Unsupport version: %d - %s\n",
+				dbver, filename);
+		fclose(fp);
+		return -1;
+	}
+
+	while ((n = fread(buf, 1, 2, fp)) > 0) {
+		if (n != 2) {
+			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			fclose(fp);
+			return -1;
+		}
+
+		msglen = (int)buf[0] & 0xff;
+		msglen <<= 8;
+		msglen |= (int)buf[1] & 0xff;
+
+		if (msglen == 0) {
+			break;
+		}
+
+		if (msglen > NS_PAYLOAD_SIZE) {
+			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			fclose(fp);
+			return -1;
+		}
+
+		n = fread(buf, 1, msglen, fp);
+		if (n != msglen) {
+			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			fclose(fp);
+			return -1;
+		}
+
+		memset(msg, 0, sizeof(ns_msg_t));
+
+		if (ns_parse(msg, buf, msglen) == -1) {
+			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			fclose(fp);
+			return -1;
+		}
+
+		key = msg_key(msg);
+		if (cache_add(ctx, key, msg, override) == -1) {
+			loge("cache_load_cachedb() error: cache_add() error: key=%s\n", key);
+			fclose(fp);
+			return -1;
+		}
+
+		ns_msg_free(msg);
+
+		added++;
+	}
+
+	fclose(fp);
+
+	logn("Load %d item(s) from cache database %s\n", added, filename);
+
+	return added;
+}
+
+int cache_load_cachedbs(channel_t *ctx, const char *filenames, int override)
+{
+	char *s, *p, *saveptr = NULL;
+
+	if (!filenames || !*filenames) {
+		loge("cache_load_cachedbs() error: Invalid filenames: %s\n", filenames);
+		return -1;
+	}
+
+	s = strdup(filenames);
+
+	for (p = strtok_r(s, ",", &saveptr);
+		p && *p;
+		p = strtok_r(NULL, ",", &saveptr)) {
+
+		if (cache_load_cachedb(ctx, p, override) == -1) {
+			free(s);
+			return -1;
+		}
+	}
+
+	free(s);
+
+	return 0;
+}
+
+struct cb_querystring_state_t {
+	cache_t *ctx;
+	int      override;
+};
+
+static int cb_querystring(char *name, char *value, void *state)
+{
+	struct cb_querystring_state_t *st = state;
+	cache_t *ctx = st->ctx;
+
+	if (strcmp(name, "cachedb") == 0) {
+		if (cache_load_cachedbs((channel_t*)ctx, value, st->override)) {
+			return -1;
+		}
+	}
 
 	return 0;
 }
@@ -404,6 +653,15 @@ int cache_create(
 	ctx->query = query;
 	ctx->destroy = destroy;
 
+	if (args) {
+		struct cb_querystring_state_t st[1] = {{
+			.ctx = ctx, .override = FALSE,
+		}};
+		if (parse_querystring(args, cb_querystring, st)) {
+			loge("cache_create() error: invalid args: %s\n", args);
+			return CHANNEL_WRONG_ARG;
+		}
+	}
 
 	*pctx = (channel_t*)ctx;
 

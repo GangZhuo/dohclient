@@ -522,6 +522,31 @@ static int run_post(peer_t *peer)
 		parse_querystring(c->body, cb_parse_querystring, st);
 		json = cache_api_put(hsconf->cache, qname, qtype, ip, ttl);
 	}
+	else if (strcasecmp(c->path, "/api/v1/save") == 0) {
+		char filename[1024] = {0};
+		parse_querystring_state_t st[1] = {{
+			{
+				{ "file",  filename,  sizeof(filename) },
+			},
+			1,
+		}};
+		parse_querystring(c->body, cb_parse_querystring, st);
+		json = cache_api_save(hsconf->cache, filename);
+	}
+	else if (strcasecmp(c->path, "/api/v1/load") == 0) {
+		char filename[1024] = {0};
+		char override[10] = {0};
+		parse_querystring_state_t st[1] = {{
+			{
+				{ "file",     filename,  sizeof(filename) },
+				{ "override", override,  sizeof(override) },
+			},
+			2,
+		}};
+		parse_querystring(c->body, cb_parse_querystring, st);
+		json = cache_api_load(hsconf->cache, filename,
+				*override ? atoi(override) : 0);
+	}
 	else {
 		r = -1;
 	}

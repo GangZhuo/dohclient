@@ -78,6 +78,18 @@ select {
 	width: 80px;
 }
 
+#txLoadFile {
+	width: 400px;
+}
+
+#txSaveFile {
+	width: 400px;
+}
+
+#txKeyword {
+	width: 400px;
+}
+
 select {
 	padding: 6px 8px;
 }
