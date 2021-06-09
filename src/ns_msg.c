@@ -88,7 +88,7 @@ uint32_t ns_get_ttl(const ns_msg_t* msg)
 	rrcount = ns_rrcount(msg);
 	for (i = 0; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		if (rr->type != NS_TYPE_OPT) {
+		if (rr->ttl > 0 && rr->type != NS_TYPE_OPT) {
 			if (ttl == 0 || ttl > rr->ttl) ttl = rr->ttl;
 		}
 	}
@@ -1994,6 +1994,7 @@ void ns_print(ns_msg_t *msg)
 
 const char *ns_typename(uint16_t type)
 {
+	static char num[20] = {0};
     switch (type) {
         case NS_QTYPE_A		: return "A";
         case NS_QTYPE_NS	: return "NS";
@@ -2017,20 +2018,25 @@ const char *ns_typename(uint16_t type)
         case NS_QTYPE_MAILB	: return "MAILB";
         case NS_QTYPE_MAILA	: return "MAILA";
         case NS_QTYPE_ANY	: return "ANY";
-        default: return "";
+        default:
+			snprintf(num, sizeof(num) - 1, "QTYPE(%d)", (int)type);
+			return num;
     }
 
 }
 
 const char *ns_classname(uint16_t cls)
 {
+	static char num[20] = {0};
     switch (cls) {
         case NS_QCLASS_IN: return "IN";
         case NS_QCLASS_CS: return "CS";
         case NS_QCLASS_CH: return "CH";
         case NS_QCLASS_HS: return "HS";
         case NS_QCLASS_ANY:return "ANY";
-        default: return "";
+        default:
+			snprintf(num, sizeof(num) - 1, "QCLASS(%d)", (int)cls);
+			return num;
     }
 }
 
