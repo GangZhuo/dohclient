@@ -8,6 +8,7 @@
 #include "stream.h"
 #include "ns_msg.h"
 #include "channel_cache.h"
+#include "mleak.h"
 
 typedef struct api_ctx_t api_ctx_t;
 typedef struct api_data_t api_data_t;
