@@ -69,7 +69,10 @@ static SERVICE_STATUS_HANDLE hStatus = NULL;
 
 static void ServiceMain(int argc, char** argv);
 static void ControlHandler(DWORD request);
+BOOL WINAPI sig_handler(DWORD signo);
 
+#else
+static void sig_handler(int signo);
 #endif
 
 static void usage()
@@ -1035,6 +1038,16 @@ static int init_dohclient()
 
 	srand((unsigned int)time(NULL));
 
+#ifdef WINDOWS
+	if (0 == SetConsoleCtrlHandler((PHANDLER_ROUTINE)sig_handler, TRUE)) {
+		loge("can not set control handler\n");
+		return EXIT_FAILURE;
+	}
+#else
+	signal(SIGINT, sig_handler);
+	signal(SIGTERM, sig_handler);
+#endif
+
 	if (conf.log_file && *conf.log_file) {
 		open_logfile(conf.log_file);
 	}
@@ -1339,7 +1352,8 @@ static void ControlHandler(DWORD request)
 
 #else
 
-static void sig_handler(int signo) {
+static void sig_handler(int signo)
+{
 	if (signo == SIGINT)
 		exit(1);  /* for gprof*/
 	else
@@ -1461,16 +1475,6 @@ int main(int argc, char** argv)
 		run_as_daemonize();
 		return EXIT_SUCCESS;
 	}
-
-#ifdef WINDOWS
-	if (0 == SetConsoleCtrlHandler((PHANDLER_ROUTINE)sig_handler, TRUE)) {
-		loge("can not set control handler\n");
-		return EXIT_FAILURE;
-	}
-#else
-	signal(SIGINT, sig_handler);
-	signal(SIGTERM, sig_handler);
-#endif
 
 	if (init_dohclient() != 0)
 		return EXIT_FAILURE;
