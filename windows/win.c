@@ -13,6 +13,12 @@ void win_init()
 		loge("FATAL ERROR: unable to initialise Winsock 2.x.\n");
 		exit(-1);
 	}
+
+	{
+		const char *wd = win_get_exe_path();
+		SetCurrentDirectory(wd);
+		logn("Set working directory: %s\n", wd);
+	}
 }
 
 void win_uninit()
@@ -77,3 +83,12 @@ int disable_udp_connreset(SOCKET sockfd)
 	return 0;
 }
 
+const char *win_get_exe_path()
+{
+	static char buffer[MAX_PATH] = { 0 };
+	char *p;
+	GetModuleFileName(NULL, buffer, MAX_PATH);
+	p = strrchr(buffer, '\\');
+	*p = '\0';
+	return buffer;
+}
