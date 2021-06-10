@@ -341,8 +341,7 @@ static int get_physical_path(char *buf, int bufsize, const char *path)
 	if (len1 > 0) {
 		memcpy(buf, hsconf->wwwroot, len1);
 		if (buf[len1 - 1] != '/' && buf[len1 - 1] != '\\') {
-			buf[len1 - 1] = '/';
-			len1++;
+			buf[len1++] = '/';
 		}
 	}
 
