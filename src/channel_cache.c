@@ -494,12 +494,6 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 		return -1;
 	}
 
-	if (fseek(fp, 0, SEEK_SET) != 0) {
-		loge("fseek\n");
-		fclose(fp);
-		return -1;
-	}
-
 	n = fread(buf, 1, CACHEDB_HEAD_SIZE, fp);
 	if (n != CACHEDB_HEAD_SIZE ||
 			memcmp(buf, CACHEDB_MAGIC, sizeof(CACHEDB_MAGIC))) {
@@ -577,6 +571,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 int cache_load_cachedbs(channel_t *ctx, const char *filenames, int override)
 {
 	char *s, *p, *saveptr = NULL;
+	struct stat fstat = {0};
 
 	if (!filenames || !*filenames) {
 		loge("cache_load_cachedbs() error: Invalid filenames: %s\n", filenames);
@@ -589,7 +584,10 @@ int cache_load_cachedbs(channel_t *ctx, const char *filenames, int override)
 		p && *p;
 		p = strtok_r(NULL, ",", &saveptr)) {
 
-		if (cache_load_cachedb(ctx, p, override) == -1) {
+		if (stat(p, &fstat)) {
+			logw("Failed to load cache: Failed to open the file - \"%s\"\n", p);
+		}
+		else if (cache_load_cachedb(ctx, p, override) == -1) {
 			free(s);
 			return -1;
 		}
