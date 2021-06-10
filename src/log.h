@@ -32,7 +32,18 @@ extern "C" {
 
 #define LOG_DEFAULT_LEVEL_NAME	I2STR(LOG_NOTICE)
 
-typedef void (*log_vprintf_fun)(int mask, const char* fmt, va_list args);
+#ifdef _MSC_VER
+#define __DOHCLIENT_FUNC__ __FUNCTION__
+#else
+#define __DOHCLIENT_FUNC__ ((const char *)__func__)
+#endif
+
+#define __DOHCLIENT_FILE__ __FILE__
+#define __DOHCLIENT_LINE__ __LINE__
+
+typedef void (*log_vprintf_fun)(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args);
 
 extern log_vprintf_fun log_vprintf;
 extern log_vprintf_fun log_vprintf_with_timestamp;
@@ -41,12 +52,24 @@ int *log_pflags();
 int *log_plevel();
 
 const char* log_priorityname(int priority);
-void log_write(int mask, const char *fmt, ...);
-void log_vwrite(int mask, const char *fmt, va_list args);
-void log_vprintf_default(int mask, const char* fmt, va_list args);
-void log_vprintf_with_timestamp_default(int mask, const char* fmt, va_list args);
-void log_vprintf_writefile(int mask, const char* fmt, va_list args);
-void log_vprintf_syslog(int mask, const char* fmt, va_list args);
+void log_write(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, ...);
+void log_vwrite(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args);
+void log_vprintf_default(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args);
+void log_vprintf_with_timestamp_default(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args);
+void log_vprintf_writefile(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args);
+void log_vprintf_syslog(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args);
 void open_logfile(const char* log_file);
 void close_logfile();
 void open_syslog(const char *ident);
@@ -60,10 +83,18 @@ const char* get_logfile();
 
 #define log_level_comp(mask) ((mask) & 0xFF)
 
+#define llog_write(mask, file, func, line, fmt, ...) \
+	log_write((mask), (file), (func), (line), (fmt), ##__VA_ARGS__)
+
 #define logc(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_CRIT) { \
-			log_write(LOG_CRIT, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_CRIT, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 		exit(-1); \
 	} while (0)
@@ -71,42 +102,72 @@ const char* get_logfile();
 #define loge(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_ERR) { \
-			log_write(LOG_ERR, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_ERR, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 
 #define logw(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_WARNING) { \
-			log_write(LOG_WARNING, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_WARNING, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 
 #define logn(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_NOTICE) { \
-			log_write(LOG_NOTICE, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_NOTICE, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 
 #define logi(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_INFO) { \
-			log_write(LOG_INFO, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_INFO, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 
 #define logd(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_DEBUG) { \
-			log_write(LOG_DEBUG, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_DEBUG, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 
 #define logv(fmt, ...) \
 	do { \
 		if (loglevel >= LOG_VERBOS) { \
-			log_write(LOG_VERBOS, (fmt), ##__VA_ARGS__); \
+			llog_write(LOG_VERBOS, \
+					__DOHCLIENT_FILE__, \
+					__DOHCLIENT_FUNC__, \
+					__DOHCLIENT_LINE__,\
+					(fmt), \
+					##__VA_ARGS__); \
 		} \
 	} while (0)
 

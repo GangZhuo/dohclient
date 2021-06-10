@@ -33,27 +33,31 @@ int *log_plevel()
 	return &s_log_level;
 }
 
-void log_vwrite(int mask, const char *fmt, va_list args)
+void log_vwrite(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args)
 {
 	if (log_level_comp(mask) <= loglevel) {
 		if (mask & LOG_MASK_RAW) {
-			log_vprintf(mask, fmt, args);
+			log_vprintf(mask, file, func, line, fmt, args);
 		}
 		else if (s_log_flags & LOG_FLG_TIME) {
-			log_vprintf_with_timestamp(mask, fmt, args);
+			log_vprintf_with_timestamp(mask, file, func, line, fmt, args);
 		}
 		else {
-			log_vprintf(mask, fmt, args);
+			log_vprintf(mask, file, func, line, fmt, args);
 		}
 	}
 }
 
-void log_write(int mask, const char *fmt, ...)
+void log_write(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, ...)
 {
 	if (log_level_comp(mask) <= loglevel) {
 		va_list args;
 		va_start(args, fmt);
-		log_vwrite(mask, fmt, args);
+		log_vwrite(mask, file, func, line, fmt, args);
 		va_end(args);
 	}
 }
@@ -76,88 +80,148 @@ static FILE *log_fp(int mask)
 	return pf;
 }
 
-void log_vprintf_default(int mask, const char *fmt, va_list args)
+/* Print to memory, returned new created memory */
+static char *log_vmprintf(const char *fmt, va_list args)
 {
-	FILE *pf = log_fp(mask);
-	vfprintf(pf, fmt, args);
-	fflush(pf);
+	int cnt, sz;
+	char *buf;
+	va_list ap_try;
+
+	sz = 1024;
+	buf = (char*)malloc(sz);
+	if (!buf)
+		return NULL;
+try_print:
+	va_copy(ap_try, args);
+	cnt = vsnprintf(buf, sz, fmt, ap_try);
+	va_end(ap_try);
+	if (cnt >= sz) {
+		char *newbuf;
+		sz *= 2;
+		newbuf = (char*)realloc(buf, sz);
+		if (!newbuf) {
+			free(buf);
+			return NULL;
+		}
+		buf = newbuf;
+		goto try_print;
+	}
+	if (cnt < 0) {
+		free(buf);
+		return NULL;
+	}
+	return buf;
 }
 
-void log_vprintf_with_timestamp_default(int mask, const char *fmt, va_list args)
+/* Print to memory, returned new created memory */
+static char *log_mprintf(const char *fmt, ...)
 {
-	char buf[4 * 1024];
+	char *retval;
+	va_list args;
+	va_start(args, fmt);
+	retval = log_vmprintf(fmt, args);
+	va_end(args);
+	return retval;
+}
+
+static const char *get_filename(const char *file)
+{
+	size_t len;
+	const char *p;
+	if (!file) return NULL;
+	len = strlen(file);
+	for (p = file + len; p > file && *p != '/' && *p != '\\'; --p);
+	if (*p == '/' || *p == '\\') ++p;
+	return p;
+}
+
+static char *log_text(int mask, int timestamp,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args)
+{
 	int level = log_level_comp(mask);
 	char date[32];
 	const char *extra_msg;
+	const char *fname;
+	char *text, *retval;
 	time_t now;
-	FILE *pf = log_fp(mask);
 
-	memset(buf, 0, sizeof(buf));
-	vsnprintf(buf, sizeof(buf) - 1, fmt, args);
-
-	now = time(NULL);
-
-	strftime(date, sizeof(date), LOG_TIMEFORMAT, localtime(&now));
+	if (timestamp) {
+		int x;
+		now = time(NULL);
+		strftime(date, sizeof(date), LOG_TIMEFORMAT, localtime(&now));
+		x = strlen(date);
+		date[x++] = ' ';
+		date[x++] = '\0';
+	}
 	extra_msg = log_priorityname(level);
-	if (extra_msg && strlen(extra_msg)) {
-		fprintf(pf, "%s [%s] %s", date, extra_msg, buf);
+	fname = get_filename(file);
+	text = log_vmprintf(fmt, args);
+
+	if (extra_msg && (*extra_msg)) {
+		retval = log_mprintf("%s%s:%d [%s] %s",
+				date, fname, line, extra_msg, text);
 	}
 	else {
-		fprintf(pf, "%s %s", date, buf);
+		retval = log_mprintf("%s%s:%d %s",
+				date, fname, line, text);
 	}
-	fflush(pf);
+
+	free(text);
+	return retval;
 }
 
-void log_vprintf_writefile(int mask, const char* fmt, va_list args)
+void log_vprintf_default(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args)
 {
-	char buf[4 * 1024], buf2[8 * 1024];
-	int len;
-	int level = log_level_comp(mask);
-	char date[32];
-	const char* extra_msg;
-	time_t now;
+	FILE *pf = log_fp(mask);
+	char *text = log_text(mask, 0, file, func, line, fmt, args);
+	fprintf(pf, "%s", text);
+	free(text);
+}
 
-	memset(buf, 0, sizeof(buf));
-	len = vsnprintf(buf, sizeof(buf) - 1, fmt, args);
+void log_vprintf_with_timestamp_default(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args)
+{
+	char *text = log_text(mask, 1, file, func, line, fmt, args);
+	FILE *pf = log_fp(mask);
+	fprintf(pf, "%s", text);
+	free(text);
+}
 
-	now = time(NULL);
-
-	strftime(date, sizeof(date), LOG_TIMEFORMAT, localtime(&now));
-	extra_msg = log_priorityname(level);
-
-	memset(buf2, 0, sizeof(buf2));
-
-	if (extra_msg && strlen(extra_msg)) {
-		len = snprintf(buf2, sizeof(buf2) - 1, "%s [%s] %s", date, extra_msg, buf);
-	}
-	else {
-		len = snprintf(buf2, sizeof(buf2) - 1, "%s %s", date, buf);
-	}
-
-	if (len > 0) {
+void log_vprintf_writefile(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args)
+{
+	char *text = log_text(mask, 1, file, func, line, fmt, args);
+	size_t len;
+	if (text && (len = strlen(text)) > 0) {
 		FILE* pf;
 		pf = fopen(s_current_log_file, "a+");
 		if (pf) {
-			fwrite(buf2, 1, len, pf);
+			fwrite(text, 1, len, pf);
 			fclose(pf);
 		}
 		else {
 			printf("cannot open %s\n", s_current_log_file);
 		}
 	}
+	free(text);
 }
 
-void log_vprintf_syslog(int mask, const char* fmt, va_list args)
+void log_vprintf_syslog(int mask,
+		const char *file, const char *func, int line,
+		const char* fmt, va_list args)
 {
 #ifdef WINDOWS
 	logw("log_vprintf_syslog(): not implemented in Windows port");
 #else
-	char buf[4 * 1024];
+	char *text = log_text(mask, 0, file, func, line, fmt, args);
 	int priority = log_level_comp(mask);
-
-	memset(buf, 0, sizeof(buf));
-	vsnprintf(buf, sizeof(buf) - 1, fmt, args);
-	syslog(priority, "%s", buf);
+	syslog(priority, "%s", text);
+	free(text);
 #endif
 }
 

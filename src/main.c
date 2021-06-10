@@ -1117,18 +1117,10 @@ static int init_dohclient()
 		return -1;
 	}
 
-	{
-		char cache_args[1024] = {0};
-		if (conf.cachedb) {
-			char encode_path[4096] = {0};
-			urlencode(encode_path, sizeof(encode_path) - 1, conf.cachedb);
-			snprintf(cache_args, sizeof(cache_args) - 1, "cachedb=%s", encode_path);
-		}
-		if (channel_create(&cache, "cache", cache_args,
-			&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
-			loge("init_dohclient() error: create cache error\n");
-			return -1;
-		}
+	if (channel_create(&cache, "cache", NULL,
+		&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
+		loge("init_dohclient() error: create cache error\n");
+		return -1;
 	}
 
 #if DOHCLIENT_CACHE_API
@@ -1182,13 +1174,16 @@ static int init_dohclient()
 		return -1;
 
 	print_listens(listens, listen_num);
-	logn("loglevel: %d\n", loglevel);
 	conf_print(&conf);
 
 	if (conf.cachedb_autosave && (*conf.cachedb_autosave) && cache) {
 		save_cache_when_close = 1;
 		logn("Set service flags to save cache to \"%s\" when service closing\n",
 				conf.cachedb_autosave);
+	}
+
+	if (conf.cachedb && *conf.cachedb) {
+		cache_load_cachedbs(cache, conf.cachedb, 0);
 	}
 
 	return 0;

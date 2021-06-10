@@ -238,6 +238,8 @@ int conf_check(config_t* conf)
 void conf_print(const config_t* conf)
 {
 	char** channel, ** args;
+
+	logn("loglevel: %d\n", loglevel);
 	if (conf->log_file && *conf->log_file)
 		logn("log_file: %s\n", conf->log_file);
 
@@ -288,8 +290,6 @@ void conf_print(const config_t* conf)
 		logn("pid file: %s\n", conf->pid_file);
 	}
 #endif
-
-	logn("\n");
 }
 
 /* parse 'option key value' as independent components */
