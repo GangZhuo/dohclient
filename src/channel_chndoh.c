@@ -182,6 +182,8 @@ static void destroy(channel_t* ctx)
 		c->chndoh.chctx = NULL;
 	}
 
+	free(c->frndoh.name);
+	free(c->frndoh.addrstr);
 	free(c->frndoh.host);
 	free(c->frndoh.path);
 	free(c->frndoh.net.name);
