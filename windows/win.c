@@ -13,12 +13,6 @@ void win_init()
 		loge("FATAL ERROR: unable to initialise Winsock 2.x.\n");
 		exit(-1);
 	}
-
-	{
-		const char *wd = win_get_exe_path();
-		SetCurrentDirectory(wd);
-		logn("Set working directory: %s\n", wd);
-	}
 }
 
 void win_uninit()

@@ -1294,6 +1294,12 @@ static void ServiceMain(int argc, char** argv)
 		return;
 	}
 
+	{
+		const char* wd = win_get_exe_path();
+		SetCurrentDirectory(wd);
+		logn("Set working directory: %s\n", wd);
+	}
+
 	if (init_dohclient() != 0) {
 		ServiceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
 		ServiceStatus.dwServiceSpecificExitCode = ERROR_SERVICE_NOT_ACTIVE;
