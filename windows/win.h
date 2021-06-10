@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <inttypes.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #include <WinSock2.h>
 #include <WS2tcpip.h>

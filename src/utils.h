@@ -16,6 +16,7 @@ extern "C" {
 #define strtok_r(s,d,c) strtok_s((s),(d),(c))
 #define strncasecmp _strnicmp
 #define strcasecmp _stricmp
+#define stat _stat
 #endif
 #else
 #ifndef strnicmp
