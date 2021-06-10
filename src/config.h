@@ -34,6 +34,7 @@ typedef struct config_t {
 	char* wwwroot;
 	char* cachedb;
 	char* cachedb_autosave;
+	char* cache_api;
 	char** channels;
 	char** channel_args;
 	int channel_choose_mode;
@@ -41,7 +42,6 @@ typedef struct config_t {
 	int timeout;
 	int cache_timeout;
 	int log_level;
-	int is_cache_api_enabled;
 	int is_print_version;
 	int is_print_help;
 	int is_config_file_readed;

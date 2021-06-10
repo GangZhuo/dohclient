@@ -38,6 +38,13 @@ struct api_data_t {
 	int         datalen;
 };
 
+static int is_list_enabled   = 0;
+static int is_get_enabled    = 0;
+static int is_put_enabled    = 0;
+static int is_delete_enabled = 0;
+static int is_save_enabled   = 0;
+static int is_load_enabled   = 0;
+
 static int cache_run_api_list(api_ctx_t *ctx);
 static int cache_run_api_get(api_ctx_t *ctx);
 static int cache_run_api_put(api_ctx_t *ctx);
@@ -58,6 +65,51 @@ typedef struct range {
 	const char *start;
 	const char *end;
 } range;
+
+int cache_api_config(const char *configstring)
+{
+	char *s, *p, *saveptr = NULL;
+
+	if (!configstring || !*configstring) {
+		loge("cache_api_config() error: Invalid config string: %s\n", configstring);
+		return -1;
+	}
+
+	s = strdup(configstring);
+
+	for (p = strtok_r(s, ",", &saveptr);
+		p && *p;
+		p = strtok_r(NULL, ",", &saveptr)) {
+
+		if (strcasecmp(p, "GET") == 0) {
+			is_get_enabled = TRUE;
+		}
+		else if (strcasecmp(p, "LIST") == 0) {
+			is_list_enabled = TRUE;
+		}
+		else if (strcasecmp(p, "PUT") == 0) {
+			is_put_enabled = TRUE;
+		}
+		else if (strcasecmp(p, "DELETE") == 0) {
+			is_delete_enabled = TRUE;
+		}
+		else if (strcasecmp(p, "SAVE") == 0) {
+			is_save_enabled = TRUE;
+		}
+		else if (strcasecmp(p, "LOAD") == 0) {
+			is_load_enabled = TRUE;
+		}
+		else {
+			loge("cache_api_config() error: Unknown API: %s\n", p);
+			free(s);
+			return -1;
+		}
+	}
+
+	free(s);
+
+	return 0;
+}
 
 static const char *findstr(range *rg, const char *start, const char *end)
 {
@@ -298,6 +350,9 @@ char *cache_api_list(channel_t *cache, const char *keyword, int offset, int limi
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
 	}
+	else if (!is_list_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
+	}
 	else if (cache_list(cache, s, keyword, offset, limit) == -1) {
 		stream_free(s);
 		return NULL;
@@ -316,6 +371,9 @@ char *cache_api_get(channel_t *cache, const char *key)
 
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!is_get_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
 	}
 	else if (!*key) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "No Cache Key", NULL);
@@ -347,6 +405,9 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!is_put_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
 	}
 	else if (namelen == 0 ||
 			(name[namelen - 1] != '.' && namelen + 1 >= NS_NAME_SIZE) ||
@@ -432,6 +493,9 @@ char *cache_api_delete(channel_t *cache, const char *key)
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
 	}
+	else if (!is_delete_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
+	}
 	else if (!*key) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "No Cache Key", NULL);
 	}
@@ -457,6 +521,9 @@ char *cache_api_save(channel_t *cache, const char *filename)
 
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!is_save_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
 	}
 	else if (!*filename) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "No FileName", NULL);
@@ -487,6 +554,9 @@ char *cache_api_load(channel_t *cache, const char *filename, int override)
 
 	if (!cache) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "Cache is disabled", NULL);
+	}
+	else if (!is_load_enabled) {
+		json = cache_api_wrapjson(CACHE_API_EFORBIDDEN, "The api is disabled", NULL);
 	}
 	else if (!*filename) {
 		json = cache_api_wrapjson(CACHE_API_EARG, "No FileName", NULL);

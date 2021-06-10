@@ -41,7 +41,6 @@ static config_t conf = {
 	.timeout = -1,
 	.cache_timeout = -1,
 	.channel_choose_mode = -1,
-	.is_cache_api_enabled = -1,
 };
 static int running = 0;
 static listen_t listens[MAX_LISTEN] = { 0 };
@@ -128,7 +127,7 @@ Options:\n\
                            Supports socks5 (no authentication) and http proxy.");
 #if DOHCLIENT_CACHE_API
 	printf("%s\n","\
-  --cache-api              Enable cache api.\n\
+  --cache-api=API_LIST     Enabled cache api. (get,list,put,delete,save,load)\n\
   --wwwroot=PATH           Directory path for web root.");
 #endif
 	printf("%s\n","\
@@ -603,7 +602,7 @@ static int server_recv_msg(const char *data, int datalen,
 	req_t* req;
 
 #if DOHCLIENT_CACHE_API
-	if (conf.is_cache_api_enabled) {
+	if (conf.cache_api) {
 		int r;
 
 		r = cache_api_try_parse(cache, data, datalen, &listens[listen],
@@ -718,7 +717,7 @@ static int peer_handle_recv(peer_t* peer)
 	int msglen, left;
 
 #if DOHCLIENT_CACHE_API
-	if (conf.is_cache_api_enabled && peer->is_hs) {
+	if (conf.cache_api && peer->is_hs) {
 		return hs_onrecv(peer);
 	}
 #endif
@@ -727,7 +726,7 @@ static int peer_handle_recv(peer_t* peer)
 		msglen = stream_geti(s, s->pos, 2);
 		if (msglen > NS_PAYLOAD_SIZE) {
 #if DOHCLIENT_CACHE_API
-			if (conf.is_cache_api_enabled && hs_can_parse(s->array + s->pos)) {
+			if (conf.cache_api && hs_can_parse(s->array + s->pos)) {
 				return hs_onrecv(peer);
 			}
 			else
@@ -1126,6 +1125,12 @@ static int init_dohclient()
 #if DOHCLIENT_CACHE_API
 	hsconf->cache = cache;
 	hsconf->wwwroot = conf.wwwroot;
+	if (conf.cache_api && *conf.cache_api) {
+		if (cache_api_config(conf.cache_api) != 0) {
+			loge("init_dohclient() error: cache_api_config() error\n");
+			return -1;
+		}
+	}
 #endif
 
 	ch = conf.channels;

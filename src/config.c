@@ -84,7 +84,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"hosts",        required_argument, NULL, 12},
 		{"cache-timeout",required_argument, NULL, 13},
 		{"mode",         required_argument, NULL, 14},
-		{"cache-api",    no_argument,       NULL, 15},
+		{"cache-api",    required_argument, NULL, 15},
 		{"cache-db",     required_argument, NULL, 16},
 		{"cache-autosave",required_argument, NULL,17},
 		{"wwwroot",      required_argument, NULL, 18},
@@ -140,7 +140,7 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			conf->channel_choose_mode = atoi(optarg);
 			break;
 		case 15:
-			conf->is_cache_api_enabled = 1;
+			conf->cache_api = strdup(optarg);
 			break;
 		case 16:
 			conf->cachedb = strdup(optarg);
@@ -208,9 +208,6 @@ int conf_check(config_t* conf)
 			return -1;
 		}
 	}
-	if (conf->is_cache_api_enabled == -1) {
-		conf->is_cache_api_enabled = 0;
-	}
 	if (conf->wwwroot == NULL) {
 		conf->wwwroot = strdup(DEFAULT_WWWROOT);
 	}
@@ -258,10 +255,8 @@ void conf_print(const config_t* conf)
 	if (conf->timeout > 0)
 		logn("timeout: %d\n", conf->timeout);
 
-	if (conf->is_cache_api_enabled)
-		logn("cache api: yes\n");
-	else
-		logn("cache api: no\n");
+	if (conf->cache_api)
+		logn("cache api: %s\n", conf->cache_api);
 
 	if (conf->cachedb)
 		logn("cachedb: %s\n", conf->cachedb);
@@ -459,8 +454,9 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 			}
 		}
 		else if (strcmp(name, "cache_api") == 0 && strlen(value)) {
-			if (force || conf->is_cache_api_enabled == -1) {
-				conf->is_cache_api_enabled = is_true_val(value);
+			if (force || !conf->cache_api) {
+				free(conf->cache_api);
+				conf->cache_api = strdup(value);
 			}
 		}
 		else if (strcmp(name, "cache_db") == 0 && strlen(value)) {
@@ -532,6 +528,9 @@ void conf_free(config_t* conf)
 
 	free(conf->cachedb);
 	conf->cachedb = NULL;
+
+	free(conf->cache_api);
+	conf->cache_api = NULL;
 
 	free(conf->cachedb_autosave);
 	conf->cachedb_autosave = NULL;

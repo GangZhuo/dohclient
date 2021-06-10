@@ -5,15 +5,18 @@
 #include "channel.h"
 
 /* Errors */
-#define CACHE_API_OK        0 /* OK */
-#define CACHE_API_EARG      1 /* Invalid Arguments */
-#define CACHE_API_ENOTFOUND 2 /* Not Found */
-#define CACHE_API_EALLOC    3 /* Alloc */
-#define CACHE_API_ENORMAL   4 /* Normal Error */
+#define CACHE_API_OK            0 /* OK */
+#define CACHE_API_EARG          1 /* Invalid Arguments */
+#define CACHE_API_ENOTFOUND     2 /* Not Found */
+#define CACHE_API_EALLOC        3 /* Alloc */
+#define CACHE_API_ENORMAL       4 /* Normal Error */
+#define CACHE_API_EFORBIDDEN    5 /* Forbidden */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+int cache_api_config(const char *configstring);
 
 char *cache_api_list(channel_t *cache, const char *keyword, int offset, int limit);
 char *cache_api_get(channel_t *cache, const char *key);
