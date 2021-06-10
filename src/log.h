@@ -60,76 +60,55 @@ const char* get_logfile();
 
 #define log_level_comp(mask) ((mask) & 0xFF)
 
-static inline void logc(const char *fmt, ...)
-{
-	if (loglevel >= LOG_CRIT) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_CRIT, fmt, args);
-		va_end(args);
-	}
-	exit(-1);
-}
+#define logc(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_CRIT) { \
+			log_write(LOG_CRIT, (fmt), ##__VA_ARGS__); \
+		} \
+		exit(-1); \
+	} while (0)
 
-static inline void loge(const char *fmt, ...)
-{
-	if (loglevel >= LOG_ERR) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_ERR, fmt, args);
-		va_end(args);
-	}
-}
+#define loge(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_ERR) { \
+			log_write(LOG_ERR, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
-static inline void logw(const char *fmt, ...)
-{
-	if (loglevel >= LOG_WARNING) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_WARNING, fmt, args);
-		va_end(args);
-	}
-}
+#define logw(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_WARNING) { \
+			log_write(LOG_WARNING, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
-static inline void logn(const char *fmt, ...)
-{
-	if (loglevel >= LOG_NOTICE) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_NOTICE, fmt, args);
-		va_end(args);
-	}
-}
+#define logn(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_NOTICE) { \
+			log_write(LOG_NOTICE, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
-static inline void logi(const char *fmt, ...)
-{
-	if (loglevel >= LOG_INFO) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_INFO, fmt, args);
-		va_end(args);
-	}
-}
+#define logi(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_INFO) { \
+			log_write(LOG_INFO, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
-static inline void logd(const char *fmt, ...)
-{
-	if (loglevel >= LOG_DEBUG) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_DEBUG, fmt, args);
-		va_end(args);
-	}
-}
+#define logd(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_DEBUG) { \
+			log_write(LOG_DEBUG, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
-static inline void logv(const char* fmt, ...)
-{
-	if (loglevel >= LOG_VERBOS) {
-		va_list args;
-		va_start(args, fmt);
-		log_vwrite(LOG_VERBOS, fmt, args);
-		va_end(args);
-	}
-}
+#define logv(fmt, ...) \
+	do { \
+		if (loglevel >= LOG_VERBOS) { \
+			log_write(LOG_VERBOS, (fmt), ##__VA_ARGS__); \
+		} \
+	} while (0)
 
 #ifdef __cplusplus
 }
