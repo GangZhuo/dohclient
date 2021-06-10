@@ -11,7 +11,7 @@ env:
   # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
   BUILD_PLATFORM: x64
-  BUILD_VERSION: v0.0.1
+  BUILD_VERSION: v0.0.2
 
 jobs:
   build:
