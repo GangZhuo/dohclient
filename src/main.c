@@ -57,6 +57,7 @@ static channel_t* hosts = NULL;
 static channel_t *cache = NULL;
 static channel_t** channels = NULL;
 static int channel_num = 0;
+static int save_cache_when_close = 0;
 
 #ifdef WINDOWS
 
@@ -99,6 +100,9 @@ Options:\n\
                            0 - Nevel expire, 1 - Following TTL, Other - Expire seconds.\n\
   --cache-db=PATH          Load cache from.\n\
                            e.g. --cache-db=\"/etc/dohclient/db0,/etc/dohclient/db1\".\n\
+                           First comes have a higher priority.\n\
+  --cache-autosave=PATH    Save cache to a file (when closing).\n\
+                           e.g. --cache-db=\"/etc/dohclient/db0\".\n\
   --mode=[0|1|2]           Specify how to choose a channel.\n\
                            0 - Random, 1 - Concurrent, 2 - Polling.\n\
   --channel=CHANNEL        Channel name, e.g. os,doh,chinadns.\n\
@@ -929,9 +933,17 @@ static int do_loop()
 		timeout.tv_usec = 50 * 1000;
 
 		if (select(max_fd + 1, &readset, &writeset, &errorset, &timeout) == -1) {
-			loge("select() error: errno=%d, %s \n",
-				errno, strerror(errno));
-			return -1;
+			if (errno == EINTR) {
+				logd("select(): errno=%d, %s \n", errno, strerror(errno));
+				if (!running)
+					break;
+				continue;
+			}
+			else {
+				loge("select() error: errno=%d, %s \n",
+					errno, strerror(errno));
+				return -1;
+			}
 		}
 
 		if (!running) break;
@@ -1173,6 +1185,12 @@ static int init_dohclient()
 	logn("loglevel: %d\n", loglevel);
 	conf_print(&conf);
 
+	if (conf.cachedb_autosave && (*conf.cachedb_autosave) && cache) {
+		save_cache_when_close = 1;
+		logn("Set service flags to save cache to \"%s\" when service closing\n",
+				conf.cachedb_autosave);
+	}
+
 	return 0;
 }
 
@@ -1215,6 +1233,9 @@ static void uninit_dohclient()
 	}
 
 	if (cache) {
+		if (save_cache_when_close) {
+			cache_save_cachedb(cache, conf.cachedb_autosave);
+		}
 		cache->destroy(cache);
 		cache = NULL;
 	}

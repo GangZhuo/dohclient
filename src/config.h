@@ -33,6 +33,7 @@ typedef struct config_t {
 	char* hosts;
 	char* wwwroot;
 	char* cachedb;
+	char* cachedb_autosave;
 	char** channels;
 	char** channel_args;
 	int channel_choose_mode;

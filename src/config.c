@@ -86,7 +86,8 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 		{"mode",         required_argument, NULL, 14},
 		{"cache-api",    no_argument,       NULL, 15},
 		{"cache-db",     required_argument, NULL, 16},
-		{"wwwroot",      required_argument, NULL, 17},
+		{"cache-autosave",required_argument, NULL,17},
+		{"wwwroot",      required_argument, NULL, 18},
 		{0, 0, 0, 0}
 	};
 
@@ -145,6 +146,9 @@ int conf_parse_args(config_t *conf, int argc, char** argv)
 			conf->cachedb = strdup(optarg);
 			break;
 		case 17:
+			conf->cachedb_autosave = strdup(optarg);
+			break;
+		case 18:
 			conf->wwwroot = strdup(optarg);
 			break;
 		case 'h':
@@ -259,6 +263,9 @@ void conf_print(const config_t* conf)
 
 	if (conf->cachedb)
 		logn("cachedb: %s\n", conf->cachedb);
+
+	if (conf->cachedb_autosave)
+		logn("cachedb (auto save): %s\n", conf->cachedb_autosave);
 
 	if (conf->wwwroot)
 		logn("wwwroot: %s\n", conf->wwwroot);
@@ -462,6 +469,12 @@ int conf_load_from_file(config_t* conf, const char* config_file, int force)
 				conf->cachedb = strdup(value);
 			}
 		}
+		else if (strcmp(name, "cache_autosave") == 0 && strlen(value)) {
+			if (force || !conf->cachedb_autosave) {
+				free(conf->cachedb_autosave);
+				conf->cachedb_autosave = strdup(value);
+			}
+		}
 		else if (strcmp(name, "wwwroot") == 0 && strlen(value)) {
 			if (force || !conf->wwwroot) {
 				free(conf->wwwroot);
@@ -519,6 +532,9 @@ void conf_free(config_t* conf)
 
 	free(conf->cachedb);
 	conf->cachedb = NULL;
+
+	free(conf->cachedb_autosave);
+	conf->cachedb_autosave = NULL;
 
 	p = conf->channel_args;
 	while (p && *p) {
