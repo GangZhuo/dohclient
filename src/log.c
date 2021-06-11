@@ -210,7 +210,7 @@ static char *log_text(int mask, int timestamp,
 		const char *fmt, va_list args)
 {
 	int level = log_level_comp(mask);
-	char date[32];
+	char date[32] = {0};
 	const char *extra_msg;
 	const char *fname;
 	char *text, *retval;
