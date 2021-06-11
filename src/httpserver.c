@@ -195,12 +195,12 @@ int hs_onrecv(peer_t *peer)
 	stream_t *s = &peer->conn.rs;
 	hsctx_t *c = peer->hsctx;
 
-	logd("ws_onrecv():\n%s\n", s->array + s->pos);
+	logd("recv:\n%s\n", s->array + s->pos);
 
 	if (!c) {
 		c = (hsctx_t *)malloc(sizeof(hsctx_t));
 		if (!c) {
-			loge("ws_onrecv() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 		memset(c, 0, sizeof(hsctx_t));
@@ -219,7 +219,7 @@ int hs_onrecv(peer_t *peer)
 		request_t *hs = c->hs;
 		hs = (request_t *)malloc(sizeof(request_t));
 		if (!hs) {
-			loge("ws_onrecv() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 		memset(hs, 0, sizeof(request_t));
@@ -231,7 +231,7 @@ int hs_onrecv(peer_t *peer)
 				s->array + s->pos, s->size - s->pos);
 
 		if (nparsed <= 0) {
-			loge("ws_onrecv() error: %s\n", http_errno_name(hs->hp->http_errno));
+			loge("%s\n", http_errno_name(hs->hp->http_errno));
 			return -1;
 		}
 
@@ -240,7 +240,7 @@ int hs_onrecv(peer_t *peer)
 
 	if (s->pos > 0) {
 		if (stream_quake(s)) {
-			loge("ws_onrecv() error: stream_quake() failed\n");
+			loge("stream_quake() failed\n");
 			return -1;
 		}
 	}
@@ -286,13 +286,13 @@ static int readfile(stream_t *s, const char *filename)
 
 	pf = fopen(filename, "rb");
 	if (!pf) {
-		loge("readfile() error: Failed to open file %s\n", filename);
+		loge("Failed to open file %s\n", filename);
 		return -1;
 	}
 
 	while ((n = fread(buf, 1, sizeof(buf), pf)) > 0) {
 		if (stream_appends(s, buf, n) == -1) {
-			loge("readfile() error: alloc\n");
+			loge("alloc\n");
 			fclose(pf);
 			return -1;
 		}
@@ -334,7 +334,7 @@ static int get_physical_path(char *buf, int bufsize, const char *path)
 	int len2 = strlen(path);
 
 	if (len1 + len2 + 1 > bufsize) {
-		loge("get_physical_path() error: Too small buffer\n");
+		loge("Too small buffer\n");
 		return -1;
 	}
 
@@ -403,7 +403,7 @@ static int run_get(peer_t *peer)
 			http_should_keep_alive(c->hp) ? "keep-alive" : "close",
 			(int)fs->size);
 		if (r == -1 || (r = stream_write(s, fs->array, fs->size)) == -1) {
-			loge("run_http_server() error: alloc\n");
+			loge("alloc\n");
 			stream_reset(s);
 			r = stream_writef(s,
 				"HTTP/1.1 500 Internal Server Error\r\n"
@@ -566,7 +566,7 @@ static int run_post(peer_t *peer)
 			http_should_keep_alive(c->hp) ? "keep-alive" : "close",
 			len);
 		if (r == -1 || (r = stream_writes(s, json, len)) == -1) {
-			loge("run_http_server() error: alloc\n");
+			loge("alloc\n");
 			stream_reset(s);
 			r = stream_writef(s,
 				"HTTP/1.1 500 Internal Server Error\r\n"

@@ -71,7 +71,7 @@ int cache_api_config(const char *configstring)
 	char *s, *p, *saveptr = NULL;
 
 	if (!configstring || !*configstring) {
-		loge("cache_api_config() error: Invalid config string: %s\n", configstring);
+		loge("Invalid config string: %s\n", configstring);
 		return -1;
 	}
 
@@ -100,7 +100,7 @@ int cache_api_config(const char *configstring)
 			is_load_enabled = TRUE;
 		}
 		else {
-			loge("cache_api_config() error: Unknown API: %s\n", p);
+			loge("Unknown API: %s\n", p);
 			free(s);
 			return -1;
 		}
@@ -162,7 +162,7 @@ static int nsmsg_write_as_json(stream_t *s, const ns_msg_t *msg)
 	r = stream_appendf(s, "{\"key\":\"%s\",\"answers\":\"%s\"}",
 			msg_key(msg), msg_answers(msg));
 	if (r == -1) {
-		loge("nsmsg_write_as_json() error: Alloc\n");
+		loge("Alloc\n");
 	}
 	return r;
 }
@@ -173,7 +173,7 @@ static char *nsmsg2json(const ns_msg_t *msg)
 	int r;
 	r = nsmsg_write_as_json(s, msg);
 	if (r == -1) {
-		loge("nsmsg2json() error: Alloc\n");
+		loge("Alloc\n");
 		stream_free(s);
 		return NULL;
 	}
@@ -187,7 +187,7 @@ char *cache_api_wrapjson(int err, const char *msg, const char *data)
 	r = stream_writef(s, "{\"error\":%d,\"msg\":\"%s\",\"data\":%s}",
 			err, msg ? msg : "",  data ? data : "null");
 	if (r == -1) {
-		loge("cache_api_wrapjson() error: Alloc\n");
+		loge("Alloc\n");
 		stream_free(s);
 		return NULL;
 	}
@@ -207,12 +207,12 @@ static int cache_api_send_result(api_ctx_t *ctx, const char *json)
 		s->pos = s->size;
 
 		if (stream_writei16(s, strlen(json)) == -1) {
-			loge("cache_api_send_result() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 
 		if (stream_writes(s, json, strlen(json)) == -1) {
-			loge("cache_api_send_result() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 
@@ -234,7 +234,7 @@ static int cache_api_send_result(api_ctx_t *ctx, const char *json)
 		listen_t *listen = ctx->listen;
 
 		if (stream_writes(s, json, strlen(json)) == -1) {
-			loge("cache_api_send_result() error: alloc\n");
+			loge("alloc\n");
 			stream_free(s);
 			return -1;
 		}
@@ -283,13 +283,13 @@ static int cb_each(const ns_msg_t *msg, void *data)
 
 		if (st->count > 0) {
 			if (stream_appends(s, ",", 1) == -1) {
-				loge("cache_api_list() error: alloc\n");
+				loge("alloc\n");
 				return -1;
 			}
 		}
 
 		if (nsmsg_write_as_json(s, msg) == -1) {
-			loge("cache_api_list() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 
@@ -320,13 +320,13 @@ static int cache_list(channel_t *cache, stream_t *s,
 				  "\"offset\":%d,"
 				  "\"limit\":%d,"
 				  "\"list\":[", offset, limit) == -1) {
-		loge("cache_list() error: alloc\n");
+		loge("alloc\n");
 		stream_free(s);
 		return -1;
 	}
 
 	if (cache_each(cache, cb_each, st) == -1) {
-		loge("cache_list() error: alloc\n");
+		loge("alloc\n");
 		stream_free(s);
 		return -1;
 	}
@@ -335,7 +335,7 @@ static int cache_list(channel_t *cache, stream_t *s,
 				  "],"
 				  "\"total\":%d"
 				"}", st->total) == -1) {
-		loge("cache_list() error: alloc\n");
+		loge("alloc\n");
 		stream_free(s);
 		return -1;
 	}
@@ -453,8 +453,6 @@ char *cache_api_put(channel_t *cache, const char *name, const char *type,
 			flags.rcode = 0;
 			ns_set_flags(msg, &flags);
 
-			logd("value: %x %d\n", msg->flags, flags.qr);
-		
 			msg->qdcount = 1;
 			msg->qrs = qr;
 		
@@ -507,7 +505,7 @@ char *cache_api_delete(channel_t *cache, const char *key)
 	}
 
 	if (!json) {
-		loge("cache_api_delete() error: failed to create json\n");
+		loge("failed to create json\n");
 		return NULL;
 	}
 
@@ -540,7 +538,7 @@ char *cache_api_save(channel_t *cache, const char *filename)
 	}
 
 	if (!json) {
-		loge("cache_api_save() error: failed to create json\n");
+		loge("failed to create json\n");
 		return NULL;
 	}
 
@@ -573,7 +571,7 @@ char *cache_api_load(channel_t *cache, const char *filename, int override)
 	}
 
 	if (!json) {
-		loge("cache_api_load() error: failed to create json\n");
+		loge("failed to create json\n");
 		return NULL;
 	}
 
@@ -635,11 +633,6 @@ static int cache_run_api_put(api_ctx_t *ctx)
 	p = copystr(type, sizeof(type), p, e);
 	p = copystr(ip,   sizeof(ip),   p, e);
 	p = copystr(ttl,  sizeof(ttl),  p, e);
-
-	logd("name: %s\n", name);
-	logd("type: %s\n", type);
-	logd("ip:   %s\n", ip);
-	logd("ttl:  %s\n", ttl);
 
 	if ((json = cache_api_put(ctx->cache, name, type, ip, ttl)) == NULL) {
 		return -1;

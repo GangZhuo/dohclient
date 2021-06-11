@@ -187,11 +187,11 @@ static int msg_check(ns_msg_t* msg)
 		msg->qdcount < 1 ||
 		!msg->qrs[0].qname ||
 		!msg->qrs[0].qname[0]) {
-		loge("msg_check() error: no question\n");
+		loge("no question\n");
 		return FALSE;
 	}
 	else if (msg->qdcount > 1) {
-		logw("msg_check() warning: multi questions\n");
+		logw("multi questions\n");
 	}
 	flags = ns_get_flags(msg);
 	if (flags.qr)
@@ -226,7 +226,7 @@ static int reqdic_add(req_t *req, const char* key)
 	else {
 		rbn = (rbn_t*)malloc(sizeof(rbn_t));
 		if (!rbn) {
-			loge("reqdic_add() error: alloc\n");
+			loge("alloc\n");
 			return FALSE;
 		}
 		memset(rbn, 0, sizeof(rbn_t));
@@ -236,7 +236,7 @@ static int reqdic_add(req_t *req, const char* key)
 		rbn->node.key = rbn->key;
 		rbtree_insert(&reqdic, &rbn->node);
 		dllist_add(&rbn->reqs, &req->entry_rbn);
-		logv("reqdic added - %s\n", rbn->key);
+		logd("reqdic added - %s\n", rbn->key);
 	}
 	return TRUE;
 }
@@ -252,7 +252,7 @@ static void reqdic_remove(req_t* req, const char* key)
 	if (req->entry_rbn.prev->next == req->entry_rbn.prev) {
 		rbn = rbtree_container_of(req->entry_rbn.prev, rbn_t, reqs.head);
 		rbtree_remove(&reqdic, &rbn->node);
-		logv("reqdic removed - %s\n", rbn->key);
+		logd("reqdic removed - %s\n", rbn->key);
 		free(rbn->key);
 		free(rbn);
 	}
@@ -322,7 +322,7 @@ static req_t* req_add_new(const char* data, int datalen,
 	/* set expire */
 	req->expire = time(NULL) + conf.timeout;
 
-	logv("request added (id:%d) - %s\n",
+	logd("request added (id:%d) - %s\n",
 		req->id,
 		key);
 
@@ -340,7 +340,7 @@ static void req_remove(req_t* req)
 	dllist_remove(&req->entry);
 	key = req_key(req);
 	reqdic_remove(req, key);
-	logv("request removed (id:%d) - %s\n",
+	logd("request removed (id:%d) - %s\n",
 		req->id,
 		key);
 	req_destroy(req);
@@ -363,7 +363,7 @@ static int req_send_result(req_t* req, ns_msg_t* msg)
 		stream_writei16(ws, 0);
 
 		if ((len = ns_serialize(ws, msg, 0)) <= 0) {
-			loge("req_send_result() error: ns_serialize() error\n");
+			loge("ns_serialize() error\n");
 			ws->pos = pos;
 			ws->size = start;
 			return -1;
@@ -388,7 +388,7 @@ static int req_send_result(req_t* req, ns_msg_t* msg)
 		listen_t* listen = listens + req->listen;
 
 		if ((len = ns_serialize(&s, msg, 0)) <= 0) {
-			loge("req_send_result() error: ns_serialize() error\n");
+			loge("ns_serialize() error\n");
 			stream_free(&s);
 			return -1;
 		}
@@ -503,7 +503,7 @@ static int _query_cb(channel_t* ctx,
 				ctx->name, OS_GetTickCount() - rbn->ctime);
 	}
 	else {
-		logd("drop answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
+		logi("drop answer: %s - %s - %s\n", key, msg_answers(result), ctx->name);
 	}
 
 	if (loglevel > LOG_DEBUG) {
@@ -658,7 +658,7 @@ static int server_udp_recv(int listen_index)
 	}
 
 	if (nread > NS_PAYLOAD_SIZE) {
-		loge("server_udp_recv(): too large dns-message\n");
+		loge("too large dns-message\n");
 		return -1;
 	}
 
@@ -690,13 +690,13 @@ static int peer_accept(int listen_index)
 	logv("server  accept - %s\n", get_sockaddrname(&from));
 
 	if (setnonblock(sock) != 0) {
-		loge("peer_accept() error: set sock non-block failed\n");
+		loge("set sock non-block failed\n");
 		close(sock);
 		return -1;
 	}
 
 	if (setnodelay(sock) != 0) {
-		loge("peer_accept() error: set sock nodelay failed\n");
+		loge("set sock nodelay failed\n");
 		close(sock);
 		return -1;
 	}
@@ -735,7 +735,7 @@ static int peer_handle_recv(peer_t* peer)
 			else
 #endif
 			{
-				loge("peer_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
+				loge("too large dns-message (msglen=0x%.4x)\n", msglen);
 				return -1;
 			}
 		}
@@ -754,7 +754,7 @@ static int peer_handle_recv(peer_t* peer)
 
 	if (s->pos > 0) {
 		if (stream_quake(s)) {
-			loge("peer_recv() error: stream_quake() failed\n");
+			loge("stream_quake() failed\n");
 			return -1;
 		}
 	}
@@ -827,7 +827,7 @@ static int peer_write(peer_t* peer)
 
 	peer->conn.tx += nsend;
 
-	logv("peer_write(): write to %s\n", get_sockname(sock));
+	logv("write to %s\n", get_sockname(sock));
 
 	if (is_close_after_rsp(&peer->conn)) {
 		/* wait 3 seconds */
@@ -958,12 +958,12 @@ static int do_loop()
 			if (!running) break;
 
 			if (FD_ISSET(listen->sock, &errorset)) {
-				loge("do_loop(): listen.sock error\n");
+				loge("listen.sock error\n");
 				return -1;
 			}
 
 			if (FD_ISSET(listen->usock, &errorset)) {
-				loge("do_loop(): listen.usock error\n");
+				loge("listen.usock error\n");
 				return -1;
 			}
 
@@ -982,7 +982,7 @@ static int do_loop()
 
 			if (FD_ISSET(peer->conn.sock, &errorset)) {
 				int err = getsockerr(peer->conn.sock);
-				loge("do_loop(): peer.conn.sock error: errno=%d, %s \n",
+				loge("peer.conn.sock error: errno=%d, %s \n",
 					err, strerror(err));
 				r = -1;
 			}
@@ -1076,7 +1076,7 @@ static int init_dohclient()
 			proxy_list,
 			MAX_PROXY);
 		if (proxy_num == -1) {
-			loge("init_dohclient() error: parse \"%s\" failed\n",
+			loge("parse \"%s\" failed\n",
 				conf.proxy);
 			return -1;
 		}
@@ -1087,22 +1087,22 @@ static int init_dohclient()
 
 	if (conf.chnroute && *conf.chnroute) {
 		if ((chnr = chnroute_create()) == NULL) {
-			loge("init_dohclient() error: chnroute_create()\n");
+			loge("chnroute_create()\n");
 			return -1;
 		}
 		if (chnroute_parse(chnr, conf.chnroute)) {
-			loge("init_dohclient() error: invalid chnroute \"%s\"\n", conf.chnroute);
+			loge("invalid chnroute \"%s\"\n", conf.chnroute);
 			return -1;
 		}
 	}
 
 	if (conf.blacklist && *conf.blacklist) {
 		if ((blacklist = chnroute_create()) == NULL) {
-			loge("init_dohclient() error: chnroute_create()\n");
+			loge("chnroute_create()\n");
 			return -1;
 		}
 		if (chnroute_parse(blacklist, conf.blacklist)) {
-			loge("init_dohclient() error: invalid blacklist \"%s\"\n", conf.blacklist);
+			loge("invalid blacklist \"%s\"\n", conf.blacklist);
 			return -1;
 		}
 	}
@@ -1111,13 +1111,13 @@ static int init_dohclient()
 		int argslen = strlen(conf.hosts) + sizeof("hosts=");
 		char *args = (char*)malloc(argslen);
 		if (!args) {
-			loge("init_dohclient() error: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 		snprintf(args, argslen, "hosts=%s", conf.hosts);
 		if (channel_create(&hosts, "hosts", args,
 			&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
-			loge("init_dohclient() error: create \"hosts\" channel error\n");
+			loge("create \"hosts\" channel error\n");
 			free(args);
 			return -1;
 		}
@@ -1125,13 +1125,13 @@ static int init_dohclient()
 	}
 
 	if (http_init(&conf) != 0) {
-		loge("init_dohclient() error: http_init() error\n");
+		loge("http_init() error\n");
 		return -1;
 	}
 
 	if (channel_create(&cache, "cache", NULL,
 		&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
-		loge("init_dohclient() error: create cache error\n");
+		loge("create cache error\n");
 		return -1;
 	}
 
@@ -1140,7 +1140,7 @@ static int init_dohclient()
 	hsconf->wwwroot = conf.wwwroot;
 	if (conf.cache_api && *conf.cache_api) {
 		if (cache_api_config(conf.cache_api) != 0) {
-			loge("init_dohclient() error: cache_api_config() error\n");
+			loge("cache_api_config() error\n");
 			return -1;
 		}
 	}
@@ -1154,7 +1154,7 @@ static int init_dohclient()
 
 	channels = (channel_t**)malloc(sizeof(channel_t*) * channel_num);
 	if (!channels) {
-		loge("init_dohclient() error: create channels\n");
+		loge("create channels\n");
 		return -1;
 	}
 
@@ -1165,7 +1165,7 @@ static int init_dohclient()
 		if (channel_create(
 			&channels[i], *ch, *args,
 			&conf, proxy_list, proxy_num, chnr, blacklist, NULL) != CHANNEL_OK) {
-			loge("init_dohclient() error: no channel\n");
+			loge("no channel\n");
 			return -1;
 		}
 		ch++;
@@ -1184,7 +1184,7 @@ static int init_dohclient()
 		return -1;
 
 	if (listen_num == 0) {
-		loge("init_dohclient() error: no listens\n");
+		loge("no listens\n");
 		return -1;
 	}
 
@@ -1303,7 +1303,7 @@ static void ServiceMain(int argc, char** argv)
 	hStatus = RegisterServiceCtrlHandler(DOHCLIENT_NAME, (LPHANDLER_FUNCTION)ControlHandler);
 	if (hStatus == (SERVICE_STATUS_HANDLE)0)
 	{
-		loge("ServiceMain(): cannot register service ctrl handler\n");
+		loge("Cannot register service ctrl handler\n");
 		return;
 	}
 
@@ -1374,7 +1374,7 @@ static void run_as_daemonize()
 	ServiceTable[1].lpServiceProc = NULL;
 
 	if (!StartServiceCtrlDispatcher(ServiceTable)) {
-		loge("run_as_daemonize(): cannot start service ctrl dispatcher\n");
+		loge("Cannot start service ctrl dispatcher\n");
 	}
 #else
 	pid_t pid, sid;

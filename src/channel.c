@@ -99,7 +99,7 @@ int channel_build_msg(
 	void *ip, int family)
 {
 	if (init_ns_msg(msg)) {
-		loge("channel_build_msg() error: init_ns_msg() error\n");
+		loge("init_ns_msg() error\n");
 		return -1;
 	}
 
@@ -109,7 +109,7 @@ int channel_build_msg(
 	if (qr) {
 		msg->qrs = ns_qr_clone(qr, 1);
 		if (!msg->qrs) {
-			loge("channel_build_msg() error: ns_qr_clone() error\n");
+			loge("ns_qr_clone() error\n");
 			return -1;
 		}
 		msg->qdcount = 1;
@@ -118,7 +118,7 @@ int channel_build_msg(
 	if (qr && ip) {
 		msg->rrs = (ns_rr_t*)malloc(sizeof(ns_rr_t));
 		if (!msg->rrs) {
-			loge("channel_build_msg() error: alloc \n");
+			loge("alloc \n");
 			ns_msg_free(msg);
 			return -1;
 		}
@@ -130,7 +130,7 @@ int channel_build_msg(
 		msg->rrs->rdlength = family == AF_INET ? 4 : 16;
 		msg->rrs->rdata = (char*)malloc(msg->rrs->rdlength);
 		if (!msg->rrs->rdata) {
-			loge("channel_build_msg() error: alloc \n");
+			loge("alloc \n");
 			ns_msg_free(msg);
 			return -1;
 		}

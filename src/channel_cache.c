@@ -35,7 +35,7 @@ static cache_item_t* cache_item_new(const ns_msg_t* msg, const char *key)
 
 	item = (cache_item_t*)malloc(sizeof(cache_item_t));
 	if (!item) {
-		loge("cache_item_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -43,7 +43,7 @@ static cache_item_t* cache_item_new(const ns_msg_t* msg, const char *key)
 
 	item->msg = ns_msg_clone(msg);
 	if (!item->msg) {
-		loge("cache_item_new() error: ns_msg_clone() error\n");
+		loge("ns_msg_clone() error\n");
 		return NULL;
 	}
 
@@ -90,7 +90,7 @@ static void cache_check_expire(cache_t* c)
 		cache_item_t, item, entry) {
 
 		if (item->expire <= now) {
-			logv("cache timeout - %s\n", item->node.key);
+			logi("cache timeout - %s\n", item->node.key);
 			dllist_remove(&item->entry);
 			rbtree_remove(&c->dic, &item->node);
 			cache_item_destroy(item);
@@ -149,13 +149,7 @@ static int query(channel_t* ctx,
 
 	item = rbtree_container_of(rbn, cache_item_t, node);
 
-	if (loglevel > LOG_DEBUG) {
-		logv("hit cache: %s - %s\n",
-			key, msg_answers(item->msg));
-	}
-	else {
-		logv("hit cache: %s\n", key);
-	}
+	logi("hit cache: %s - %s\n", key, msg_answers(item->msg));
 
 	if (callback)
 		callback(ctx, 0, item->msg, TRUE, TRUE, state);
@@ -202,13 +196,13 @@ const ns_msg_t *cache_get(channel_t *ctx, const char *key)
 	struct rbnode_t *rbn;
 
 	if (!key) {
-		loge("cache_get() error: invalid arguments\n");
+		loge("invalid arguments\n");
 		return NULL;
 	}
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
-		loge("cache_get() error: item not exists - %s\n", key);
+		loge("item not exists - %s\n", key);
 		return NULL;
 	}
 
@@ -223,13 +217,13 @@ int cache_remove(channel_t *ctx, const char *key)
 	struct rbnode_t *rbn;
 
 	if (!key) {
-		loge("cache_remove() error: invalid arguments\n");
+		loge("invalid arguments\n");
 		return -1;
 	}
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
-		loge("cache_remove() error: item not exists - %s\n", key);
+		loge("item not exists - %s\n", key);
 		return -1;
 	}
 
@@ -237,7 +231,7 @@ int cache_remove(channel_t *ctx, const char *key)
 	dllist_remove(&item->entry);
 	rbtree_remove(&c->dic, &item->node);
 	cache_item_destroy(item);
-	logv("cache removed: %s\n", key);
+	logi("cache removed: %s\n", key);
 	return 0;
 }
 
@@ -250,13 +244,13 @@ int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg)
 	ns_msg_t *newmsg;
 
 	if (!key || !msg) {
-		loge("cache_edit() error: invalid arguments\n");
+		loge("invalid arguments\n");
 		return -1;
 	}
 
 	if (!msg->qrs || !msg->rrs ||
 		msg->qdcount < 1 || ns_rrcount(msg) < 1) {
-		loge("cache_edit() error: invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
+		loge("invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
 			(int)msg->qdcount,
 			(int)msg->ancount,
 			(int)msg->nscount,
@@ -269,20 +263,20 @@ int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg)
 
 	/* no ttl */
 	if (ttl < 1) {
-		loge("cache_edit() error: no ttl\n");
+		loge("no ttl\n");
 		return -1;
 	}
 
 	rbn = rbtree_lookup(&c->dic, key);
 	if (!rbn) {
-		loge("cache_edit() error: item not exists - %s\n", key);
+		loge("item not exists - %s\n", key);
 		return -1;
 	}
 
 	item = rbtree_container_of(rbn, cache_item_t, node);
 	newmsg = ns_msg_clone(msg);
 	if (!newmsg) {
-		loge("cache_edit() error: ns_msg_clone() error\n");
+		loge("ns_msg_clone() error\n");
 		return -1;
 	}
 	ns_msg_free(item->msg);
@@ -291,12 +285,7 @@ int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg)
 	update_expire(c, item, ttl);
 	dllist_remove(&item->entry);
 	cache_item_add(c, item);
-	if (loglevel > LOG_DEBUG) {
-		logv("cache updated: %s - %s\n", key, msg_answers(msg));
-	}
-	else {
-		logv("cache updated: %s\n", key);
-	}
+	logi("cache updated: %s - %s\n", key, msg_answers(msg));
 	return 0;
 }
 
@@ -308,13 +297,13 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 	int ttl;
 
 	if (!key || !msg) {
-		loge("cache_add() error: invalid arguments\n");
+		loge("invalid arguments\n");
 		return -1;
 	}
 
 	if (!msg->qrs || !msg->rrs ||
 		msg->qdcount < 1 || ns_rrcount(msg) < 1) {
-		loge("cache_add() error: invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
+		loge("invalid msg (qdcount=%d,ancount=%d,nscount=%d,arcount=%d) - %s\n",
 			(int)msg->qdcount,
 			(int)msg->ancount,
 			(int)msg->nscount,
@@ -327,7 +316,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 
 	/* no ttl */
 	if (ttl < 1) {
-		loge("cache_add() error: no ttl\n");
+		loge("no ttl\n");
 		return -1;
 	}
 
@@ -335,25 +324,20 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 	if (!rbn) {
 		item = cache_item_new(msg, key);
 		if (!item) {
-			loge("cache_add() error: cache_item_new() error\n");
+			loge("cache_item_new() error\n");
 			return -1;
 		}
 
 		update_expire(c, item, ttl);
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
-		if (loglevel > LOG_DEBUG) {
-			logv("cache added: %s - %s\n", key, msg_answers(msg));
-		}
-		else {
-			logv("cache added: %s\n", key);
-		}
+		logi("cache added: %s - %s\n", key, msg_answers(msg));
 	}
 	else if (force) {
 		item = rbtree_container_of(rbn, cache_item_t, node);
 		ns_msg_t* newmsg = ns_msg_clone(msg);
 		if (!newmsg) {
-			loge("cache_add() error: ns_msg_clone() error\n");
+			loge("ns_msg_clone() error\n");
 			return -1;
 		}
 		ns_msg_free(item->msg);
@@ -362,15 +346,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 		update_expire(c, item, ttl);
 		dllist_remove(&item->entry);
 		cache_item_add(c, item);
-		if (loglevel > LOG_DEBUG) {
-			logv("cache updated: %s - %s\n", key, msg_answers(msg));
-		}
-		else {
-			logv("cache updated: %s\n", key);
-		}
+		logi("cache updated: %s - %s\n", key, msg_answers(msg));
 	}
 	else {
-		logv("cache update ignored: %s\n", key);
+		logi("cache update ignored: %s\n", key);
 	}
 
 	return 0;
@@ -387,18 +366,18 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 	int saved = 0;
 
 	if (!filename || !*filename) {
-		loge("cache_save_cachedb() error: Invalid filename: %s\n", filename);
+		loge("Invalid filename: %s\n", filename);
 		return -1;
 	}
 
 	fp = fopen(filename, "wb");
 	if (fp == NULL) {
-		loge("cache_save_cachedb() error: Can't open file: %s\n", filename);
+		loge("Can't open file: %s\n", filename);
 		return -1;
 	}
 
 	if (stream_set_cap(s, NS_PAYLOAD_SIZE + 2)) {
-		loge("cache_save_cachedb(): stream_set_cap() error\n");
+		loge("stream_set_cap() error\n");
 		fclose(fp);
 		return -1;
 	}
@@ -406,14 +385,14 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 	/* File header (24 bytes) */
 	/* MAGIC (5 bytes) */
 	if (stream_write(s, CACHEDB_MAGIC, sizeof(CACHEDB_MAGIC)) == -1) {
-		loge("cache_save_cachedb(): stream_write() error\n");
+		loge("stream_write() error\n");
 		fclose(fp);
 		return -1;
 	}
 
 	/* Version (2 bytes) */
 	if (stream_writei(s, CACHEDB_VERSION, 2) == -1) {
-		loge("cache_save_cachedb(): stream_write() error\n");
+		loge("stream_write() error\n");
 		fclose(fp);
 		return -1;
 	}
@@ -422,7 +401,7 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 	{
 		char padding[17] = {0};
 		if (stream_write(s, padding, sizeof(padding)) == -1) {
-			loge("cache_save_cachedb(): stream_write() error\n");
+			loge("stream_write() error\n");
 			fclose(fp);
 			return -1;
 		}
@@ -430,7 +409,7 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 
 	n = fwrite(s->array, 1, s->size, fp);
 	if (n != s->size) {
-		loge("cache_save_cachedb(): fwrite() error: %s\n", filename);
+		loge("fwrite() error: %s\n", filename);
 		fclose(fp);
 		stream_free(s);
 		return -1;
@@ -445,7 +424,7 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 		stream_writei16(s, 0);
 
 		if ((msglen = ns_serialize(s, item->msg, 0)) <= 0) {
-			loge("cache_save_cachedb(): ns_serialize() error\n");
+			loge("ns_serialize() error\n");
 			fclose(fp);
 			stream_free(s);
 			return -1;
@@ -456,7 +435,7 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 
 		n = fwrite(s->array, 1, s->size, fp);
 		if (n != s->size) {
-			loge("cache_save_cachedb(): fwrite() error: %s\n", filename);
+			loge("fwrite() error: %s\n", filename);
 			fclose(fp);
 			stream_free(s);
 			return -1;
@@ -484,20 +463,20 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 	int added = 0;
 
 	if (!filename || !*filename) {
-		loge("cache_load_cachedb() error: Invalid filename: %s\n", filename);
+		loge("Invalid filename: %s\n", filename);
 		return -1;
 	}
 
 	fp = fopen(filename, "rb");
 	if (fp == NULL) {
-		loge("cache_load_cachedb() error: Can't open file: %s\n", filename);
+		loge("Can't open file: %s\n", filename);
 		return -1;
 	}
 
 	n = fread(buf, 1, CACHEDB_HEAD_SIZE, fp);
 	if (n != CACHEDB_HEAD_SIZE ||
 			memcmp(buf, CACHEDB_MAGIC, sizeof(CACHEDB_MAGIC))) {
-		loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+		loge("Invalid format: %s\n", filename);
 		fclose(fp);
 		return -1;
 	}
@@ -506,7 +485,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 	dbver <<= 8;
 	dbver |= buf[sizeof(CACHEDB_MAGIC) + 1];
 	if (dbver != CACHEDB_VERSION) {
-		loge("cache_load_cachedb() error: Unsupport version: %d - %s\n",
+		loge("Unsupport version: %d - %s\n",
 				dbver, filename);
 		fclose(fp);
 		return -1;
@@ -514,7 +493,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 
 	while ((n = fread(buf, 1, 2, fp)) > 0) {
 		if (n != 2) {
-			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			loge("Invalid format: %s\n", filename);
 			fclose(fp);
 			return -1;
 		}
@@ -528,14 +507,14 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 		}
 
 		if (msglen > NS_PAYLOAD_SIZE) {
-			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			loge("Invalid format: %s\n", filename);
 			fclose(fp);
 			return -1;
 		}
 
 		n = fread(buf, 1, msglen, fp);
 		if (n != msglen) {
-			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			loge("Invalid format: %s\n", filename);
 			fclose(fp);
 			return -1;
 		}
@@ -543,14 +522,14 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 		memset(msg, 0, sizeof(ns_msg_t));
 
 		if (ns_parse(msg, buf, msglen) == -1) {
-			loge("cache_load_cachedb() error: Invalid format: %s\n", filename);
+			loge("Invalid format: %s\n", filename);
 			fclose(fp);
 			return -1;
 		}
 
 		key = msg_key(msg);
 		if (cache_add(ctx, key, msg, override) == -1) {
-			loge("cache_load_cachedb() error: cache_add() error: key=%s, %s\n",
+			loge("cache_add() error: key=%s, %s\n",
 					key, msg_answers(msg));
 			fclose(fp);
 			return -1;
@@ -574,7 +553,7 @@ int cache_load_cachedbs(channel_t *ctx, const char *filenames, int override)
 	struct stat fstat = {0};
 
 	if (!filenames || !*filenames) {
-		loge("cache_load_cachedbs() error: Invalid filenames: %s\n", filenames);
+		loge("Invalid filenames: %s\n", filenames);
 		return -1;
 	}
 
@@ -632,7 +611,7 @@ int cache_create(
 
 	ctx = (cache_t*)malloc(sizeof(cache_t));
 	if (!ctx) {
-		loge("cache_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
@@ -659,7 +638,7 @@ int cache_create(
 			.ctx = ctx, .override = FALSE,
 		}};
 		if (parse_querystring(args, cb_querystring, st)) {
-			loge("cache_create() error: invalid args: %s\n", args);
+			loge("invalid args: %s\n", args);
 			return CHANNEL_WRONG_ARG;
 		}
 	}

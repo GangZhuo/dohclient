@@ -3,10 +3,44 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#ifndef WINDOWS
+#ifdef WINDOWS
+#include <Windows.h>
+#else
 #include <syslog.h>
 #endif
 #include "mleak.h"
+
+#ifdef WINDOWS
+typedef WORD ttycolor_t;
+#define COLOR_FWHITE          FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY
+#define COLOR_FRED            FOREGROUND_RED | FOREGROUND_INTENSITY
+#define COLOR_FYELLOW         FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY
+#define COLOR_FMAGEN          FOREGROUND_BLUE | FOREGROUND_RED
+#define COLOR_FGREEN          FOREGROUND_GREEN
+#define COLOR_FBLUE           FOREGROUND_BLUE
+#define COLOR_FCYAN           FOREGROUND_GREEN | FOREGROUND_BLUE
+#else
+typedef const char *ttycolor_t;
+#define COLOR_ESC                "\033["
+#define COLOR_END                "m"
+/* Foreground colors values */
+#define COLOR_F_BLACK            "30"
+#define COLOR_F_RED              "31"
+#define COLOR_F_GREEN            "32"
+#define COLOR_F_YELLOW           "33"
+#define COLOR_F_BLUE             "34"
+#define COLOR_F_MAGEN            "35"
+#define COLOR_F_CYAN             "36"
+#define COLOR_F_WHITE            "37"
+
+#define COLOR_FWHITE   COLOR_ESC COLOR_F_WHITE  COLOR_END
+#define COLOR_FRED     COLOR_ESC COLOR_F_RED    COLOR_END
+#define COLOR_FYELLOW  COLOR_ESC COLOR_F_YELLOW COLOR_END
+#define COLOR_FMAGEN   COLOR_ESC COLOR_F_MAGEN  COLOR_END
+#define COLOR_FGREEN   COLOR_ESC COLOR_F_GREEN  COLOR_END
+#define COLOR_FBLUE    COLOR_ESC COLOR_F_BLUE   COLOR_END
+#define COLOR_FCYAN    COLOR_ESC COLOR_F_CYAN   COLOR_END
+#endif
 
 log_vprintf_fun log_vprintf = log_vprintf_default;
 log_vprintf_fun log_vprintf_with_timestamp = log_vprintf_with_timestamp_default;
@@ -19,8 +53,27 @@ static int s_is_use_logfile = 0;
 static const char* s_current_log_file = NULL;
 
 static const char *prioritynames[] = {
-	"emerg", "alert", "crit", "err", "warning", NULL /*notice*/,
-	NULL /*info*/, "debug", "verbos",
+	"EMERG",
+	"ALERT",
+	"CRIT",
+	"ERROR",
+	"WARNING",
+	"NOTICE",
+	"INFO",
+	"DEBUG",
+	"VERBOSE",
+};
+
+static ttycolor_t colors[] = {
+	COLOR_FRED,     /* EMERG */
+	COLOR_FRED,     /* ALERT */
+	COLOR_FRED,     /* CRIT */
+	COLOR_FRED,     /* ERROR */
+	COLOR_FMAGEN,   /* WARNING */
+	COLOR_FCYAN,    /* NOTICE */
+	COLOR_FGREEN,   /* INFO */
+	COLOR_FYELLOW,  /* DEBUG */
+	COLOR_FWHITE,   /* VERBOSE */
 };
 
 int *log_pflags()
@@ -68,16 +121,6 @@ const char* log_priorityname(int priority)
 		return prioritynames[priority];
 	
 	return NULL;
-}
-
-static FILE *log_fp(int mask)
-{
-	FILE *pf;
-	if (log_level_comp(mask) >= LOG_ERR)
-		pf = stdout;
-	else
-		pf = stderr;
-	return pf;
 }
 
 /* Print to memory, returned new created memory */
@@ -158,14 +201,7 @@ static char *log_text(int mask, int timestamp,
 	fname = get_filename(file);
 	text = log_vmprintf(fmt, args);
 
-	if (extra_msg && (*extra_msg)) {
-		retval = log_mprintf("%s%s:%d [%s] %s",
-				date, fname, line, extra_msg, text);
-	}
-	else {
-		retval = log_mprintf("%s%s:%d %s",
-				date, fname, line, text);
-	}
+	retval = log_mprintf("%s [%s] %s:%d %s", date, extra_msg, fname, line, text);
 
 	free(text);
 	return retval;
@@ -175,9 +211,16 @@ void log_vprintf_default(int mask,
 		const char *file, const char *func, int line,
 		const char *fmt, va_list args)
 {
-	FILE *pf = log_fp(mask);
+	int level = log_level_comp(mask);
+	FILE *pf = level <= LOG_ERR ? stderr : stdout;
+	ttycolor_t color = colors[level];
 	char *text = log_text(mask, 0, file, func, line, fmt, args);
+#ifdef WINDOWS
+	SetConsoleTextAttribute(pf, color);
 	fprintf(pf, "%s", text);
+#else
+	fprintf(pf, "%s%s", color, text);
+#endif
 	free(text);
 }
 
@@ -185,9 +228,16 @@ void log_vprintf_with_timestamp_default(int mask,
 		const char *file, const char *func, int line,
 		const char *fmt, va_list args)
 {
+	int level = log_level_comp(mask);
+	FILE *pf = level <= LOG_ERR ? stderr : stdout;
+	ttycolor_t color = colors[level];
 	char *text = log_text(mask, 1, file, func, line, fmt, args);
-	FILE *pf = log_fp(mask);
+#ifdef WINDOWS
+	SetConsoleTextAttribute(pf, color);
 	fprintf(pf, "%s", text);
+#else
+	fprintf(pf, "%s%s", color, text);
+#endif
 	free(text);
 }
 

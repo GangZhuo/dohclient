@@ -212,7 +212,7 @@ int host2addr(sockaddr_t* addr, const char* host, const char* port, int ai_famil
 
 	if (r != 0)
 	{
-		loge("host2addr() error: retval=%d %s %s:%s\n",
+		loge("retval=%d %s %s:%s\n",
 			r, gai_strerror(r), host, port);
 		return -1;
 	}
@@ -270,7 +270,7 @@ int str2addrs(
 
 		if (str2addr(p, addr, default_port)) {
 			free(s);
-			loge("str2addrs() error: resolve \"%s\" failed\n", str);
+			loge("resolve \"%s\" failed\n", str);
 			return -1;
 		}
 
@@ -302,7 +302,7 @@ static char *get_proxy_type(char *s, int *proxy_type)
 		*proxy_type = HTTP_PROXY;
 	}
 	else {
-		loge("get_proxy_type() error: unsupport proxy(%s), "
+		loge("unsupport proxy(%s), "
 			"only \"socks5\" and \"http\" supported\n", s);
 		*p = ':'; /* restore */
 		return NULL;
@@ -344,11 +344,11 @@ static char *get_proxy_username_and_password(char *s, char *username, char *pass
 	*p = '@';
 
 	if (strlen(username) == 0) {
-		loge("get_proxy_username_and_password() error: no username\n");
+		loge("no username\n");
 		return NULL;
 	}
 	if (strlen(password) == 0) {
-		loge("get_proxy_username_and_password() error: no password\n");
+		loge("no password\n");
 		return NULL;
 	}
 
@@ -421,7 +421,7 @@ int str2proxies(
 
 		if (str2proxy(p, proxy)) {
 			free(s);
-			loge("str2proxies() error: resolve \"%s\" failed\n", str);
+			loge("resolve \"%s\" failed\n", str);
 			return -1;
 		}
 
@@ -452,7 +452,7 @@ int str2listens(
 		default_port);
 
 	if (listen_num == -1) {
-		loge("str2listens() error: parse \"%s\" failed\n",
+		loge("parse \"%s\" failed\n",
 			str);
 		return -1;
 	}
@@ -472,31 +472,31 @@ int tcp_listen(listen_t* ctx)
 	sock = socket(sockaddr->sa_family, SOCK_STREAM, IPPROTO_TCP);
 
 	if (sock == -1) {
-		loge("tcp_listen() error: create socket error. errno=%d, %s\n", errno, strerror(errno));
+		loge("create socket error. errno=%d, %s\n", errno, strerror(errno));
 		return -1;
 	}
 
 	if (setnonblock(sock) != 0) {
-		loge("tcp_listen() error: set sock non-block failed\n");
+		loge("set sock non-block failed\n");
 		close(sock);
 		return -1;
 	}
 
 	if (setreuseaddr(sock) != 0) {
-		loge("tcp_listen() error: set sock reuse address failed\n");
+		loge("set sock reuse address failed\n");
 		close(sock);
 		return -1;
 	}
 
 	if (bind(sock, sockaddr, addr->addrlen) != 0) {
-		loge("tcp_listen() error: bind() error: %s errno=%d, %s\n",
+		loge("bind() error: %s errno=%d, %s\n",
 			get_sockaddrname(addr), errno, strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	if (listen(sock, LISTEN_BACKLOG) != 0) {
-		loge("tcp_listen() error: listen() error: %s errno=%d, %s\n",
+		loge("listen() error: %s errno=%d, %s\n",
 			get_sockaddrname(addr), errno, strerror(errno));
 		close(sock);
 		return -1;
@@ -519,18 +519,18 @@ int udp_listen(listen_t* ctx)
 	sock = socket(sockaddr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
 	if (sock == -1) {
-		loge("udp_listen() error: create socket error. errno=%d, %s\n", errno, strerror(errno));
+		loge("create socket error. errno=%d, %s\n", errno, strerror(errno));
 		return -1;
 	}
 
 	if (setnonblock(sock) != 0) {
-		loge("udp_listen() error: set sock non-block failed\n");
+		loge("set sock non-block failed\n");
 		close(sock);
 		return -1;
 	}
 
 	if (setreuseaddr(sock) != 0) {
-		loge("udp_listen() error: set sock reuse address failed\n");
+		loge("set sock reuse address failed\n");
 		close(sock);
 		return -1;
 	}
@@ -540,7 +540,7 @@ int udp_listen(listen_t* ctx)
 #endif
 
 	if (bind(sock, sockaddr, addr->addrlen) != 0) {
-		loge("udp_listen() error: bind() error: %s errno=%d, %s\n",
+		loge("bind() error: %s errno=%d, %s\n",
 			get_sockaddrname(addr), errno, strerror(errno));
 		close(sock);
 		return -1;
@@ -559,13 +559,11 @@ int init_listens(listen_t* listens, int listen_num)
 	for (i = 0; i < num; i++) {
 		listen = listens + i;
 		if (tcp_listen(listen) != 0) {
-			loge("init_listens() error\n");
 			return -1;
 		}
 		if (udp_listen(listen) != 0) {
 			close(listen->sock);
 			listen->sock = 0;
-			loge("init_listens() error\n");
 			return -1;
 		}
 	}
@@ -590,20 +588,20 @@ conn_status tcp_connect(const sockaddr_t* addr, sock_t* psock)
 		sock = socket(addr->addr.ss_family, SOCK_STREAM, IPPROTO_TCP);
 
 		if (sock == -1) {
-			loge("tcp_connect() error: create socket error. errno=%d, %s - %s\n",
+			loge("create socket error. errno=%d, %s - %s\n",
 				errno, strerror(errno), get_sockaddrname(addr));
 			return cs_err_create_sock;
 		}
 
 		if (setnonblock(sock) != 0) {
-			loge("tcp_connect() error: set sock non-block failed - %s\n",
+			loge("set sock non-block failed - %s\n",
 				get_sockaddrname(addr));
 			close(sock);
 			return cs_err_set_nonblock;
 		}
 
 		if (setnodelay(sock) != 0) {
-			loge("tcp_connect() error: set sock nodelay failed - %s\n",
+			loge("set sock nodelay failed - %s\n",
 				get_sockaddrname(addr));
 			close(sock);
 			return cs_err_set_nodelay;
@@ -611,10 +609,12 @@ conn_status tcp_connect(const sockaddr_t* addr, sock_t* psock)
 
 	}
 
+	logd("connect %s\n", get_sockaddrname(addr));
+
 	if (connect(sock, (const struct sockaddr*)(&addr->addr), addr->addrlen) != 0) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			loge("tcp_connect() error: errno=%d, %s - %s\n",
+			loge("errno=%d, %s - %s\n",
 				errno, strerror(errno), get_sockaddrname(addr));
 			if (sock != *psock) {
 				close(sock);
@@ -644,7 +644,7 @@ int tcp_send(sock_t sock, stream_t* s)
 	if (nsend == -1) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			loge("tcp_send() error: errno=%d, %s \n",
+			loge("errno=%d, %s \n",
 				err, strerror(err));
 			return -1;
 		}
@@ -652,9 +652,9 @@ int tcp_send(sock_t sock, stream_t* s)
 	}
 	else {
 		s->pos += nsend;
-		logv("tcp_send(): send %d bytes\n", nsend);
+		logv("send %d bytes\n", nsend);
 		if (stream_quake(s)) {
-			loge("tcp_send() error: stream_quake()\n");
+			loge("stream_quake()\n");
 			return -1;
 		}
 		return nsend;
@@ -669,18 +669,18 @@ int tcp_recv(sock_t sock, char* buf, int buflen)
 	if (nread == -1) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			loge("tcp_recv() error: errno=%d, %s\n",
+			loge("errno=%d, %s\n",
 				err, strerror(err));
 			return -1;
 		}
 		return 0;
 	}
 	else if (nread == 0) {
-		logd("tcp_recv(): connection closed by peer\n");
+		logd("connection closed by peer\n");
 		return -1;
 	}
 	else {
-		logv("tcp_recv(): recv %d bytes\n", nread);
+		logv("recv %d bytes\n", nread);
 
 		return nread;
 	}
@@ -694,7 +694,7 @@ int udp_send(sock_t sock, stream_t* s,
 
 	nsend = sendto(sock, s->array + s->pos, rsize, 0, to, tolen);
 	if (nsend == -1) {
-		loge("udp_send() error: to=%s, errno=%d, %s\n",
+		loge("to=%s, errno=%d, %s\n",
 			get_addrname(to), errno, strerror(errno));
 		return -1;
 	}
@@ -711,7 +711,7 @@ int udp_recv(sock_t sock, char* buf, int buflen,
 		return nread;
 	}
 	else {
-		loge("udp_recv() error: errno=%d, %s\n", errno, strerror(errno));
+		loge("errno=%d, %s\n", errno, strerror(errno));
 		return -1;
 	}
 }
@@ -720,13 +720,13 @@ conn_t* conn_new(sock_t sock)
 {
 	conn_t* conn = (conn_t*)malloc(sizeof(conn_t));
 	if (!conn) {
-		loge("conn_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
 	if (conn_init(conn, sock)) {
 		free(conn);
-		loge("conn_new() error: conn_init() error\n");
+		loge("conn_init() error\n");
 		return NULL;
 	}
 
@@ -738,13 +738,13 @@ int conn_init(conn_t* conn, sock_t sock)
 	memset(conn, 0, sizeof(conn_t));
 
 	if (stream_init(&conn->rs)) {
-		loge("conn_init() error: stream_init() error\n");
+		loge("stream_init() error\n");
 		return -1;
 	}
 
 	if (stream_init(&conn->ws)) {
 		stream_free(&conn->rs);
-		loge("conn_init() error: stream_init() error\n");
+		loge("stream_init() error\n");
 		return -1;
 	}
 
@@ -775,13 +775,13 @@ peer_t* peer_new(sock_t sock, int listen)
 {
 	peer_t* peer = (peer_t*)malloc(sizeof(peer_t));
 	if (!peer) {
-		loge("peer_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
 	if (peer_init(peer, sock, listen)) {
 		free(peer);
-		loge("peer_new() error: peer_init() error\n");
+		loge("peer_init() error\n");
 		return NULL;
 	}
 
@@ -793,7 +793,7 @@ int peer_init(peer_t* peer, sock_t sock, int listen)
 	memset(peer, 0, sizeof(peer_t));
 
 	if (conn_init(&peer->conn, sock)) {
-		loge("peer_init() error: conn_init() error\n");
+		loge("conn_init() error\n");
 		return -1;
 	}
 

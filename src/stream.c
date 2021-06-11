@@ -340,19 +340,19 @@ void _bprint(char *data, int len)
 	for (i = 0; i < len; i += 8) {
 		switch (len - i) {
 		case 1:
-			logd("%04x: %02x                       %c\n", i,
+			logv("%04x: %02x                       %c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				get_ch(data, i + 0));
 			break;
 		case 2:
-			logd("%04x: %02x %02x                    %c%c\n", i,
+			logv("%04x: %02x %02x                    %c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				get_ch(data, i + 0),
 				get_ch(data, i + 1));
 			break;
 		case 3:
-			logd("%04x: %02x %02x %02x                 %c%c%c\n", i,
+			logv("%04x: %02x %02x %02x                 %c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),
@@ -361,7 +361,7 @@ void _bprint(char *data, int len)
 				get_ch(data, i + 2));
 			break;
 		case 4:
-			logd("%04x: %02x %02x %02x %02x              %c%c%c%c\n", i,
+			logv("%04x: %02x %02x %02x %02x              %c%c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),
@@ -372,7 +372,7 @@ void _bprint(char *data, int len)
 				get_ch(data, i + 3));
 			break;
 		case 5:
-			logd("%04x: %02x %02x %02x %02x %02x           %c%c%c%c%c\n", i,
+			logv("%04x: %02x %02x %02x %02x %02x           %c%c%c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),
@@ -385,7 +385,7 @@ void _bprint(char *data, int len)
 				get_ch(data, i + 4));
 			break;
 		case 6:
-			logd("%04x: %02x %02x %02x %02x %02x %02x        %c%c%c%c%c%c\n", i,
+			logv("%04x: %02x %02x %02x %02x %02x %02x        %c%c%c%c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),
@@ -400,7 +400,7 @@ void _bprint(char *data, int len)
 				get_ch(data, i + 5));
 			break;
 		case 7:
-			logd("%04x: %02x %02x %02x %02x %02x %02x %02x     %c%c%c%c%c%c%c\n", i,
+			logv("%04x: %02x %02x %02x %02x %02x %02x %02x     %c%c%c%c%c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),
@@ -417,7 +417,7 @@ void _bprint(char *data, int len)
 				get_ch(data, i + 6));
 			break;
 		default:
-			logd("%04x: %02x %02x %02x %02x %02x %02x %02x %02x  %c%c%c%c%c%c%c%c\n", i,
+			logv("%04x: %02x %02x %02x %02x %02x %02x %02x %02x  %c%c%c%c%c%c%c%c\n", i,
 				(unsigned int)(data[i + 0] & 0xFF),
 				(unsigned int)(data[i + 1] & 0xFF),
 				(unsigned int)(data[i + 2] & 0xFF),

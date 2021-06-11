@@ -194,7 +194,7 @@ static int parse_netmask(net_mask_t* netmask, char* line)
 	}
 	if (inet_pton(AF_INET, line, &ip) == 0) {
 		if (sp_pos)* sp_pos = '/';
-		loge("invalid addr %s. parse_netmask() - inet_pton() error: errno=%d, %s\n",
+		loge("invalid addr: %s, errno=%d, %s\n",
 			line, errno, strerror(errno));
 		return -1;
 	}
@@ -219,7 +219,7 @@ static int parse_netmask6(net_mask6_t* netmask, char* line)
 	}
 	if (inet_pton(AF_INET6, line, &ip) == 0) {
 		if (sp_pos)* sp_pos = '/';
-		loge("invalid addr %s. parse_netmask6() - inet_pton() error: errno=%d, %s\n",
+		loge("invalid addr %s, errno=%d, %s\n",
 			line, errno, strerror(errno));
 		return -1;
 	}

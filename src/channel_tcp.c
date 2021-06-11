@@ -62,7 +62,7 @@ static reqconn_t *reqconn_new(tcpreq_t *req, int upstream, int proxy_index)
 
 	conn = (reqconn_t*)malloc(sizeof(reqconn_t));
 	if (!conn) {
-		loge("reqconn_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -80,13 +80,13 @@ static reqconn_t *reqconn_new(tcpreq_t *req, int upstream, int proxy_index)
 		cs = tcp_connect(c->upstreams + upstream, &sock);
 	}
 	if (cs != cs_connected && cs != cs_connecting) {
-		loge("tcp_query() error: tcp_connect() error\n");
+		loge("tcp_connect() error\n");
 		free(conn);
 		return NULL;
 	}
 
 	if (conn_init(&conn->conn, sock)) {
-		loge("tcp_query() error: conn_init() error\n");
+		loge("conn_init() error\n");
 		close(sock);
 		free(conn);
 		return NULL;
@@ -136,7 +136,7 @@ static tcpreq_t* req_new(
 
 	req = (tcpreq_t*)malloc(sizeof(tcpreq_t));
 	if (!req) {
-		loge("req_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -192,18 +192,18 @@ static int parse_result(tcpreq_t* req, char* buf, int buf_len, reqconn_t *conn)
 
 	result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!result) {
-		loge("parse_recv() error: alloc\n");
+		loge("alloc\n");
 		return -1;
 	}
 
 	if (init_ns_msg(result)) {
-		loge("parse_recv() error: init_ns_msg() error\n");
+		loge("init_ns_msg() error\n");
 		free(result);
 		return -1;
 	}
 
 	if (ns_parse(result, (const uint8_t*)buf, buf_len)) {
-		loge("parse_recv() error: ns_parse() error\n");
+		loge("ns_parse() error\n");
 		ns_msg_free(result);
 		free(result);
 		return -1;
@@ -230,7 +230,7 @@ static int parse_recv(tcpreq_t* req, reqconn_t *conn)
 	while ((left = stream_rsize(s)) >= 2) {
 		msglen = stream_geti(s, s->pos, 2);
 		if (msglen > NS_PAYLOAD_SIZE) {
-			loge("parse_recv() error: too large dns-message (msglen=0x%.4x)\n", msglen);
+			loge("too large dns-message (msglen=0x%.4x)\n", msglen);
 			return -1;
 		}
 		else if (left >= (msglen + 2)) {
@@ -248,7 +248,7 @@ static int parse_recv(tcpreq_t* req, reqconn_t *conn)
 
 	if (s->pos > 0) {
 		if (stream_quake(s)) {
-			loge("parse_recv() error: stream_quake() failed\n");
+			loge("stream_quake() failed\n");
 			return -1;
 		}
 	}
@@ -279,7 +279,7 @@ static int req_recv(tcpreq_t* req, reqconn_t *conn)
 
 	s->size += nread;
 
-	logv("req_recv(): recv %d bytes - %s\n",
+	logv("recv %d bytes - %s\n",
 			nread, get_sockaddrname(req->ctx->upstreams + conn->upstream));
 
 	if (parse_recv(req, conn)) {
@@ -308,7 +308,7 @@ static int tcp_create_nsmsg(stream_t *s, tcpreq_t *rq, subnet_t *subnet)
 		if (rr == NULL) {
 			rr = ns_add_optrr(&msg);
 			if (rr == NULL) {
-				loge("tcp_create_nsmsg(): Can't add option record to ns_msg_t\n");
+				loge("Can't add option record to ns_msg_t\n");
 				ns_msg_free(&msg);
 				return -1;
 			}
@@ -317,7 +317,7 @@ static int tcp_create_nsmsg(stream_t *s, tcpreq_t *rq, subnet_t *subnet)
 		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
 
 		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("tcp_create_nsmsg(): Can't add ecs option\n");
+			loge("Can't add ecs option\n");
 			ns_msg_free(&msg);
 			return -1;
 		}
@@ -327,7 +327,7 @@ static int tcp_create_nsmsg(stream_t *s, tcpreq_t *rq, subnet_t *subnet)
 
 	if (s->cap < NS_PAYLOAD_SIZE) {
 		if (stream_set_cap(s, NS_PAYLOAD_SIZE)) {
-			loge("tcp_create_nsmsg(): stream_set_cap() error\n");
+			loge("stream_set_cap() error\n");
 			ns_msg_free(&msg);
 			return -1;
 		}
@@ -337,7 +337,7 @@ static int tcp_create_nsmsg(stream_t *s, tcpreq_t *rq, subnet_t *subnet)
 	stream_writei16(s, 0);
 
 	if ((len = ns_serialize(s, &msg, 0)) <= 0) {
-		loge("tcp_create_nsmsg() error: ns_serialize() error\n");
+		loge("ns_serialize() error\n");
 		stream_free(s);
 		ns_msg_free(&msg);
 		return -1;
@@ -363,7 +363,7 @@ static int tcp_query(tcpreq_t *rq, int upstream, int proxy_index, subnet_t *subn
 
 	conn = reqconn_new(rq, upstream, proxy_index);
 	if (!conn) {
-		loge("tcp_query(): Can't create reqconn_t\n");
+		loge("Can't create reqconn_t\n");
 		return -1;
 	}
 
@@ -371,7 +371,7 @@ static int tcp_query(tcpreq_t *rq, int upstream, int proxy_index, subnet_t *subn
 
 	len = tcp_create_nsmsg(s, rq, subnet);
 	if (len <= 0) {
-		loge("tcp_query(): Can't create ns_msg_t binary data\n");
+		loge("Can't create ns_msg_t binary data\n");
 		reqconn_destroy(conn);
 		return -1;
 	}
@@ -382,7 +382,7 @@ static int tcp_query(tcpreq_t *rq, int upstream, int proxy_index, subnet_t *subn
 	if (!conn->use_proxy && cs == cs_connected) {
 		r = tcp_send(conn->conn.sock, s);
 		if (r == -1) {
-			loge("tcp_query() error: tcp_send() error\n");
+			loge("tcp_send() error\n");
 			stream_free(s);
 			return -1;
 		}
@@ -393,7 +393,7 @@ static int tcp_query(tcpreq_t *rq, int upstream, int proxy_index, subnet_t *subn
 	else if (conn->use_proxy && cs == cs_connected) {
 		r = proxy_handshake(c, rq, conn);
 		if (r == -1) {
-			loge("tcp_query() error: proxy_handshake() error\n");
+			loge("proxy_handshake() error\n");
 			stream_free(s);
 			return -1;
 		}
@@ -415,7 +415,7 @@ static int check_expire(channel_tcp_t* c)
 			dllist_init_remove(&req->entry);
 			c->req_count--;
 
-			loge("check_expire() timeout - %s\n", qr_key(&req->qr));
+			loge("timeout - %s\n", qr_key(&req->qr));
 
 			if (req->callback) {
 				req->callback((channel_t*)c, -1, NULL, FALSE, FALSE, req->cb_state);
@@ -452,7 +452,7 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 		}
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
-			loge("socks5_handshake() error: tcp_send() error\n");
+			loge("tcp_send() error\n");
 			return -1;
 		}
 		if (stream_rsize(s) > 0) {
@@ -465,7 +465,7 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 	case cs_socks5_waiting_method:
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r != 2) {
-			loge("socks5_handshake() error: tcp_recv() error\n");
+			loge("tcp_recv() error\n");
 			return -1;
 		}
 		if (s->array[0] == 0x05 && s->array[1] == 0x00) {
@@ -496,7 +496,7 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 			conn->conn.status = cs_socks5_sending_connect;
 			r = tcp_send(conn->conn.sock, s);
 			if (r < 0) {
-				loge("socks5_handshake() error: tcp_send() error\n");
+				loge("tcp_send() error\n");
 				return -1;
 			}
 			if (stream_rsize(s) > 0) {
@@ -507,14 +507,14 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 			}
 		}
 		else {
-			loge("socks5_handshake() error: no support method\n");
+			loge("no support method\n");
 			return -1;
 		}
 		break;
 	case cs_socks5_sending_connect:
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
-			loge("socks5_handshake() error: tcp_send() error\n");
+			loge("tcp_send() error\n");
 			return -1;
 		}
 		if (stream_rsize(s) > 0) {
@@ -527,13 +527,13 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 	case cs_socks5_waiting_connect:
 		r = tcp_recv(conn->conn.sock, s->array, s->cap);
 		if (r <= 0) {
-			loge("socks5_handshake() error: tcp_recv() error\n");
+			loge("tcp_recv() error\n");
 			return -1;
 		}
 		if (s->array[0] == 0x05 && s->array[1] == 0x00) {
 			conn->conn.status = cs_socks5_handshaked;
 			stream_free(s);
-			logv("socks5_handshake(): socks5 handshaked\n");
+			logv("socks5 handshaked\n");
 			r = 0;
 			if (stream_rsize(&conn->conn.ws) > 0) {
 				r = tcp_send(conn->conn.sock, &conn->conn.ws);
@@ -543,12 +543,12 @@ static int socks5_handshake(channel_tcp_t* ctx, tcpreq_t* req, reqconn_t *conn)
 			return r;
 		}
 		else {
-			loge("socks5_handshake() error: connect error\n");
+			loge("connect error\n");
 			return -1;
 		}
 		break;
 	default:
-		loge("socks5_handshake() error: unknown status\n");
+		loge("unknown status\n");
 		return -1;
 	}
 
@@ -573,7 +573,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 
 	switch (cs) {
 	case cs_connected:
-		logv("hp_handshake(): CONNECT\n");
+		logv("CONNECT\n");
 		if (rsize == 0) {
 			sockaddr_t *upstream = &ctx->upstreams[conn->upstream];
 			const char *target_host = get_sockaddrname(upstream);
@@ -600,17 +600,17 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 				authorization ? auth_code : "",
 				authorization ? "\r\n" : "");
 			if (r == -1) {
-				loge("hp_handshake() error: stream_writef()\n");
+				loge("stream_writef() error\n");
 				free(auth_code);
 				return -1;
 			}
-			logv("hp_handshake(): send\r\n%s\n", s->array);
+			logv("send\r\n%s\n", s->array);
 			s->pos = 0;
 			free(auth_code);
 		}
 		r = tcp_send(conn->conn.sock, s);
 		if (r < 0) {
-			loge("hp_handshake() error: tcp_send() error\n");
+			loge("tcp_send() error\n");
 			return -1;
 		}
 		if (stream_rsize(s) > 0) {
@@ -622,16 +622,16 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 		}
 		break;
 	case cs_hp_waiting_connect:
-		logv("hp_handshake(): receiving connection status\n");
+		logv("receiving connection status\n");
 		r = tcp_recv(conn->conn.sock, s->array + s->pos, s->cap - s->pos - 1);
 		if (r <= 0) {
-			loge("hp_handshake() error: tcp_recv() error\n");
+			loge("tcp_recv() error\n");
 			return -1;
 		}
 		s->pos += r;
 		s->size += r;
 		s->array[s->pos] = '\0';
-		logv("hp_handshake(): recv\r\n%s\n", s->array);
+		logv("recv\r\n%s\n", s->array);
 		if (s->size >= sizeof("HTTP/1.1 XXX")) {
 			char *space;
 			if (strncmp(s->array, "HTTP/", 5) == 0 &&
@@ -645,7 +645,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 					if (strstr(s->array, "\r\n\r\n")) {
 						conn->conn.status = cs_hp_handshaked;
 						stream_free(s);
-						logv("hp_handshake(): http proxy handshaked\n");
+						logv("http proxy handshaked\n");
 						r = 0;
 						if (stream_rsize(&conn->conn.ws) > 0) {
 							r = tcp_send(conn->conn.sock, &conn->conn.ws);
@@ -659,25 +659,25 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 					}
 				}
 				else {
-					loge("hp_handshake() error: http_code=%d\n%s\n", http_code, s->array);
+					loge("http_code=%d\n%s\n", http_code, s->array);
 					return -1;
 				}
 			}
 			else {
-				loge("hp_handshake() error: wrong response \"%s\"\n", s->array);
+				loge("wrong response \"%s\"\n", s->array);
 				return -1;
 			}
 		}
 		else {
-			loge("hp_handshake() error: connect error\n");
+			loge("connect error\n");
 			return -1;
 		}
 		break;
 	case cs_hp_waiting_data:
-		logv("hp_handshake(): receiving left headers\n");
+		logv("receiving left headers\n");
 		r = tcp_recv(conn->conn.sock, s->array + s->pos, s->cap - s->pos - 1);
 		if (r <= 0) {
-			loge("hp_handshake() error: tcp_recv() error\n");
+			loge("tcp_recv() error\n");
 			return -1;
 		}
 		s->size += r;
@@ -686,7 +686,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 		if (strstr(s->array, "\r\n\r\n")) {
 			conn->conn.status = cs_hp_handshaked;
 			stream_free(s);
-			logv("hp_handshake(): http proxy handshaked\n");
+			logv("http proxy handshaked\n");
 			r = 0;
 			if (stream_rsize(&conn->conn.ws) > 0) {
 				r = tcp_send(conn->conn.sock, &conn->conn.ws);
@@ -696,7 +696,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 			return r;
 		}
 		else if (s->size >= HTTP_MAX_HEADER_SIZE) {
-			loge("hp_handshake() error: received too large (>= %s bytes)"
+			loge("received too large (>= %s bytes)"
 				" header data from http proxy.\n", s->pos);
 			stream_free(s);
 			return -1;
@@ -706,7 +706,7 @@ static int hp_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 		}
 		break;
 	default:
-		loge("hp_handshake() error: unknown status\n");
+		loge("unknown status\n");
 		return -1;
 	}
 
@@ -723,7 +723,7 @@ static int proxy_handshake(channel_tcp_t *ctx, tcpreq_t *req, reqconn_t *conn)
 		case HTTP_PROXY:
 			return hp_handshake(ctx, req, conn);
 		default:
-			loge("proxy_handshake() error: unsupport proxy type");
+			loge("unsupport proxy type");
 			return -1;
 	}
 }
@@ -803,7 +803,7 @@ static int req_step(channel_t* ctx, tcpreq_t *req, time_t now,
 		}
 		else if (FD_ISSET(conn->conn.sock, errorset)) {
 			int err = getsockerr(conn->conn.sock);
-			loge("req_step(): sock error: errno=%d, %s - %s\n",
+			loge("sock error: errno=%d, %s - %s\n",
 				err, strerror(err), get_sockaddrname(&c->upstreams[conn->upstream]));
 			r = -1;
 		}
@@ -931,7 +931,7 @@ int channel_tcp_query(channel_t* ctx,
 
 	for (i = 0; i < c->upstream_num; i++) {
 		if (tcp_query(req, i, use_proxy ? 0 : -1, subnet)) {
-			logw("channel_tcp_query() error: tcp_query() error\n");
+			logw("tcp_query() error\n");
 		}
 		else {
 			n++;
@@ -939,7 +939,7 @@ int channel_tcp_query(channel_t* ctx,
 	}
 
 	if (n == 0) {
-		loge("channel_tcp_query() error: no invalid upstream\n");
+		loge("no invalid upstream\n");
 		dllist_init_remove(&req->entry);
 		c->req_count--;
 		req_destroy(req);
@@ -1021,7 +1021,7 @@ int channel_tcp_create(
 
 	ctx = (channel_tcp_t*)malloc(sizeof(channel_tcp_t));
 	if (!ctx) {
-		loge("channel_tcp_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
@@ -1037,13 +1037,13 @@ int channel_tcp_create(
 	ctx->timeout = conf->timeout;
 
 	if (parse_args(ctx, args)) {
-		loge("channel_tcp_create() error: parse_args() error\n");
+		loge("parse_args() error\n");
 		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}
 
 	if (ctx->timeout <= 0) {
-		loge("channel_tcp_create() error: invalid \"timeout\"\n");
+		loge("invalid \"timeout\"\n");
 		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}

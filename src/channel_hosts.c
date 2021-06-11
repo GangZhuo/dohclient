@@ -42,7 +42,7 @@ static ipnode_t *ipnode_new(const void *ip, int family)
 
 	ipnode = (ipnode_t*)malloc(sizeof(ipnode_t));
 	if (!ipnode) {
-		loge("ipnode_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -57,7 +57,7 @@ static ipnode_t *ipnode_new(const void *ip, int family)
 		memcpy(&ipnode->ip6, ip, sizeof(struct in6_addr));
 	}
 	else if (family != 0) {
-		loge("ipnode_new() error: unknown \"family\" %d\n", family);
+		loge("unknown \"family\" %d\n", family);
 		free(ipnode);
 		return NULL;
 	}
@@ -71,7 +71,7 @@ static hosts_item_t *hosts_item_new(const char *key, const void *ip, int family)
 
 	item = (hosts_item_t*)malloc(sizeof(hosts_item_t));
 	if (!item) {
-		loge("hosts_item_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -148,7 +148,7 @@ static int query(channel_t *ctx,
 	ns_flags_t flags = { 0 };
 
 	if (!msg->qrs || msg->qdcount < 1) {
-		loge("hosts_query() error: invalid msg (qdcount=%d)\n",
+		loge("invalid msg (qdcount=%d)\n",
 			(int)msg->qdcount);
 		return -1;
 	}
@@ -243,7 +243,7 @@ int hosts_add(channel_t *ctx, const char *domain, const void *ip, int family)
 	ipnode_t *ipnode;
 
 	if (!domain || !ip || !family) {
-		loge("hosts_add() error: invalid arguments\n");
+		loge("invalid arguments\n");
 		return -1;
 	}
 
@@ -251,7 +251,7 @@ int hosts_add(channel_t *ctx, const char *domain, const void *ip, int family)
 	if (!rbn) {
 		item = hosts_item_new(domain, ip, family);
 		if (!item) {
-			loge("hosts_add() error: hosts_item_new() error\n");
+			loge("hosts_item_new() error\n");
 			return -1;
 		}
 
@@ -263,7 +263,7 @@ int hosts_add(channel_t *ctx, const char *domain, const void *ip, int family)
 
 		ipnode = ipnode_new(ip, family);
 		if (!ipnode) {
-			loge("hosts_add() error: ipnode_new() error\n");
+			loge("ipnode_new() error\n");
 			return -1;
 		}
 
@@ -300,7 +300,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 
 	fp = fopen(filename, "rb");
 	if (fp == NULL) {
-		loge("hosts_parse_file() error: Can't open hosts: %s\n", filename);
+		loge("Can't open hosts: %s\n", filename);
 		return -1;
 	}
 
@@ -334,7 +334,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 		sp_pos = strspace(line);
 
 		if (!sp_pos) {
-			logw("hosts_parse_file(): invalid line %d: %s\n", rownum, line);
+			logw("invalid line %d: %s\n", rownum, line);
 			continue;
 		}
 
@@ -343,7 +343,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 		memset(&addr, 0, sizeof(sockaddr_t));
 
 		if (!try_parse_as_ip(&addr, line, "80")) {
-			logw("hosts_parse_file(): invalid ip address (line %d): %s\n", rownum, line);
+			logw("invalid ip address (line %d): %s\n", rownum, line);
 			continue;
 		}
 
@@ -351,7 +351,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 		line = ltrim(sp_pos + 1);
 
 		if (!(*line)) {
-			logw("hosts_parse_file(): no domain name (line %d): %s\n", rownum, ltrim(buf));
+			logw("no domain name (line %d): %s\n", rownum, ltrim(buf));
 			continue;
 		}
 
@@ -368,7 +368,7 @@ static int hosts_parse_file(channel_t *ctx, const char *filename)
 			if (sp_pos)
 				*sp_pos = '\0';
 			if (hosts_add(ctx, line, ip, family)) {
-				loge("hosts_parse_file() error: hosts_add() error\n");
+				loge("hosts_add() error\n");
 				fclose(fp);
 				return -1;
 			}
@@ -434,7 +434,7 @@ int hosts_create(
 
 	ctx = (hosts_t*)malloc(sizeof(hosts_t));
 	if (!ctx) {
-		loge("hosts_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
@@ -457,7 +457,7 @@ int hosts_create(
 
 	if (args) {
 		if (parse_querystring(args, parse_args_callback, ctx)) {
-			loge("hosts_create() error: invalid args: %s\n", args);
+			loge("invalid args: %s\n", args);
 			return CHANNEL_WRONG_ARG;
 		}
 	}

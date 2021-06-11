@@ -117,7 +117,7 @@ static channel_req_t* myreq_new(
 
 	req = (channel_req_t*)malloc(sizeof(channel_req_t));
 	if (!req) {
-		loge("myreq_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -310,7 +310,7 @@ static void query_doh_addr(channel_chndoh_t* c, doh_server_t* doh)
 	c->req_count++;
 
 	if (doh_query(req)) {
-		loge("query_doh_addr() failed\n");
+		loge("doh_query() error\n");
 		dllist_remove(&req->entry);
 		rbtree_remove(&c->reqdic, &req->rbn);
 		c->req_count--;
@@ -495,7 +495,7 @@ static void print_all_answers(channel_req_t* rq, ns_msg_t* best)
 	for (i = 0; i < rq->result_num; i++) {
 		msg = rq->results[i];
 		flags = get_nsmsg_flags(c, msg);
-		logd("(%d):%s%s%s%s%s%s%s%s%s%s%s\n",
+		logd("(%d):%s%s%s%s%s%s%s%s%s%s%s - %s\n",
 			i + 1,
 			msg == best             ? " BEST"         : "",
 			(flags & FLG_A)         ? " FLG_A"        : "",
@@ -507,8 +507,10 @@ static void print_all_answers(channel_req_t* rq, ns_msg_t* best)
 			(flags & FLG_ECS)       ? " FLG_ECS"      : "",
 			(flags & FLG_ECS_CHN)   ? " FLG_ECS_CHN"  : "",
 			(flags & FLG_ECS_FRN)   ? " FLG_ECS_FRN"  : "",
-			(flags & FLG_BLACKLIST) ? " FLG_BLACKLIST" : "");
-		ns_print(msg);
+			(flags & FLG_BLACKLIST) ? " FLG_BLACKLIST" : "",
+			msg_answers(msg));
+		if (loglevel >= LOG_VERBOS)
+			ns_print(msg);
 	}
 }
 
@@ -639,7 +641,7 @@ static int query_cb(channel_t* ctx,
 		if (!rq->results) {
 			rq->results = (ns_msg_t**)malloc(sizeof(ns_msg_t*) * rq->wait_num);
 			if (!rq->results) {
-				loge("query_cb() error: alloc\n");
+				loge("alloc\n");
 				ns_msg_free(result);
 				free(result);
 				result = NULL;
@@ -724,12 +726,12 @@ static void http_cb(
 		(http_status = http_response_get_status_code(response, &status_text)) == 200) {
 		result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 		if (!result) {
-			loge("http_cb() error: alloc\n");
+			loge("alloc\n");
 			goto exit;
 		}
 		
 		if (init_ns_msg(result)) {
-			loge("http_cb() error: init_ns_msg() error\n");
+			loge("init_ns_msg() error\n");
 			free(result);
 			result = NULL;
 			goto exit;
@@ -737,7 +739,7 @@ static void http_cb(
 
 		data = http_response_get_data(response, &datalen);
 		if (ns_parse(result, (const uint8_t*)data, datalen)) {
-			loge("http_cb() error: ns_parse() error\n");
+			loge("ns_parse() error\n");
 			ns_msg_free(result);
 			free(result);
 			result = NULL;
@@ -779,21 +781,21 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* d
 	stream_t s = STREAM_INIT();
 
 	if ((len = ns_serialize(&s, msg, 0)) <= 0) {
-		loge("doh_build_post_request() error: ns_serialize() error\n");
+		loge("ns_serialize() error\n");
 		stream_free(&s);
 		return NULL;
 	}
 
 	req = http_request_create("POST", doh->path, doh->host, doh->keep_alive);
 	if (!req) {
-		loge("doh_build_post_request() error: http_request_create() error\n");
+		loge("http_request_create() error\n");
 		stream_free(&s);
 		return NULL;
 	}
 
 	r = http_request_set_header(req, "Content-Type", "application/dns-message");
 	if (r) {
-		loge("doh_build_post_request() error: http_request_set_header() error\n");
+		loge("http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -801,7 +803,7 @@ static http_request_t* doh_build_post_request(channel_req_t* rq, doh_server_t* d
 
 	r = http_request_set_header(req, "Accept", "*/*");
 	if (r) {
-		loge("doh_build_post_request() error: http_request_set_header() error\n");
+		loge("http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -826,14 +828,14 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 	int dns_len;
 
 	if ((len = ns_serialize(&s, msg, 0)) <= 0) {
-		loge("doh_build_get_request() error: ns_serialize() error\n");
+		loge("ns_serialize() error\n");
 		stream_free(&s);
 		return NULL;
 	}
 
 	dns = base64url_encode(s.array, s.size, &dns_len, FALSE, TRUE);
 	if (!dns) {
-		loge("doh_build_get_request() error: base64_encode() error\n");
+		loge("base64_encode() error\n");
 		stream_free(&s);
 		return NULL;
 	}
@@ -844,7 +846,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 		"%s?dns=%s",
 		doh->path,
 		dns) == -1) {
-		loge("doh_build_get_request() error: stream_appendf()\n");
+		loge("stream_appendf()\n");
 		stream_free(&s);
 		return NULL;
 	}
@@ -853,14 +855,14 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 
 	req = http_request_create("GET", s.array, doh->host, doh->keep_alive);
 	if (!req) {
-		loge("doh_build_get_request() error: http_request_create() error\n");
+		loge("http_request_create() error\n");
 		stream_free(&s);
 		return NULL;
 	}
 
 	r = http_request_set_header(req, "Content-Type", "application/dns-message");
 	if (r) {
-		loge("doh_build_get_request() error: http_request_set_header() error\n");
+		loge("http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -868,7 +870,7 @@ static http_request_t* doh_build_get_request(channel_req_t* rq, doh_server_t* do
 
 	r = http_request_set_header(req, "Accept", "*/*");
 	if (r) {
-		loge("doh_build_get_request() error: http_request_set_header() error\n");
+		loge("http_request_set_header() error\n");
 		stream_free(&s);
 		http_request_destroy(req);
 		return NULL;
@@ -896,7 +898,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 		if (rr == NULL) {
 			rr = ns_add_optrr(msg);
 			if (rr == NULL) {
-				loge("doh_channel_query(): Can't add option record to ns_msg_t\n");
+				loge("Can't add option record to ns_msg_t\n");
 				return -1;
 			}
 		}
@@ -904,7 +906,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
 
 		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("doh_channel_query(): Can't add ecs option\n");
+			loge("Can't add ecs option\n");
 			return -1;
 		}
 	}
@@ -914,7 +916,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 		: doh_build_get_request(rq, doh, msg);
 
 	if (!req) {
-		loge("doh_channel_query() error: %s error\n",
+		loge("%s error\n",
 			doh->post
 			? "doh_build_post_request()"
 			: "doh_build_get_request()");
@@ -923,7 +925,7 @@ static int doh_channel_query(channel_req_t* rq, doh_server_t* doh,
 
 	r = http_send(doh->http, doh->addr, use_proxy, req, doh->timeout, http_cb, rq);
 	if (r) {
-		loge("doh_channel_query() error: http_send() error\n");
+		loge("http_send() error\n");
 		free(http_request_get_data(req, NULL));
 		http_request_destroy(req);
 		return -1;
@@ -956,7 +958,7 @@ static int doh_emit_query(channel_req_t* rq, doh_server_t *doh)
 
 	r = build_request_nsmsg(&msg, rq);
 	if (r) {
-		loge("doh_emit_query() error: build_request_nsmsg() error\n");
+		loge("build_request_nsmsg() error\n");
 		return -1;
 	}
 
@@ -980,7 +982,7 @@ static int doh_query(channel_req_t* rq)
 	if (c->frndoh.channel != CH_NONE) {
 		r = doh_emit_query(rq, &c->frndoh);
 		if (r) {
-			loge("doh_query() error: doh_emit_query() error\n");
+			loge("doh_emit_query() error\n");
 			return -1;
 		}
 		rq->wait_num++;
@@ -989,14 +991,14 @@ static int doh_query(channel_req_t* rq)
 	if (c->chndoh.channel != CH_NONE) {
 		r = doh_emit_query(rq, &c->chndoh);
 		if (r) {
-			loge("doh_query() error: doh_emit_query() error\n");
+			loge("doh_emit_query() error\n");
 			return -1;
 		}
 		rq->wait_num++;
 	}
 
 	if (rq->wait_num == 0) {
-		loge("doh_query() error: no DoH server\n");
+		loge("no DoH server\n");
 		return -1;
 	}
 
@@ -1024,7 +1026,7 @@ static int query(channel_t* ctx,
 	c->req_count++;
 
 	if (doh_query(req)) {
-		loge("doh_query() failed\n");
+		loge("doh_query() error\n");
 		dllist_remove(&req->entry);
 		rbtree_remove(&c->reqdic, &req->rbn);
 		c->req_count--;
@@ -1226,25 +1228,25 @@ static int create_upstream_chctx(doh_server_t* doh, channel_chndoh_t* c)
 static int check_doh_server(doh_server_t *doh)
 {
 	if (is_empty_sockaddr(doh->addr)) {
-		loge("check_doh_server() error: no \"addr\"\n");
+		loge("no \"addr\"\n");
 		return -1;
 	}
 	if (doh->channel == CH_DOH) {
 		if (!doh->host || !*doh->host) {
-			loge("check_doh_server() error: no \"host\"\n");
+			loge("no \"host\"\n");
 			return -1;
 		}
 		if (!doh->path || !*doh->path) {
-			loge("check_doh_server() error: no \"path\"\n");
+			loge("no \"path\"\n");
 			return -1;
 		}
 	}
 	if (doh->timeout <= 0) {
-		loge("check_doh_server() error: invalid \"timeout\"\n");
+		loge("invalid \"timeout\"\n");
 		return -1;
 	}
 	if (doh->keep_alive < 0) {
-		loge("check_doh_server() error: invalid \"keep-alive\"\n");
+		loge("invalid \"keep-alive\"\n");
 		return -1;
 	}
 
@@ -1283,7 +1285,7 @@ int channel_chndoh_create(
 
 	ctx = (channel_chndoh_t*)malloc(sizeof(channel_chndoh_t));
 	if (!ctx) {
-		loge("channel_chndoh_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
@@ -1305,7 +1307,7 @@ int channel_chndoh_create(
 	ctx->frndoh.auto_resolve_host = TRUE;
 
 	if (parse_args(ctx, args)) {
-		loge("channel_chndoh_create() error: parse_args() error\n");
+		loge("parse_args() error\n");
 		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}
@@ -1324,13 +1326,13 @@ int channel_chndoh_create(
 	ctx->destroy = destroy;
 
 	if (ctx->chndoh.channel != CH_NONE && create_upstream_chctx(&ctx->chndoh, ctx)) {
-		loge("channel_chndoh_create() error: create_upstream_chctx(chndoh) error\n");
+		loge("create_upstream_chctx(chndoh) error\n");
 		destroy((channel_t*)ctx);
 		return CHANNEL_ERROR;
 	}
 
 	if (ctx->frndoh.channel != CH_NONE && create_upstream_chctx(&ctx->frndoh, ctx)) {
-		loge("channel_chndoh_create() error: create_upstream_chctx(frndoh) error\n");
+		loge("create_upstream_chctx(frndoh) error\n");
 		destroy((channel_t*)ctx);
 		return CHANNEL_ERROR;
 	}

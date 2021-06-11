@@ -105,7 +105,7 @@ ns_qr_t* ns_qr_clone(const ns_qr_t* array, int num)
 		return NULL;
 	copy = (ns_qr_t*)malloc(sizeof(ns_qr_t) * num);
 	if (!copy) {
-		loge("ns_qr_clone() error: alloc \n");
+		loge("alloc \n");
 		return NULL;
 	}
 	memset(copy, 0, sizeof(ns_qr_t) * num);
@@ -247,7 +247,7 @@ ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num)
 		return NULL;
 	copy = (ns_rr_t*)malloc(sizeof(ns_rr_t) * num);
 	if (!copy) {
-		loge("ns_rr_clone() error: alloc \n");
+		loge("alloc \n");
 		return NULL;
 	}
 	memset(copy, 0, sizeof(ns_rr_t) * num);
@@ -265,7 +265,7 @@ ns_rr_t* ns_rr_clone(const ns_rr_t* array, int num)
 		if (src->rdata) {
 			dst->rdata = ns_msg_clone_rdata(src);
 			if (!dst->rdata) {
-				loge("ns_rr_clone() error: alloc \n");
+				loge("alloc \n");
 				for (; i >= 0; i--) {
 					dst = copy + i;
 					ns_msg_free_rdata(dst);
@@ -284,7 +284,7 @@ ns_msg_t* ns_msg_clone(const ns_msg_t *msg)
 	ns_msg_t* copy;
 	copy = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!copy) {
-		loge("ns_msg_clone() error: alloc \n");
+		loge("alloc \n");
 		return NULL;
 	}
 
@@ -295,7 +295,7 @@ ns_msg_t* ns_msg_clone(const ns_msg_t *msg)
 	if (msg->qrs) {
 		copy->qrs = ns_qr_clone(msg->qrs, msg->qdcount);
 		if (!copy->qrs) {
-			loge("ns_msg_clone() error: ns_qr_clone() error\n");
+			loge("ns_qr_clone() error\n");
 			free(copy);
 			return NULL;
 		}
@@ -305,7 +305,7 @@ ns_msg_t* ns_msg_clone(const ns_msg_t *msg)
 	if (msg->rrs) {
 		copy->rrs = ns_rr_clone(msg->rrs, ns_rrcount(msg));
 		if (!copy->rrs) {
-			loge("ns_msg_clone() error: ns_rr_clone() error\n");
+			loge("ns_rr_clone() error\n");
 			ns_msg_free(copy);
 			return NULL;
 		}
@@ -332,7 +332,7 @@ const char* qr_key(const ns_qr_t* qr)
 		qr->qname ? qr->qname : "");
 
 	if (n <= 0 || n >= sizeof(key)) {
-		loge("qr_key() error: snprintf() error\n");
+		loge("snprintf() error\n");
 		return NULL;
 	}
 
@@ -583,7 +583,7 @@ static int ns_read_cstring(stream_t *dst, stream_t *s)
 
 #define check_len(n) \
 	if (stream_rsize(s) < (n)) { \
-		loge("ns_read_cstring: truncated stream\n"); \
+		loge("truncated stream\n"); \
 		do_return(-1); \
 	}
 
@@ -592,12 +592,12 @@ static int ns_read_cstring(stream_t *dst, stream_t *s)
 
 	check_len(len);
 	if (stream_writess(dst, s, len) != len) {
-		loge("ns_read_cstring: write stream\n");
+		loge("write stream\n");
 		do_return(-1);
 	}
 
 	if (stream_writei8(dst, 0) != 1) {
-		loge("ns_read_cstring: write stream\n");
+		loge("write stream\n");
 		do_return(-1);
 	}
 
@@ -621,7 +621,7 @@ static int ns_read_domainname(stream_t *dst, stream_t *s)
 
 #define check_len(n) \
 	if (stream_rsize(s) < (n)) { \
-		loge("ns_read_domainname: truncated stream\n"); \
+		loge("truncated stream\n"); \
 		do_return(-1); \
 	}
 
@@ -637,7 +637,7 @@ static int ns_read_domainname(stream_t *dst, stream_t *s)
 			len = stream_readi8(s);
 			offset |= len;
 			if (offset >= s->size) {
-				loge("ns_read_domainname: invalid compression pointer\n");
+				loge("invalid compression pointer\n");
 				do_return(-1);
 			}
 			else {
@@ -647,7 +647,7 @@ static int ns_read_domainname(stream_t *dst, stream_t *s)
 			}
 		}
 		else if ((len & 0xc0)) {
-			loge("ns_read_domainname: invalid label len '0x%x'\n", len);
+			loge("invalid label len '0x%x'\n", len);
 			do_return(-1);
 		}
 		else {
@@ -655,12 +655,12 @@ static int ns_read_domainname(stream_t *dst, stream_t *s)
 			check_len(len);
 
 			if (stream_writess(dst, s, len) != len) {
-				loge("ns_read_domainname: write stream\n");
+				loge("write stream\n");
 				do_return(-1);
 			}
 
 			if (stream_write(dst, ".", 2) != 2) {
-				loge("ns_read_domainname: write stream\n");
+				loge("write stream\n");
 				do_return(-1);
 			}
 
@@ -674,7 +674,7 @@ static int ns_read_domainname(stream_t *dst, stream_t *s)
 	if (dst->array == NULL) {
 
 		if (stream_writei8(dst, 0) != 1) {
-			loge("ns_read_domainname: write stream\n");
+			loge("write stream\n");
 			do_return(-1);
 		}
 
@@ -925,7 +925,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 
 #define check_len(n) \
 	if (stream_rsize(&s) < (n)) { \
-		loge("ns_parse: truncated stream\n"); \
+		loge("truncated stream\n"); \
 		return -1; \
 	}
 
@@ -941,7 +941,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 	if (msg->qdcount > 0) {
 		msg->qrs = calloc(msg->qdcount, sizeof(ns_qr_t));
 		if (msg->qrs == NULL) {
-			loge("ns_parse: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 
@@ -949,7 +949,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 			stream_t name = STREAM_INIT();
 			qr = msg->qrs + i;
 			if (ns_read_domainname(&name, &s) < 0) {
-				loge("ns_parse: read domain name\n");
+				loge("read domain name\n");
 				return -1;
 			}
 			qr->qname = name.array;
@@ -957,7 +957,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 			qr->qtype = (uint16_t)stream_readi16(&s);
 			qr->qclass = (uint16_t)stream_readi16(&s);
             if (qr->qtype == 0) {
-                loge("ns_parse: wrong qtype, maybe pollution result\n");
+                loge("wrong qtype, maybe pollution result\n");
                 return -1;
             }
 		}
@@ -968,7 +968,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 	if (rrcount > 0) {
 		msg->rrs = calloc(rrcount, sizeof(ns_rr_t));
 		if (msg->rrs == NULL) {
-			loge("ns_parse: alloc\n");
+			loge("alloc\n");
 			return -1;
 		}
 
@@ -976,7 +976,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 			stream_t name = STREAM_INIT();
 			rr = msg->rrs + i;
 			if (ns_read_domainname(&name, &s) < 0) {
-				loge("ns_parse: read domain name\n");
+				loge("read domain name\n");
 				return -1;
 			}
 			rr->name = name.array;
@@ -988,7 +988,7 @@ int ns_parse(ns_msg_t *msg, const uint8_t *bytes, int nbytes)
 
 			check_len(rr->rdlength);
 			if (ns_read_rdata(rr, &s) < 0) {
-				loge("ns_parse: read rdata\n");
+				loge("read rdata\n");
 				return -1;
 			}
 		}
@@ -1043,7 +1043,7 @@ ns_rr_t *ns_add_optrr(ns_msg_t *msg)
 
     rrs = realloc(msg->rrs, ((int)ns_rrcount(msg) + 1) * sizeof(ns_rr_t));
     if (rrs == NULL) {
-        loge("ns_add_optrr: alloc\n");
+        loge("alloc\n");
         return NULL;
     }
     msg->rrs = rrs;
@@ -1187,7 +1187,7 @@ int ns_ecs_parse_subnet(struct sockaddr *addr /*out*/, int *pmask /*out*/, const
 		struct sockaddr_in6 *addr6 = (struct sockaddr_in6 *)addr;
 		struct in6_addr *ip = &(addr6->sin6_addr);
 		if (inet_pton(AF_INET6, buf, ip) != 1) {
-			loge("invalid addr %s. ns_ecs_parse_subnet() - inet_pton() error: errno=%d, %s\n",
+			loge("invalid addr %s: errno=%d, %s\n",
 				str, errno, strerror(errno));
 			return -1;
 		}
@@ -1198,7 +1198,7 @@ int ns_ecs_parse_subnet(struct sockaddr *addr /*out*/, int *pmask /*out*/, const
 		struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
 		struct in_addr *ip = &(addr4->sin_addr);
 		if (inet_pton(AF_INET, buf, ip) != 1) {
-			loge("invalid addr %s. ns_ecs_parse_subnet() - inet_pton() error: errno=%d, %s\n",
+			loge("invalid addr %s: errno=%d, %s\n",
 				str, errno, strerror(errno));
 			return -1;
 		}
@@ -1308,7 +1308,7 @@ int ns_set_ecs(ns_opt_t *opt, struct sockaddr *addr, int srcprefix, int scopepre
 		return ns_set_ecs6(opt, (struct sockaddr_in6*)addr, srcprefix, scopeprefix);
 	}
 	else {
-		loge("ns_set_ecs: No support family %d\n", addr->sa_family);
+		loge("No support family %d\n", addr->sa_family);
 		return -1;
 	}
 }
@@ -1714,7 +1714,7 @@ static void ns_rdata_print_hinfo(ns_rr_t *rr)
 {
 	ns_hinfo_t *hinfo = rr->rdata;
 	if (hinfo) {
-		logd("CPU: %s, OS: %s\n",
+		logv("CPU: %s, OS: %s\n",
 			hinfo->cpu,
 			hinfo->os);
 	}
@@ -1725,7 +1725,7 @@ static void ns_rdata_print_minfo(ns_rr_t *rr)
 	ns_minfo_t *minfo = rr->rdata;
 
 	if (minfo) {
-		logd("RMAILBX: %s, EMAILBX: %s\n",
+		logv("RMAILBX: %s, EMAILBX: %s\n",
 			minfo->rmailbx,
 			minfo->emailbx);
 	}
@@ -1736,7 +1736,7 @@ static void ns_rdata_print_mx(ns_rr_t *rr)
 	ns_mx_t *mx = rr->rdata;
 
 	if (mx) {
-		logd("PREFERENCE: 0x%x, EXCHANGE: %s\n",
+		logv("PREFERENCE: 0x%x, EXCHANGE: %s\n",
 			(int)(mx->preference & 0xffff),
 			mx->exchange);
 	}
@@ -1747,7 +1747,7 @@ static void ns_rdata_print_soa(ns_rr_t *rr)
 	ns_soa_t *soa = rr->rdata;
 
 	if (soa) {
-		logd("MNAME: %s, RNAME: %s, SERIAL: 0x%x, REFRESH: 0x%x, RETRY: 0x%x, EXPIRE: 0x%x, MINIMUM: 0x%x\n",
+		logv("MNAME: %s, RNAME: %s, SERIAL: 0x%x, REFRESH: 0x%x, RETRY: 0x%x, EXPIRE: 0x%x, MINIMUM: 0x%x\n",
 			soa->mname,
 			soa->rname,
 			soa->serial,
@@ -1819,11 +1819,11 @@ static void ns_rdata_print_edns(ns_rr_t *rr)
 	int i;
 
 	if (opts != NULL) {
-		logd("OPTCOUNT: 0x%x\n", opts->optcount);
+		logv("OPTCOUNT: 0x%x\n", opts->optcount);
 		for (i = 0; i < opts->optcount; i++) {
 			opt = opts->opts + i;
 
-			logd("OPT-CODE: 0x%x, OPT-LEN: 0x%x, OPT-DATA:\n",
+			logv("OPT-CODE: 0x%x, OPT-LEN: 0x%x, OPT-DATA:\n",
 				(int)(opt->code & 0xffff),
 				(int)(opt->length & 0xffff));
 			if (opt->data != NULL) {
@@ -1841,7 +1841,7 @@ static void ns_rdata_print_edns(ns_rr_t *rr)
 							/*invalid ecs*/
 							ipname[0] = '\0';
 						}
-						logd("ECS %s/%d SCOPE %d\n",
+						logv("ECS %s/%d SCOPE %d\n",
 							ipname,
 							ecs.src_prefix_len,
 							ecs.scope_prefix_len);
@@ -1861,14 +1861,14 @@ static void ns_rdata_print_edns(ns_rr_t *rr)
 static void ns_rdata_print_a(ns_rr_t *rr)
 {
 	char ipname[INET6_ADDRSTRLEN];
-	logd("IPv4: %s\n", inet_ntop(AF_INET, rr->rdata, ipname, INET6_ADDRSTRLEN));
+	logv("IPv4: %s\n", inet_ntop(AF_INET, rr->rdata, ipname, INET6_ADDRSTRLEN));
 }
 
 static void ns_rdata_print_aaaa(ns_rr_t *rr)
 {
 	static char ipname[INET6_ADDRSTRLEN];
 	inet_ntop(AF_INET6, rr->rdata, ipname, INET6_ADDRSTRLEN);
-	logd("IPv6: %s\n", ipname);
+	logv("IPv6: %s\n", ipname);
 }
 
 static void ns_print_rdata(ns_rr_t *rr)
@@ -1878,28 +1878,28 @@ static void ns_print_rdata(ns_rr_t *rr)
 		ns_rdata_print_hinfo(rr);
 		break;
 	case NS_TYPE_CNAME:
-		logd("CNAME: %s\n", rr->rdata);
+		logv("CNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MB:
-		logd("MADNAME: %s\n", rr->rdata);
+		logv("MADNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MD:
-		logd("MADNAME: %s\n", rr->rdata);
+		logv("MADNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MF:
-		logd("MADNAME: %s\n", rr->rdata);
+		logv("MADNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MG:
-		logd("MGMNAME: %s\n", rr->rdata);
+		logv("MGMNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MR:
-		logd("NEWNAME: %s\n", rr->rdata);
+		logv("NEWNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_NS:
-		logd("NSDNAME: %s\n", rr->rdata);
+		logv("NSDNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_PTR:
-		logd("HOSTNAME: %s\n", rr->rdata);
+		logv("HOSTNAME: %s\n", rr->rdata);
 		break;
 	case NS_TYPE_MINFO:
 		ns_rdata_print_minfo(rr);
@@ -1935,8 +1935,8 @@ void ns_print(ns_msg_t *msg)
 	ns_rr_t *rr;
 	ns_flags_t flags;
 
-	logd("<<< MSG START >>>\n");
-	logd("ID: 0x%x, FLAGS: 0x%x, QDCOUNT: 0x%x, ANCOUNT: 0x%x, NSCOUNT: 0x%x, ARCOUNT: 0x%x\n",
+	logv("<<< MSG START >>>\n");
+	logv("ID: 0x%x, FLAGS: 0x%x, QDCOUNT: 0x%x, ANCOUNT: 0x%x, NSCOUNT: 0x%x, ARCOUNT: 0x%x\n",
 		(int)(msg->id & 0xffff),
 		(int)(msg->flags & 0xffff),
 		(int)(msg->qdcount & 0xffff),
@@ -1944,7 +1944,7 @@ void ns_print(ns_msg_t *msg)
 		(int)(msg->nscount & 0xffff),
 		(int)(msg->arcount & 0xffff));
 	flags = ns_get_flags(msg);
-	logd("FLAGS:%s%s%s%s%s opcode=%d rcode=%d\n",
+	logv("FLAGS:%s%s%s%s%s opcode=%d rcode=%d\n",
 		flags.qr ? " qr" : "",
 		flags.aa ? " aa" : "",
 		flags.tc ? " tc" : "",
@@ -1955,7 +1955,7 @@ void ns_print(ns_msg_t *msg)
 
 	for (i = 0; i < msg->qdcount; i++) {
 		qr = msg->qrs + i;
-		logd("QNAME: %s, QTYPE: 0x%x (%s), QCLASS: 0x%x (%s)\n",
+		logv("QNAME: %s, QTYPE: 0x%x (%s), QCLASS: 0x%x (%s)\n",
 			qr->qname,
 			(int)(qr->qtype & 0xffff),
 			ns_typename(qr->qtype),
@@ -1967,7 +1967,7 @@ void ns_print(ns_msg_t *msg)
 		i < rrcount; i++) {
 		rr = msg->rrs + i;
 		if (rr->type == NS_QTYPE_OPT) {
-			logd("NAME: %s, TYPE: 0x%x (%s), PAYLOAD: 0x%x, RCODE: 0x%x, VERSION: 0x%x, Z: 0x%x, RDLEN: 0x%x\n",
+			logv("NAME: %s, TYPE: 0x%x (%s), PAYLOAD: 0x%x, RCODE: 0x%x, VERSION: 0x%x, Z: 0x%x, RDLEN: 0x%x\n",
 				rr->name,
 				(int)(rr->type & 0xffff),
 				ns_typename(rr->type),
@@ -1978,7 +1978,7 @@ void ns_print(ns_msg_t *msg)
 				(int)(rr->rdlength & 0xffff));
 		}
 		else {
-			logd("NAME: %s, TYPE: 0x%x (%s), CLASS: 0x%x (%s), TTL: 0x%x, RDLEN: 0x%x\n",
+			logv("NAME: %s, TYPE: 0x%x (%s), CLASS: 0x%x (%s), TTL: 0x%x, RDLEN: 0x%x\n",
 				rr->name,
 				(int)(rr->type & 0xffff),
 				ns_typename(rr->type),
@@ -1989,7 +1989,7 @@ void ns_print(ns_msg_t *msg)
 		}
 		ns_print_rdata(rr);
 	}
-	logd("<<< MSG END >>>\n");
+	logv("<<< MSG END >>>\n");
 }
 
 const char *ns_typename(uint16_t type)

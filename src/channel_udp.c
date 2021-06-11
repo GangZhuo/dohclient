@@ -65,7 +65,7 @@ static udpreq_t* req_new(
 
 	req = (udpreq_t*)malloc(sizeof(udpreq_t));
 	if (!req) {
-		loge("req_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -137,7 +137,7 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 		if (rr == NULL) {
 			rr = ns_add_optrr(&msg);
 			if (rr == NULL) {
-				loge("udp_query(): Can't add option record to ns_msg_t\n");
+				loge("Can't add option record to ns_msg_t\n");
 				ns_msg_free(&msg);
 				return -1;
 			}
@@ -146,14 +146,14 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 		rr->cls = NS_PAYLOAD_SIZE; /* reset edns payload size */
 
 		if (ns_optrr_set_ecs(rr, (struct sockaddr*)&subnet->addr, subnet->mask, 0) != 0) {
-			loge("udp_query(): Can't add ecs option\n");
+			loge("Can't add ecs option\n");
 			ns_msg_free(&msg);
 			return -1;
 		}
 	}
 
 	if ((len = ns_serialize(&s, &msg, 0)) <= 0) {
-		loge("udp_query() error: ns_serialize() error\n");
+		loge("ns_serialize() error\n");
 		stream_free(&s);
 		ns_msg_free(&msg);
 		return -1;
@@ -168,7 +168,7 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 				(const struct sockaddr*)&c->upstreams[i].addr.addr,
 				c->upstreams[i].addr.addrlen);
 		if (r != s.size) {
-			logw("udp_query() error: udp_send() error - %s\n",
+			logw("udp_send() error - %s\n",
 					get_sockaddrname(&c->upstreams[i].addr));
 		}
 		else {
@@ -177,7 +177,7 @@ static int udp_query(udpreq_t* rq, subnet_t* subnet)
 	}
 
 	if (n == 0) {
-		loge("udp_query() error: udp_send() error, no available upstream\n");
+		loge("udp_send() error, no available upstream\n");
 		stream_free(&s);
 		return -1;
 	}
@@ -195,18 +195,18 @@ static int parse_recv(channel_udp_t* c, char* buf, int buf_len, struct sockaddr*
 
 	result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!result) {
-		loge("parse_recv() error: alloc\n");
+		loge("alloc\n");
 		return -1;
 	}
 
 	if (init_ns_msg(result)) {
-		loge("parse_recv() error: init_ns_msg() error\n");
+		loge("init_ns_msg() error\n");
 		free(result);
 		return -1;
 	}
 
 	if (ns_parse(result, (const uint8_t*)buf, buf_len)) {
-		loge("parse_recv() error: ns_parse() error\n");
+		loge("ns_parse() error\n");
 		ns_msg_free(result);
 		free(result);
 		return -1;
@@ -253,7 +253,7 @@ static int check_expire(channel_udp_t* c)
 			rbtree_remove(&c->reqdic, &req->rbn);
 			c->req_count--;
 
-			loge("udp_query() timeout - %s\n", qr_key(&req->qr));
+			loge("timeout - %s\n", qr_key(&req->qr));
 
 			if (req->callback) {
 				req->callback((channel_t*)c, -1, NULL, FALSE, FALSE, req->cb_state);
@@ -293,7 +293,7 @@ static int upstream_step(channel_t* ctx,
 	
 	if (FD_ISSET(up->sock, errorset)) {
 		int err = getsockerr(up->sock);
-		loge("step(): sock error: errno=%d, %s \n",
+		loge("sock error: errno=%d, %s \n",
 			err, strerror(err));
 		return -1;
 	}
@@ -304,7 +304,7 @@ static int upstream_step(channel_t* ctx,
 		}
 		else {
 			int err = getsockerr(up->sock);
-			loge("step() error: errno=%d, %s\n",
+			loge("errno=%d, %s\n",
 				err, strerror(err));
 			return -1;
 		}
@@ -355,7 +355,7 @@ int channel_udp_query(channel_t* ctx,
 	c->req_count++;
 
 	if (udp_query(req, subnet)) {
-		loge("channel_udp_query() failed\n");
+		loge("udp_query() error\n");
 		dllist_remove(&req->entry);
 		rbtree_remove(&c->reqdic, &req->rbn);
 		c->req_count--;
@@ -440,7 +440,7 @@ int channel_udp_create(
 
 	ctx = (channel_udp_t*)malloc(sizeof(channel_udp_t));
 	if (!ctx) {
-		loge("channel_udp_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
@@ -456,13 +456,13 @@ int channel_udp_create(
 	ctx->timeout = conf->timeout;
 
 	if (parse_args(ctx, args)) {
-		loge("channel_udp_create() error: parse_args() error\n");
+		loge("parse_args() error\n");
 		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}
 
 	if (ctx->timeout <= 0) {
-		loge("channel_udp_create() error: invalid \"timeout\"\n");
+		loge("invalid \"timeout\"\n");
 		free(ctx);
 		return CHANNEL_WRONG_ARG;
 	}
@@ -472,14 +472,14 @@ int channel_udp_create(
 		sock = socket(ctx->upstreams[i].addr.addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
 
 		if (sock == -1) {
-			loge("channel_udp_create() error: create socket error. errno=%d, %s - %s\n",
+			loge("create socket error. errno=%d, %s - %s\n",
 				errno, strerror(errno), get_sockaddrname(&ctx->upstreams[i].addr));
 			free(ctx);
 			return CHANNEL_CREATE_SOCKET;
 		}
 
 		if (setnonblock(sock) != 0) {
-			loge("channel_udp_create() error: set sock non-block failed - %s\n",
+			loge("set sock non-block failed - %s\n",
 				get_sockaddrname(&ctx->upstreams[i].addr));
 			close(sock);
 			free(ctx);

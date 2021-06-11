@@ -261,7 +261,7 @@ static int send_by_tcp(const char *pkg, int len)
 	if (connect(sock, to, tolen) != 0) {
 		int err = errno;
 		if (!is_eagain(err)) {
-			loge("send_by_tcp() error: connect() error: errno=%d, %s - %s\n",
+			fprintf(stderr, "connect() error: errno=%d, %s - %s\n",
 				errno, strerror(errno), get_addrname(to));
 			close(sock);
 			return -1;

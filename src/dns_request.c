@@ -13,7 +13,7 @@ req_t* req_new(const char* data, int datalen,
 
 	req = (req_t*)malloc(sizeof(req_t));
 	if (!req) {
-		loge("req_new() error: alloc\n");
+		loge("alloc\n");
 		return NULL;
 	}
 
@@ -22,7 +22,7 @@ req_t* req_new(const char* data, int datalen,
 	if (fromlen > 0) {
 		req->from = malloc(fromlen);
 		if (!req->from) {
-			loge("req_new() error: alloc\n");
+			loge("alloc\n");
 			free(req);
 			return NULL;
 		}
@@ -36,20 +36,20 @@ req_t* req_new(const char* data, int datalen,
 
 	msg = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!msg) {
-		loge("req_new() error: alloc\n");
+		loge("alloc\n");
 		free(req);
 		return NULL;
 	}
 
 	if (init_ns_msg(msg)) {
-		loge("req_new() error: init_ns_msg() error\n");
+		loge("init_ns_msg() error\n");
 		free(msg);
 		free(req);
 		return NULL;
 	}
 
 	if (ns_parse(msg, (const uint8_t*)data, datalen)) {
-		loge("req_new() error: ns_parse() error\n");
+		loge("ns_parse() error\n");
 		ns_msg_free(msg);
 		free(msg);
 		free(req);

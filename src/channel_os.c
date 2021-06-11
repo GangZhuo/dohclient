@@ -36,7 +36,7 @@ static int query(channel_t* ctx,
 	ns_flags_t flg = { 0 };
 
 	if (msg->qdcount <= 0) {
-		loge("channel_os_reslove() error: no question\n");
+		loge("no question\n");
 		goto error;
 	}
 	else if (msg->qrs->qtype == NS_QTYPE_A) {
@@ -48,7 +48,7 @@ static int query(channel_t* ctx,
 		ip = &((struct sockaddr_in6*)(&addr.addr))->sin6_addr;
 	}
 	else {
-		loge("channel_os_reslove() error: invalid qtype %s - %s\n",
+		loge("invalid qtype %s - %s\n",
 			ns_typename(msg->qrs->qtype),
 			msg->qrs->qname);
 		goto error;
@@ -65,12 +65,12 @@ static int query(channel_t* ctx,
 
 	result = (ns_msg_t*)malloc(sizeof(ns_msg_t));
 	if (!result) {
-		loge("channel_os_reslove() error: alloc\n");
+		loge("alloc\n");
 		goto error;
 	}
 
 	if (channel_build_msg(result, msg->id, &flg, msg->qrs, ip, family)) {
-		loge("channel_os_reslove() error: channel_build_msg() error\n");
+		loge("channel_build_msg() error\n");
 		goto error;
 	}
 
@@ -104,7 +104,7 @@ int channel_os_create(
 
 	ctx = (channel_os_t*)malloc(sizeof(channel_os_t));
 	if (!ctx) {
-		loge("channel_os_create() error: alloc\n");
+		loge("alloc\n");
 		return CHANNEL_ALLOC;
 	}
 
