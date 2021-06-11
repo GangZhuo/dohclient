@@ -86,6 +86,33 @@ int *log_plevel()
 	return &s_log_level;
 }
 
+#ifdef WINDOWS
+static HANDLE hStdout = INVALID_HANDLE_VALUE;
+static HANDLE hStderr = INVALID_HANDLE_VALUE;
+static CONSOLE_SCREEN_BUFFER_INFO csbiInfo = { 0 };
+static WORD wOldColorAttrs = COLOR_FWHITE;
+int log_init()
+{
+	hStderr = GetStdHandle(STD_ERROR_HANDLE);
+	hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (hStdout != INVALID_HANDLE_VALUE) {
+		if (GetConsoleScreenBufferInfo(hStdout, &csbiInfo)) {
+			wOldColorAttrs = csbiInfo.wAttributes;
+			return 0;
+		}
+	}
+
+	if (hStderr != INVALID_HANDLE_VALUE) {
+		if (GetConsoleScreenBufferInfo(hStderr, &csbiInfo)) {
+			wOldColorAttrs = csbiInfo.wAttributes;
+			return 0;
+		}
+	}
+
+	return -1;
+}
+#endif
+
 void log_vwrite(int mask,
 		const char *file, const char *func, int line,
 		const char *fmt, va_list args)
@@ -207,38 +234,39 @@ static char *log_text(int mask, int timestamp,
 	return retval;
 }
 
-void log_vprintf_default(int mask,
-		const char *file, const char *func, int line,
-		const char *fmt, va_list args)
+static inline void log_write_stdout(int mask, int timestamp,
+	const char* file, const char* func, int line,
+	const char* fmt, va_list args)
 {
 	int level = log_level_comp(mask);
-	FILE *pf = level <= LOG_ERR ? stderr : stdout;
+	FILE* pf = level <= LOG_ERR ? stderr : stdout;
 	ttycolor_t color = colors[level];
-	char *text = log_text(mask, 0, file, func, line, fmt, args);
+	char* text = log_text(mask, timestamp, file, func, line, fmt, args);
 #ifdef WINDOWS
-	SetConsoleTextAttribute(pf, color);
+	HANDLE h = level <= LOG_ERR ? hStderr : hStdout;
+	if (h != INVALID_HANDLE_VALUE)
+		SetConsoleTextAttribute(h, color);
 	fprintf(pf, "%s", text);
+	if (h != INVALID_HANDLE_VALUE)
+		SetConsoleTextAttribute(h, wOldColorAttrs);
 #else
 	fprintf(pf, "%s%s", color, text);
 #endif
 	free(text);
 }
 
+void log_vprintf_default(int mask,
+		const char *file, const char *func, int line,
+		const char *fmt, va_list args)
+{
+	log_write_stdout(mask, 0, file, func, line, fmt, args);
+}
+
 void log_vprintf_with_timestamp_default(int mask,
 		const char *file, const char *func, int line,
 		const char *fmt, va_list args)
 {
-	int level = log_level_comp(mask);
-	FILE *pf = level <= LOG_ERR ? stderr : stdout;
-	ttycolor_t color = colors[level];
-	char *text = log_text(mask, 1, file, func, line, fmt, args);
-#ifdef WINDOWS
-	SetConsoleTextAttribute(pf, color);
-	fprintf(pf, "%s", text);
-#else
-	fprintf(pf, "%s%s", color, text);
-#endif
-	free(text);
+	log_write_stdout(mask, 1, file, func, line, fmt, args);
 }
 
 void log_vprintf_writefile(int mask,

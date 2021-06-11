@@ -1447,6 +1447,7 @@ int main(int argc, char** argv)
 {
 #ifdef WINDOWS
 	win_init();
+	log_init();
 #endif
 
 	conf.log_level = loglevel;

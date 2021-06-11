@@ -51,6 +51,10 @@ extern log_vprintf_fun log_vprintf_with_timestamp;
 int *log_pflags();
 int *log_plevel();
 
+#ifdef WINDOWS
+int log_init();
+#endif
+
 const char* log_priorityname(int priority);
 void log_write(int mask,
 		const char *file, const char *func, int line,
