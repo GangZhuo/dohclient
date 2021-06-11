@@ -228,7 +228,7 @@ static char *log_text(int mask, int timestamp,
 	fname = get_filename(file);
 	text = log_vmprintf(fmt, args);
 
-	retval = log_mprintf("%s [%s] %s:%d %s", date, extra_msg, fname, line, text);
+	retval = log_mprintf("%s[%s] %s:%d %s", date, extra_msg, fname, line, text);
 
 	free(text);
 	return retval;
@@ -240,7 +240,9 @@ static inline void log_write_stdout(int mask, int timestamp,
 {
 	int level = log_level_comp(mask);
 	FILE* pf = level <= LOG_ERR ? stderr : stdout;
-	ttycolor_t color = colors[level];
+	ttycolor_t color =
+		(level >= 0 && level < (sizeof(colors) / sizeof(colors[0]))) ?
+		colors[level] : COLOR_FWHITE;
 	char* text = log_text(mask, timestamp, file, func, line, fmt, args);
 #ifdef WINDOWS
 	HANDLE h = level <= LOG_ERR ? hStderr : hStdout;
