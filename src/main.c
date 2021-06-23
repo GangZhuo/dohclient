@@ -1190,6 +1190,7 @@ static int init_dohclient()
 	if (init_listens(listens, listen_num) != 0)
 		return -1;
 
+	logn(DOHCLIENT_NAME " v" DOHCLIENT_VERSION "%s\n", git_version());
 	print_listens(listens, listen_num);
 	conf_print(&conf);
 
