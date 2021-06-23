@@ -116,7 +116,7 @@
       <Command>xcopy /Y openssl\x86\bin\*.dll $(SolutionDir)$(Configuration)\bin\</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content ..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content ..\src\build_version.h"</Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -136,7 +136,7 @@
       <Command>xcopy /Y openssl\x64\bin\*.dll $(SolutionDir)$(Platform)\$(Configuration)\bin\</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content ..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content ..\src\build_version.h"</Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -160,7 +160,7 @@
       <Command>xcopy /Y openssl\x86\bin\*.dll $(SolutionDir)$(Configuration)\bin\</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content ..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content ..\src\build_version.h"</Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -184,7 +184,7 @@
       <Command>xcopy /Y openssl\x64\bin\*.dll $(SolutionDir)$(Platform)\$(Configuration)\bin\</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content ..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content ..\src\build_version.h"</Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
