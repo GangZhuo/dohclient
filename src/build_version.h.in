@@ -1,0 +1,9 @@
+#ifndef DOHCLIENT_BUILD_VERSION_H_
+#define DOHCLIENT_BUILD_VERSION_H_
+
+#ifndef GIT_VERSION
+#define GIT_VERSION "$GIT_VERSION"
+#endif
+
+#endif
+

@@ -77,9 +77,8 @@ static void sig_handler(int signo);
 
 static void usage()
 {
-	printf("%s\n", "\n"
-		DOHCLIENT_NAME " " DOHCLIENT_VERSION "\n\
-\n\
+	printf("\n" DOHCLIENT_NAME " v" DOHCLIENT_VERSION "%s\n%s\n", git_version(),
+"\n\
 Usage:\n\
 \n\
 dohclient [-b BIND_ADDR] [-p BIND_PORT] [--config=CONFIG_PATH]\n\
@@ -1465,7 +1464,7 @@ int main(int argc, char** argv)
 	}
 
 	if (conf.is_print_version) {
-		printf(DOHCLIENT_NAME " %s\n", DOHCLIENT_VERSION);
+		printf(DOHCLIENT_NAME " v" DOHCLIENT_VERSION "%s\n", git_version());
 		exit(0);
 		return EXIT_SUCCESS;
 	}

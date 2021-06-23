@@ -28,9 +28,8 @@ static char recvbuffer[2 * 1024 * 1024]; /* 2MiB */
 
 static void usage()
 {
-	fprintf(stdout, "%s\n", "\n"
-		DOHCLIENT_NAME "-cache " DOHCLIENT_VERSION "\n\
-\n\
+	fprintf(stdout, DOHCLIENT_NAME "-cache v" DOHCLIENT_VERSION"%s\n%s\n", git_version(),
+"\n\
 Usage:\n\
 \n\
 " DOHCLIENT_NAME "-cache [-s HOST:PORT] [-t TIMEOUT] [-T] [-v] [-h] \n\
@@ -396,7 +395,7 @@ int main(int argc, char **argv)
 			exit(0);
 			break;
 		case 'v':
-			fprintf(stdout, DOHCLIENT_NAME "-cache %s\n", DOHCLIENT_VERSION);
+			fprintf(stdout, DOHCLIENT_NAME "-cache v" DOHCLIENT_VERSION "%s\n", git_version());
 			exit(0);
 			break;
 		case 's':

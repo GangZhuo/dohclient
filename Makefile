@@ -1,6 +1,17 @@
 
 debug = 0
 
+GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || true)
+
+ifneq ("$(GIT_HASH)", "")
+    GIT_DIRTY := $(shell git diff --stat 2>/dev/null || true)
+    ifneq ("$(GIT_DIRTY)", "")
+        GIT_VERSION = $(GIT_HASH)-dirty
+    else
+        GIT_VERSION = $(GIT_HASH)
+    endif
+endif
+
 OBJS = \
 	rbtree/rbtree.o \
 	http-parser/http_parser.o \
@@ -45,14 +56,19 @@ endif
 
 all: dohclient dohclient-cache
 
-dohclient: $(OBJS) src/main.o
+dohclient: src/build_version.h $(OBJS) src/main.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
-dohclient-cache: $(OBJS_DOHCLIENT_CACHE) src/dohclient-cache.o
+dohclient-cache: src/build_version.h $(OBJS_DOHCLIENT_CACHE) src/dohclient-cache.o
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)
+
+.PHONY : src/build_version.h
+src/build_version.h:
+	@cat src/build_version.h.in | sed "s/\$$GIT_VERSION/$(GIT_VERSION)/g" > src/build_version.h
+	@echo GIT_VERSION=$(GIT_VERSION)
 
 .PHONY : install
 install:
