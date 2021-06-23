@@ -4,8 +4,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 16.0.29230.47
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dohclient", "dohclient.vcxproj", "{6BA7D5B0-9114-499F-9C58-F2068F3A1084}"
+	ProjectSection(ProjectDependencies) = postProject
+		{75E4BAD1-8273-4629-8606-03B63CA704A1} = {75E4BAD1-8273-4629-8606-03B63CA704A1}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dohclient-cache", "dohclient-cache.vcxproj", "{8A07E94A-769B-4EB0-BED3-9A580C0F4DE4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{75E4BAD1-8273-4629-8606-03B63CA704A1} = {75E4BAD1-8273-4629-8606-03B63CA704A1}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "build_version", "build_version.vcxproj", "{75E4BAD1-8273-4629-8606-03B63CA704A1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,6 +39,14 @@ Global
 		{8A07E94A-769B-4EB0-BED3-9A580C0F4DE4}.Release|x64.Build.0 = Release|x64
 		{8A07E94A-769B-4EB0-BED3-9A580C0F4DE4}.Release|x86.ActiveCfg = Release|Win32
 		{8A07E94A-769B-4EB0-BED3-9A580C0F4DE4}.Release|x86.Build.0 = Release|Win32
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Debug|x64.ActiveCfg = Debug|x64
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Debug|x64.Build.0 = Debug|x64
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Debug|x86.ActiveCfg = Debug|Win32
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Debug|x86.Build.0 = Debug|Win32
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Release|x64.ActiveCfg = Release|x64
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Release|x64.Build.0 = Release|x64
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Release|x86.ActiveCfg = Release|Win32
+		{75E4BAD1-8273-4629-8606-03B63CA704A1}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

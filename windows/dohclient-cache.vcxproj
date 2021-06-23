@@ -113,7 +113,8 @@
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -130,7 +131,8 @@
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -151,7 +153,8 @@
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -172,7 +175,8 @@
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

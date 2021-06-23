@@ -20,11 +20,11 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
-    <ProjectGuid>{6BA7D5B0-9114-499F-9C58-F2068F3A1084}</ProjectGuid>
+    <ProjectGuid>{75E4BAD1-8273-4629-8606-03B63CA704A1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>dohclient</RootNamespace>
+    <RootNamespace>build_version</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>dohclient</ProjectName>
+    <ProjectName>build_version</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -105,19 +105,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>DOHCLIENT_CACHE_API;WIN32;WINDOWS;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WINDOWS;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\argp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>xcopy /Y openssl\x86\bin\*.dll $(SolutionDir)$(Configuration)\bin\</Command>
-    </PostBuildEvent>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -126,19 +122,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>DOHCLIENT_CACHE_API;WIN32;WINDOWS;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WINDOWS;_DEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\argp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>xcopy /Y openssl\x64\bin\*.dll $(SolutionDir)$(Platform)\$(Configuration)\bin\</Command>
-    </PostBuildEvent>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -149,7 +141,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>DOHCLIENT_CACHE_API;WIN32;WINDOWS;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WINDOWS;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\argp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -158,12 +150,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>xcopy /Y openssl\x86\bin\*.dll $(SolutionDir)$(Configuration)\bin\</Command>
-    </PostBuildEvent>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -174,7 +162,7 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>DOHCLIENT_CACHE_API;WIN32;WINDOWS;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;WINDOWS;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(SolutionDir)\argp\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -183,73 +171,10 @@
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalDependencies>libcrypto.lib;libssl.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>xcopy /Y openssl\x64\bin\*.dll $(SolutionDir)$(Platform)\$(Configuration)\bin\</Command>
-    </PostBuildEvent>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>powershell -Command "$ver = (git rev-parse --short HEAD);$dirty = (git diff --stat);if (-not ([string]::IsNullOrEmpty($dirty))) {$ver+='-dirty'} echo GIT_VERSION=\"$ver\";(Get-Content $(ProjectDir)..\src\build_version.h.in) | ForEach-Object { $_ -replace '\$GIT_VERSION', \"$ver\" } | Set-Content $(ProjectDir)..\src\build_version.h"</Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="..\http-parser\http_parser.c" />
-    <ClCompile Include="..\rbtree\rbtree.c" />
-    <ClCompile Include="..\src\base64url.c" />
-    <ClCompile Include="..\src\cache_api.c" />
-    <ClCompile Include="..\src\channel.c" />
-    <ClCompile Include="..\src\channel_chndoh.c" />
-    <ClCompile Include="..\src\channel_doh.c" />
-    <ClCompile Include="..\src\channel_cache.c" />
-    <ClCompile Include="..\src\channel_os.c" />
-    <ClCompile Include="..\src\channel_tcp.c" />
-    <ClCompile Include="..\src\channel_udp.c" />
-    <ClCompile Include="..\src\channel_hosts.c" />
-    <ClCompile Include="..\src\chnroute.c" />
-    <ClCompile Include="..\src\config.c" />
-    <ClCompile Include="..\src\dns_request.c" />
-    <ClCompile Include="..\src\http.c" />
-    <ClCompile Include="..\src\main.c" />
-    <ClCompile Include="..\src\log.c" />
-    <ClCompile Include="..\src\mleak.c" />
-    <ClCompile Include="..\src\netutils.c" />
-    <ClCompile Include="..\src\ns_msg.c" />
-    <ClCompile Include="..\src\sha1.c" />
-    <ClCompile Include="..\src\stream.c" />
-    <ClCompile Include="..\src\utils.c" />
-    <ClCompile Include="..\src\httpserver.c" />
-    <ClCompile Include="argp\getopt.c" />
-    <ClCompile Include="win.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\http-parser\http_parser.h" />
-    <ClInclude Include="..\rbtree\rbtree.h" />
-    <ClInclude Include="..\src\base64url.h" />
-    <ClInclude Include="..\src\cache_api.h" />
-    <ClInclude Include="..\src\channel.h" />
-    <ClInclude Include="..\src\channel_chndoh.h" />
-    <ClInclude Include="..\src\channel_doh.h" />
-    <ClInclude Include="..\src\channel_cache.h" />
-    <ClInclude Include="..\src\channel_os.h" />
-    <ClInclude Include="..\src\channel_tcp.h" />
-    <ClInclude Include="..\src\channel_udp.h" />
-    <ClInclude Include="..\src\channel_hosts.h" />
-    <ClInclude Include="..\src\chnroute.h" />
-    <ClInclude Include="..\src\config.h" />
-    <ClInclude Include="..\src\dllist.h" />
-    <ClInclude Include="..\src\dns_request.h" />
-    <ClInclude Include="..\src\http.h" />
-    <ClInclude Include="..\src\log.h" />
-    <ClInclude Include="..\src\mleak.h" />
-    <ClInclude Include="..\src\netutils.h" />
-    <ClInclude Include="..\src\ns_msg.h" />
-    <ClInclude Include="..\src\sha1.h" />
-    <ClInclude Include="..\src\stream.h" />
-    <ClInclude Include="..\src\utils.h" />
-    <ClInclude Include="..\src\version.h" />
-    <ClInclude Include="..\src\httpserver.h" />
-    <ClInclude Include="argp\getopt.h" />
-    <ClInclude Include="win.h" />
-  </ItemGroup>
   <ItemGroup>
     <None Include="..\src\build_version.h.in" />
   </ItemGroup>
