@@ -51,4 +51,6 @@ windows/Release
 windows/x64
 
 windows/openssl
+src/build_version.h
+
 
