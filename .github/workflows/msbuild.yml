@@ -23,7 +23,7 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.0.2
 
-    - name: checkout submodules
+    - name: Checkout Submodules
       run: git submodule update --init --recursive
 
     - name: Download Openssl
@@ -31,6 +31,10 @@ jobs:
 
     - name: Extract Openssl
       run: 7z x -y windows/openssl/openssl.zip -owindows/openssl
+
+      # Restore, so no "-dirty" in the build version
+    - name: Restore windows/openssl/README.md
+      run: git checkout windows/openssl/README.md
 
     - name: Build
       working-directory: ${{env.GITHUB_WORKSPACE}}
