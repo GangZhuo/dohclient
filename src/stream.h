@@ -44,6 +44,8 @@ int stream_write(stream_t *stream, const char *s, int n);
 
 int stream_writei(stream_t *stream, int v, int nb);
 
+int stream_writell(stream_t *stream, long long v, int nb);
+
 int stream_vwritef(stream_t *stream, const char *fmt, va_list args);
 
 int stream_writef(stream_t *stream, const char *fmt, ...);
@@ -84,6 +86,9 @@ write elements.
 */
 #define stream_writee(s, p, sz, n) \
 	stream_write((s), (p), (sz) * (n))
+
+#define stream_writei64(s, v) \
+	stream_writell((s), (v), 8)
 
 #define stream_writei32(s, v) \
 	stream_writei((s), (v), 4)

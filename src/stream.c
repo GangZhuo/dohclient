@@ -187,6 +187,21 @@ int stream_writei(stream_t *stream, int v, int nb)
 	return i;
 }
 
+int stream_writell(stream_t *stream, long long v, int nb)
+{
+	int i;
+	if (stream_rcap(stream) < nb) {
+		if (stream_set_cap(stream, stream->pos + align(nb)))
+			return -1;
+	}
+	for (i = 0;
+		i < nb && stream->size < stream->cap;
+		i++, stream->size++) {
+		stream->array[stream->pos++] = (char)((v >> ((nb - i - 1) * 8)) & 0xFF);
+	}
+	return i;
+}
+
 int stream_seti(stream_t *stream, int position, int v, int nb)
 {
 	int i;

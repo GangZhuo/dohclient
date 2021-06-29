@@ -5,9 +5,10 @@
 #define _M
 #define REQ_KEY_SIZE (NS_QNAME_SIZE + NS_QTYPE_NAME_SIZE + NS_QCLASS_NAME_SIZE)
 
-#define CACHEDB_HEAD_SIZE 24
-#define CACHEDB_MAGIC     "DCDB"
-#define CACHEDB_VERSION   1
+#define CACHEDB_HEAD_SIZE    24
+#define CACHEDB_MAGIC        "DCDB"
+#define CACHEDB_VERSION_V1   1
+#define CACHEDB_VERSION_V2   2
 
 typedef struct cache_t {
 	CHANNEL_BASE(_M)
@@ -289,7 +290,8 @@ int cache_edit(channel_t *ctx, const char *key, const ns_msg_t *msg)
 	return 0;
 }
 
-int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
+static int cache_add_with_expire(channel_t* ctx, const char *key,
+		const ns_msg_t* msg, int force, time_t expire)
 {
 	cache_t* c = (cache_t*)ctx;
 	cache_item_t* item;
@@ -327,8 +329,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 			loge("cache_item_new() error\n");
 			return -1;
 		}
-
-		update_expire(c, item, ttl);
+		if (expire > 0)
+			item->expire = expire;
+		else
+			update_expire(c, item, ttl);
 		cache_item_add(c, item);
 		rbtree_insert(&c->dic, &item->node);
 		logi("cache added: %s - %s\n", key, msg_answers(msg));
@@ -343,7 +347,10 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 		ns_msg_free(item->msg);
 		free(item->msg);
 		item->msg = newmsg;
-		update_expire(c, item, ttl);
+		if (expire > 0)
+			item->expire = expire;
+		else
+			update_expire(c, item, ttl);
 		dllist_remove(&item->entry);
 		cache_item_add(c, item);
 		logi("cache updated: %s - %s\n", key, msg_answers(msg));
@@ -353,6 +360,11 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 	}
 
 	return 0;
+}
+
+int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
+{
+	return cache_add_with_expire(ctx, key, msg, force, 0);
 }
 
 int cache_save_cachedb(channel_t *ctx, const char *filename)
@@ -391,7 +403,7 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 	}
 
 	/* Version (2 bytes) */
-	if (stream_writei(s, CACHEDB_VERSION, 2) == -1) {
+	if (stream_writei(s, CACHEDB_VERSION_V2, 2) == -1) {
 		loge("stream_write() error\n");
 		fclose(fp);
 		return -1;
@@ -422,6 +434,8 @@ int cache_save_cachedb(channel_t *ctx, const char *filename)
 
 		/* write length */
 		stream_writei16(s, 0);
+
+		stream_writei64(s, item->expire);
 
 		if ((msglen = ns_serialize(s, item->msg, 0)) <= 0) {
 			loge("ns_serialize() error\n");
@@ -461,6 +475,8 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 	const char *key;
 	int dbver = 0;
 	int added = 0;
+	long long expire;
+	int i;
 
 	if (!filename || !*filename) {
 		loge("Invalid filename: %s\n", filename);
@@ -484,7 +500,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 	dbver = buf[sizeof(CACHEDB_MAGIC)];
 	dbver <<= 8;
 	dbver |= buf[sizeof(CACHEDB_MAGIC) + 1];
-	if (dbver != CACHEDB_VERSION) {
+	if (dbver != CACHEDB_VERSION_V1 && dbver != CACHEDB_VERSION_V2) {
 		loge("Unsupport version: %d - %s\n",
 				dbver, filename);
 		fclose(fp);
@@ -512,6 +528,23 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 			return -1;
 		}
 
+		if (dbver == CACHEDB_VERSION_V2) {
+			n = fread(buf, 1, 8, fp);
+			if (n != 8) {
+				loge("Invalid format: %s\n", filename);
+				fclose(fp);
+				return -1;
+			}
+			expire = 0;
+			for (i = 0; i < 8; i++) {
+				expire <<= 8;
+				expire |= buf[i];
+			}
+		}
+		else {
+			expire = 0;
+		}
+
 		n = fread(buf, 1, msglen, fp);
 		if (n != msglen) {
 			loge("Invalid format: %s\n", filename);
@@ -528,7 +561,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 		}
 
 		key = msg_key(msg);
-		if (cache_add(ctx, key, msg, override) == -1) {
+		if (cache_add_with_expire(ctx, key, msg, override, expire) == -1) {
 			loge("cache_add() error: key=%s, %s\n",
 					key, msg_answers(msg));
 			fclose(fp);
