@@ -316,7 +316,7 @@ int cache_add(channel_t* ctx, const char *key, const ns_msg_t* msg, int force)
 
 	/* no ttl */
 	if (ttl < 1) {
-		loge("no ttl\n");
+		logi("no ttl: %s - %s\n", key, msg_answers(msg));
 		return -1;
 	}
 
