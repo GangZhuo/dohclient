@@ -68,7 +68,7 @@ static void cache_item_add(cache_t* c, cache_item_t* item)
 	cache_item_t* p;
 
 	/* TODO: Use Heap Data Structure, see https://en.wikipedia.org/wiki/Heap_(data_structure) */
-	dllist_foreach_revert(&c->items, cur, nxt,
+	dllist_foreach(&c->items, cur, nxt,
 		cache_item_t, p, entry) {
 		
 		if (p->expire >= item->expire) {
