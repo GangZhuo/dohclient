@@ -477,6 +477,7 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 	int added = 0;
 	long long expire;
 	int i;
+	time_t now;
 
 	if (!filename || !*filename) {
 		loge("Invalid filename: %s\n", filename);
@@ -505,6 +506,10 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 				dbver, filename);
 		fclose(fp);
 		return -1;
+	}
+
+	if (dbver == CACHEDB_VERSION_V2) {
+		now = time(NULL);
 	}
 
 	while ((n = fread(buf, 1, 2, fp)) > 0) {
@@ -561,7 +566,19 @@ int cache_load_cachedb(channel_t *ctx, const char *filename, int override)
 		}
 
 		key = msg_key(msg);
-		if (cache_add_with_expire(ctx, key, msg, override, expire) == -1) {
+		if (dbver == CACHEDB_VERSION_V2) {
+			if (expire > now) {
+				n = cache_add_with_expire(ctx, key, msg, override, expire);
+			}
+			else {
+				n = 0;
+				logn("Skip %s, since expired\n", key);
+			}
+		}
+		else {
+			n = cache_add_with_expire(ctx, key, msg, override, expire);
+		}
+		if (n == -1) {
 			loge("cache_add() error: key=%s, %s\n",
 					key, msg_answers(msg));
 			fclose(fp);
