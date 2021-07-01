@@ -403,13 +403,13 @@ static int build_request_nsmsg(ns_msg_t* msg, channel_req_t* req)
 	return 0;
 }
 
-static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int index)
+static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int *index)
 {
 	if (rr->type == NS_QTYPE_A) {
 		struct in_addr* addr = (struct in_addr*)rr->rdata;
 		int flags = 0;
 		/* Only the first IP needs to detect the blacklist */
-		if (index == 0 && chnroute_test4(ctx->blacklist, addr)) {
+		if ((*index) == 0 && chnroute_test4(ctx->blacklist, addr)) {
 			flags |= FLG_BLACKLIST;
 		}
 		if (chnroute_test4(ctx->chnr, addr)) {
@@ -418,13 +418,14 @@ static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int index)
 		else {
 			flags |= (FLG_A | FLG_A_FRN);
 		}
+		(*index)++;
 		return flags;
 	}
 	else if (rr->type == NS_QTYPE_AAAA) {
 		struct in6_addr* addr = (struct in6_addr*)rr->rdata;
 		int flags = 0;
 		/* Only the first IP needs to detect the blacklist */
-		if (index == 0 && chnroute_test6(ctx->blacklist, addr)) {
+		if ((*index) == 0 && chnroute_test6(ctx->blacklist, addr)) {
 			flags |= FLG_BLACKLIST;
 		}
 		if (chnroute_test6(ctx->chnr, addr)) {
@@ -433,6 +434,7 @@ static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int index)
 		else {
 			flags |= (FLG_AAAA | FLG_AAAA_FRN);
 		}
+		(*index)++;
 		return flags;
 	}
 	else if (rr->type == NS_QTYPE_PTR) {
@@ -468,19 +470,19 @@ static int get_rr_flags(channel_chndoh_t* ctx, ns_rr_t* rr, int index)
 
 static int get_nsmsg_flags(channel_chndoh_t* ctx, ns_msg_t* msg)
 {
-	int i, rrcount, flags = 0;
+	int i, rrcount, flags = 0, x = 0;
 	ns_rr_t* rr;
 
 	rrcount = msg->ancount + msg->nscount;
 	for (i = 0; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		flags |= get_rr_flags(ctx, rr, i);
+		flags |= get_rr_flags(ctx, rr, &x);
 	}
 
 	rrcount = ns_rrcount(msg);
 	for (; i < rrcount; i++) {
 		rr = msg->rrs + i;
-		flags |= get_rr_flags(ctx, rr, i);
+		flags |= get_rr_flags(ctx, rr, &x);
 	}
 
 	return flags;
