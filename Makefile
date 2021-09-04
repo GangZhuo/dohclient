@@ -57,10 +57,10 @@ endif
 all: dohclient dohclient-cache
 
 dohclient: src/build_version.h $(OBJS) src/main.o
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
+	$(CC) -o $@ $(OBJS) src/main.o $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 dohclient-cache: src/build_version.h $(OBJS_DOHCLIENT_CACHE) src/dohclient-cache.o
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS) $(MYLIBS)
+	$(CC) -o $@ $(OBJS_DOHCLIENT_CACHE) src/dohclient-cache.o $(LDFLAGS) $(LIBS) $(MYLIBS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)
