@@ -885,15 +885,17 @@ static int do_loop()
 
 			if (!running) break;
 
-			max_fd = MAX(max_fd, listen->sock);
+			if (listen->sock) {
+				max_fd = MAX(max_fd, listen->sock);
+				FD_SET(listen->sock, &readset);
+				FD_SET(listen->sock, &errorset);
+			}
 
-			FD_SET(listen->sock, &readset);
-			FD_SET(listen->sock, &errorset);
-
-			max_fd = MAX(max_fd, listen->usock);
-
-			FD_SET(listen->usock, &readset);
-			FD_SET(listen->usock, &errorset);
+			if (listen->usock) {
+				max_fd = MAX(max_fd, listen->usock);
+				FD_SET(listen->usock, &readset);
+				FD_SET(listen->usock, &errorset);
+			}
 		}
 
 		dllist_foreach(&peers, cur, nxt, peer_t, peer, conn.entry) {
@@ -956,22 +958,26 @@ static int do_loop()
 
 			if (!running) break;
 
-			if (FD_ISSET(listen->sock, &errorset)) {
-				loge("listen.sock error\n");
-				return -1;
+			if (listen->sock) {
+				if (FD_ISSET(listen->sock, &errorset)) {
+					loge("listen.sock error\n");
+					return -1;
+				}
+
+				if (FD_ISSET(listen->sock, &readset)) {
+					r = peer_accept(i);
+				}
 			}
 
-			if (FD_ISSET(listen->usock, &errorset)) {
-				loge("listen.usock error\n");
-				return -1;
-			}
+			if (listen->usock) {
+				if (FD_ISSET(listen->usock, &errorset)) {
+					loge("listen.usock error\n");
+					return -1;
+				}
 
-			if (FD_ISSET(listen->sock, &readset)) {
-				r = peer_accept(i);
-			}
-
-			if (FD_ISSET(listen->usock, &readset)) {
-				r = server_udp_recv(i);
+				if (FD_ISSET(listen->usock, &readset)) {
+					r = server_udp_recv(i);
+				}
 			}
 		}
 

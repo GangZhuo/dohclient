@@ -553,20 +553,21 @@ int udp_listen(listen_t* ctx)
 
 int init_listens(listen_t* listens, int listen_num)
 {
-	int i, num = listen_num;
+	int i, num = listen_num, n = 0;
 	listen_t* listen;
 
 	for (i = 0; i < num; i++) {
 		listen = listens + i;
-		if (tcp_listen(listen) != 0) {
-			return -1;
+		if (tcp_listen(listen) == 0) {
+			n++;
 		}
-		if (udp_listen(listen) != 0) {
-			close(listen->sock);
-			listen->sock = 0;
-			return -1;
+		if (udp_listen(listen) == 0) {
+			n++;
 		}
 	}
+
+	if (n == 0)
+		return -1;
 
 	return 0;
 }
@@ -575,8 +576,10 @@ void print_listens(const listen_t* listens, int listen_num)
 {
 	int i;
 	for (i = 0; i < listen_num; i++) {
-		logn("listen on %s\n",
-			get_sockaddrname(&listens[i].addr));
+		logn("listen on %s [tcp sock=%d, udp sock=%d]\n",
+			get_sockaddrname(&listens[i].addr),
+			(int)listens[i].sock,
+			(int)listens[i].usock);
 	}
 }
 
