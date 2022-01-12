@@ -1293,6 +1293,7 @@ BOOL WINAPI sig_handler(DWORD signo)
 	case CTRL_CLOSE_EVENT:
 	case CTRL_LOGOFF_EVENT:
 	case CTRL_SHUTDOWN_EVENT:
+		logn("sinno=%d\n", (int)signo);
 		running = 0;
 		break;
 	default:
@@ -1329,6 +1330,7 @@ static void ServiceMain(int argc, char** argv)
 	SetServiceStatus(hStatus, &ServiceStatus);
 
 	if (do_loop() != 0) {
+		loge("Service exit with error\n");
 		ServiceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
 		ServiceStatus.dwServiceSpecificExitCode = ERROR_SERVICE_NOT_ACTIVE;
 		goto exit;
@@ -1439,8 +1441,10 @@ static void run_as_daemonize()
 
 	close(STDIN_FILENO);
 
-	if (do_loop() != 0)
+	if (do_loop() != 0) {
+		loge("Service exit with error\n");
 		exit(1);
+	}
 
 	uninit_dohclient();
 
@@ -1486,8 +1490,10 @@ int main(int argc, char** argv)
 	if (init_dohclient() != 0)
 		return EXIT_FAILURE;
 
-	if (do_loop() != 0)
+	if (do_loop() != 0) {
+		loge("Exit with error\n");
 		return EXIT_FAILURE;
+	}
 
 	uninit_dohclient();
 
